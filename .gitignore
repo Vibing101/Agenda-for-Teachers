@@ -1,0 +1,12 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+# Runtime data produced by the app; never committed.
+data/
+exports/
+
+.DS_Store
+*.local
+coverage/

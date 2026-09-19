@@ -1,0 +1,113 @@
+# The milestone gate from docs/ENGINEERING.md, steps 1-4.
+#
+# Steps 5 (launch from inside a real cloud-synced folder on both OSes) and 6
+# (the dated release note) are human steps by nature and are recorded in
+# docs/milestones/ instead — CI cannot install Google Drive or OneDrive and
+# double-click an app.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Gate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # --- Gate step 1: typecheck ---
+      - name: Typecheck
+        run: npm run typecheck
+
+      # --- Gate step 2: lint (both sides) ---
+      - name: Lint frontend
+        run: npm run lint
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Check Rust formatting
+        working-directory: src-tauri
+        run: cargo fmt --all --check
+
+      - name: Lint Rust
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      # --- Gate step 3: tests ---
+      - name: Frontend tests
+        run: npm test
+
+      # Covers the persistence round-trip and the backup-retention rules.
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test
+
+      # --- Gate step 4: packaged build ---
+      - name: Packaged build
+        run: npm run tauri build
+
+      # Structural check that the bundle is really there and really executable,
+      # rather than trusting that the build command exited 0.
+      - name: Verify the macOS bundle
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          APP="src-tauri/target/release/bundle/macos/Teacher Planner.app"
+          BIN="$APP/Contents/MacOS/teacher-planner"
+          test -d "$APP"             || { echo "::error::no .app bundle"; exit 1; }
+          test -f "$APP/Contents/Info.plist" || { echo "::error::no Info.plist"; exit 1; }
+          test -x "$BIN"             || { echo "::error::binary missing or not executable"; exit 1; }
+          file "$BIN" | grep -q "Mach-O"     || { echo "::error::not a Mach-O binary"; exit 1; }
+          echo "Bundle OK: $(du -sh "$APP" | cut -f1)"
+
+      - name: Verify the Windows bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = "src-tauri/target/release/teacher-planner.exe"
+          if (!(Test-Path $exe)) { Write-Error "no .exe produced" }
+          $installer = Get-ChildItem -Recurse -Filter *-setup.exe `
+            -Path src-tauri/target/release/bundle -ErrorAction SilentlyContinue
+          if (!$installer) { Write-Error "no NSIS installer produced" }
+          Write-Host "Bundle OK: $exe and $($installer.Name)"
+
+      - name: Upload the packaged build
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teacher-planner-${{ matrix.os }}
+          path: |
+            src-tauri/target/release/bundle/macos/*.app
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: ignore
+          retention-days: 14

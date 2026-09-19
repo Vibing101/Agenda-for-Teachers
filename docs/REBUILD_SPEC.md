@@ -272,10 +272,25 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
 | Backup retention schedule | Confirmed as proposed (7 days full, then daily to 30 days, then monthly) |
 | Concurrent-edit conflict (disk changed since last read) | Block the write and require a manual reload before saving — no alongside-save fallback |
 | Visual design | The app's own styling — not a visual copy of the source PDF's layout |
+| SQLite journal mode | `DELETE`, not WAL (M0) — WAL keeps committed data in `-wal`/`-shm` sidecars, which a sync client can carry away separately from `planner.sqlite` and leave a torn database on the other device |
+| SQLite connection lifetime | Opened per operation, not held for the session (M0) — keeps the on-disk file the single source of truth, which is what makes change detection meaningful |
+| Disk-change detection signal | SHA-256 of the file's contents (M0) — size and mtime are too weak, since a sync client can rewrite a file to the same length and mtime can be preserved across a sync |
+| When the disk-changed block fires | When the file changes *after the running app has read it* (M0) — an edit made while the app was closed is read fresh on the next launch, because that is the normal device-switch case and blocking there would warn the teacher on essentially every switch. This supersedes the literal wording of M0's fourth acceptance criterion |
+| Frontend framework | React + TypeScript + Vite (M0) — the "keep it boring" slot, filled |
+| Code signing | Not done for v1; macOS builds are unsigned and un-notarized, so a downloaded copy needs right-click → Open once. Revisit before M9 |
 
 ### Open — flag back rather than silently decide
 
 None currently — every open item raised during spec drafting was answered by the product owner and is recorded in the Resolved table above.
+
+### Carried risks
+
+- **The Windows double-click-from-a-cloud-synced-folder run has never been
+  performed by a human.** M0 was signed off without it (2026-09-19); CI builds
+  and structurally verifies the Windows bundle, but building is not launching.
+  This is the exact failure mode that killed the previous attempt, so gate step 5
+  stays non-skippable, and the first Windows run of any milestone should happen
+  from inside a Drive- and a OneDrive-synced folder.
 
 ## Engineering process & repo conventions
 
