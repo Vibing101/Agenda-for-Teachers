@@ -277,7 +277,8 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
 | Disk-change detection signal | SHA-256 of the file's contents (M0) — size and mtime are too weak, since a sync client can rewrite a file to the same length and mtime can be preserved across a sync |
 | When the disk-changed block fires | When the file changes *after the running app has read it* (M0) — an edit made while the app was closed is read fresh on the next launch, because that is the normal device-switch case and blocking there would warn the teacher on essentially every switch. This supersedes the literal wording of M0's fourth acceptance criterion |
 | Frontend framework | React + TypeScript + Vite (M0) — the "keep it boring" slot, filled |
-| Code signing | Not done for v1; macOS builds are unsigned and un-notarized, so a downloaded copy needs right-click → Open once. Revisit before M9 |
+| Code signing | Not done for v1. **This is now known to be worse on Windows than assumed** — see Carried risks. macOS needs a one-time right-click → Open; Windows blocks an internet-tagged unsigned build behind a SmartScreen dialog. Revisit before M9, and sooner if the app is to be handed to the teacher in the meantime |
+| macOS binary architecture | Universal (x86_64 + arm64), so the app runs natively on both Intel and Apple Silicon Macs instead of depending on Rosetta |
 
 ### Open — flag back rather than silently decide
 
@@ -285,12 +286,30 @@ None currently — every open item raised during spec drafting was answered by t
 
 ### Carried risks
 
-- **The Windows double-click-from-a-cloud-synced-folder run has never been
-  performed by a human.** M0 was signed off without it (2026-09-19); CI builds
-  and structurally verifies the Windows bundle, but building is not launching.
-  This is the exact failure mode that killed the previous attempt, so gate step 5
-  stays non-skippable, and the first Windows run of any milestone should happen
-  from inside a Drive- and a OneDrive-synced folder.
+- **An unsigned Windows build tagged with Mark of the Web will not start without
+  the teacher clicking through SmartScreen.** Confirmed by CI on 2026-09-19: a
+  build carrying a `Zone.Identifier` stream refused to launch unattended. Anything
+  downloaded, emailed, or in some configurations delivered by a sync client
+  arrives with that tag. On a real machine it surfaces as "Windows protected your
+  PC", and starting the app requires *More info → Run anyway* — a step a
+  non-technical teacher may well read as "this program is dangerous" and stop at.
+  Code signing with an Authenticode certificate removes it. CI asserts the current
+  blocked state as a tripwire, so if it ever changes, someone has to come back
+  here. **This needs a decision before the app is handed to the end user, not at
+  M9**, because it can stop her using the app at all on Windows.
+
+- **No human has ever double-clicked this app on Windows from inside a real
+  cloud-synced folder.** M0 was signed off without it (2026-09-19). CI now goes
+  further than building: on every push it launches the real Windows binary from a
+  path shaped like the user's own (Greek characters, spaces, deep nesting) and
+  carrying a Mark-of-the-Web tag, and checks that it stays open, creates
+  `data/planner.sqlite` beside itself, and writes a backup snapshot on relaunch.
+  **What that still does not cover is online-only placeholder files** — where a
+  sync client leaves a file that looks present but whose contents are not on disk
+  until something touches it. That needs a real Drive or OneDrive client, and it
+  is the most plausible remaining candidate for what killed the previous attempt.
+  Gate step 5 therefore stays non-skippable, and the first Windows run of any
+  milestone should happen from inside a Drive- and a OneDrive-synced folder.
 
 ## Engineering process & repo conventions
 

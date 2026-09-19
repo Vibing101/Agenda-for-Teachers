@@ -31,6 +31,10 @@ into that folder. Generated PDFs go to `exports/`.
 | Frontend | React + TypeScript + Vite |
 | Tests | Vitest + Testing Library (frontend), `cargo test` (Rust) |
 
+macOS releases ship as a **universal binary** so they run natively on both Intel
+and Apple Silicon rather than falling back to Rosetta. That needs both Rust
+targets installed once: `rustup target add x86_64-apple-darwin aarch64-apple-darwin`.
+
 ## Getting set up
 
 Requires [Node.js](https://nodejs.org) 22+ and a
@@ -49,7 +53,8 @@ These are the same ones CI runs on both Windows and macOS.
 npm run typecheck
 npm run lint
 npm test
-npm run tauri build                                  # packaged build
+npm run tauri build                                  # packaged build (this machine's arch)
+npm run tauri build -- --target universal-apple-darwin   # macOS release build (Intel + Apple Silicon)
 
 cd src-tauri && cargo fmt --all --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```

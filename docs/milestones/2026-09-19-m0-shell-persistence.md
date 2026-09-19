@@ -97,3 +97,50 @@ Run on macOS 15 (Darwin 25.6.0), Node 24.15.0, Rust 1.98.1.
   right-click → Open on first launch. Worth a product-owner decision before M9
   about whether to pay for a Developer ID certificate.
 - The `scratch_note` probe is scaffolding and is replaced in M1.
+
+
+---
+
+## Addendum — 2026-09-19, after sign-off
+
+Two follow-ups agreed after M0 was signed off. Neither changes what M0 delivered;
+both narrow the risk it was signed off with. Branch `m0-ci-hardening`.
+
+**macOS now ships a universal binary.** The signed-off build was x86_64 only,
+which runs on an Apple Silicon Mac solely via Rosetta. Release builds now use
+`--target universal-apple-darwin` and CI asserts with `lipo -archs` that both the
+`x86_64` and `arm64` slices are present. Verified locally: both slices, 8.3MB
+bundle — still comfortably inside the "single-digit megabytes" the spec promised
+as the reason for choosing Tauri over Electron.
+
+**Windows CI now launches the app instead of only building it.** On every push it
+copies the real binary into a path shaped like the user's own — Greek characters,
+spaces, deep nesting, mirroring `My Drive\Ατζέντα Εκπαιδευτικού` — launches it,
+and checks that it stays open, creates `data/planner.sqlite` beside itself, and
+writes a dated backup snapshot on a second launch. The equivalent smoke launch
+runs on macOS too.
+
+**That check immediately found something.** The first version of it also applied a
+`Zone.Identifier` stream — a Mark-of-the-Web tag — before launching, to mirror how
+the teacher will actually receive the app. It failed: Windows refused to start the
+unsigned binary unattended. This is not a CI artefact. On a real machine it is
+SmartScreen's "Windows protected your PC" dialog, and the app only starts if the
+user picks *More info → Run anyway*. So the Mark-of-the-Web case is now its own CI
+step that **asserts the blocked state as a tripwire** — if it ever launches
+cleanly, signing has landed and the expectation must be flipped. The practical
+consequence is that Windows code signing moved from "polish, revisit at M9" to
+something needing a decision before the app reaches the teacher; it is recorded
+under Carried risks in the rebuild spec.
+
+To support that, the data file is now created and migrated eagerly at launch
+rather than lazily on the first command. It matches the spec's wording ("SQLite
+database file created on first run") more closely, and it makes the file's
+appearance a meaningful signal that the app resolved its folder and wrote to it.
+
+**What this deliberately does not claim.** Gate step 5 is still not passed on
+Windows. CI cannot install Google Drive or OneDrive, so it cannot test
+**online-only placeholder files** — the case where a sync client leaves a file
+that looks present but whose contents are not on disk until touched. That remains
+the most plausible remaining explanation for what killed the previous attempt,
+and it still needs a human on a real Windows machine. The risk is narrowed, not
+closed, and stays recorded under "Carried risks" in the rebuild spec.

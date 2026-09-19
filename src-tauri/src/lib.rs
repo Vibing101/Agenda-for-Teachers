@@ -128,6 +128,13 @@ pub fn run() {
     if let Err(e) = backup::snapshot_now() {
         eprintln!("launch backup failed: {e}");
     }
+    // Create and migrate the data file now rather than lazily on the first
+    // command, so it exists as soon as the app does. This is also what makes a
+    // headless smoke test meaningful: the file appearing proves the app really
+    // resolved its folder and wrote to it.
+    if let Err(e) = db::open() {
+        eprintln!("could not open the data file: {e}");
+    }
 
     tauri::Builder::default()
         .manage(AppState::default())
