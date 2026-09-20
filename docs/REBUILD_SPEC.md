@@ -281,6 +281,10 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
 | Code signing | Not done for v1. **This is now known to be worse on Windows than assumed** — see Carried risks. macOS needs a one-time right-click → Open; Windows blocks an internet-tagged unsigned build behind a SmartScreen dialog. Revisit before M9, and sooner if the app is to be handed to the teacher in the meantime |
 | macOS binary architecture | Universal (x86_64 + arm64), so the app runs natively on both Intel and Apple Silicon Macs instead of depending on Rosetta |
 | Where the class seating plan lives | **M1, as part of Class.** It is a field of `Class` in the data model, M1's scope line covers class CRUD, no later milestone claims it, and M7's substitute-folder criteria assume it already exists in the Classes module. Raised by the M1 agent and settled by M1 being merged with it (2026-09-20) |
+| Non-numeric grade types in the weighted average | **Only numeric columns count.** Descriptive (Α–Δ), pass/fail and comment columns are recorded, displayed and printed, but take no part in the weighted average — and their weight is excluded from the normalising sum too, so a 30% comment column cannot silently dilute a result. Decided by the product owner 2026-09-20, before M2. The app never invents a number the teacher did not type; the average is over the columns that carry marks |
+| Date and time formatting | **Every date the app displays or prints is formatted by the app** (`dd.MM.yyyy`, matching the source product), independent of the OS locale. The native `<input type="date">` / `type="time"` widgets keep showing OS formatting while being edited, and that is accepted. Decided 2026-09-20. The reason it matters: printed output must look identical on the teacher's Windows PC and on the development Mac, and only app-side formatting guarantees that |
+| Progress-check periods | **Not in M2.** They appear in the spec's Βαθμοί module list but not in M2's delivery scope line, so M2 ships its scope line exactly and progress checks are picked up in a later milestone. Decided 2026-09-20, keeping M2 focused on the weighting logic the spec asked for concentrated test coverage on |
+| If PDF export proves blocked at M2 | **Ship the gradebook, defer the PDF.** If the WebView print-to-PDF path cannot be made to work, M2 lands with the weighted gradebook, all four grade types, conduct and the summary roll-ups — fully tested — and PDF export becomes its own piece of work with its own gate. Decided 2026-09-20. The reasoning: the weighting logic is what later milestones depend on, and it should not be held hostage to a platform rendering problem. This is a fallback, not permission to skip the attempt |
 
 ### Open — flag back rather than silently decide
 
@@ -298,16 +302,6 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
   free text, matching the source and matching the spec's only explicit statement
   about a status field anywhere (SupportPlan's, which it says is "written by the
   teacher, never computed"). Raised at M1 (2026-09-19).
-
-- **What locale should native date and time inputs use?** Seen on the packaged
-  Windows build at the M1 gate (2026-09-20): `<input type="date">` and
-  `type="time"` render as `dd/mm/yyyy` and `09:00 am` — US/English formatting —
-  because the WebView control takes its locale from the OS, not from the app's
-  string table. The no-inline-Greek lint rule cannot catch this, and the app is
-  otherwise Greek throughout. It affects every dated field from M1 on, and every
-  date printed into a PDF from M2 on, so it wants deciding before those print
-  views are built rather than after. Options are to set the document locale, to
-  replace the native pickers with our own, or to accept it.
 
 - **Is the `Email` label meant to stay in English?** It is the only English
   string on the student card; every other label is Greek. It is a common Greek
