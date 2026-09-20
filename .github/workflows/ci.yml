@@ -143,8 +143,9 @@ jobs:
       # nesting, mirroring "My Drive\Ατζέντα Εκπαιδευτικού". Unicode path handling
       # is a classic Windows-only break.
       #
-      # This runs WITHOUT a Mark-of-the-Web tag; that case is checked separately
-      # below, because it currently behaves differently.
+      # This runs WITHOUT a Mark-of-the-Web tag. The tagged case is recorded
+      # separately below, but only informationally — see the note there for why
+      # a runner cannot tell you anything about SmartScreen.
       - name: Smoke launch the Windows build from a cloud-shaped folder
         if: runner.os == 'Windows'
         shell: pwsh
@@ -188,14 +189,22 @@ jobs:
 
       # Mark of the Web: anything the teacher downloads, or that arrives through a
       # sync client, can carry a Zone.Identifier stream marking it as internet-sourced.
-      # Windows then refuses to start an UNSIGNED executable without a human clicking
-      # through the SmartScreen "Windows protected your PC" dialog.
+      # On a real machine an unsigned build carrying that tag is stopped by
+      # SmartScreen ("Windows protected your PC") until the user picks
+      # More info -> Run anyway.
       #
-      # This step asserts that CURRENT, KNOWN state: unattended launch is refused.
-      # It is a tripwire, not an aspiration — if it ever starts launching cleanly,
-      # code signing has landed and this expectation should be flipped to require a
-      # successful launch. See the "Carried risks" section of docs/REBUILD_SPEC.md.
-      - name: Record how Mark of the Web affects the unsigned build (Windows)
+      # THIS STEP CANNOT MEASURE THAT, and does not try to. Verified on a physical
+      # Windows 11 machine on 2026-09-20 (see the M1 release note): with SmartScreen
+      # on, both Start-Process and Shell.InvokeVerb("open") launch a tagged, unsigned
+      # build CLEANLY with no dialog — only a genuine Explorer double-click is
+      # blocked — and a headless runner has no interactive desktop to show the dialog
+      # anyway. An earlier version of this step asserted a blocked launch as a
+      # tripwire; it passed for the wrong reason and would have reported a false
+      # conclusion if signing ever landed, so that assertion has been removed.
+      #
+      # What is left is a recording step. It never fails the build. The real check
+      # is a human double-click, which is gate step 5 and lives in docs/milestones/.
+      - name: Record how Mark of the Web behaves on the runner (Windows, informational)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -215,16 +224,11 @@ jobs:
             $launched = -not $proc.HasExited
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
           } catch {
-            Write-Host "Launch refused: $($_.Exception.Message)"
+            Write-Host "Start-Process threw: $($_.Exception.Message)"
           }
 
-          if ($launched) {
-            Write-Host "::error::A Mark-of-the-Web-tagged build launched unattended. That means the binary is now signed/trusted — flip this step to REQUIRE a successful launch and update the carried risk in docs/REBUILD_SPEC.md."
-            exit 1
-          }
-
-          Write-Host "::warning::Confirmed: the unsigned Windows build will NOT start unattended when tagged with Mark of the Web. On a real machine the teacher sees SmartScreen's 'Windows protected your PC' and must choose More info -> Run anyway. Code signing removes this. Tracked as a carried risk."
-          Write-Host "Expected state confirmed."
+          Write-Host "Observed on this runner: tagged build launched via Start-Process = $launched"
+          Write-Host "::warning::Informational only. This does NOT tell you whether SmartScreen would stop the teacher — only a real Explorer double-click on a desktop machine does, and that is gate step 5. Windows code signing remains an open decision; see Carried risks in docs/REBUILD_SPEC.md."
 
       - name: Upload the packaged build
         if: always()

@@ -2,7 +2,11 @@
 
 **Date:** 2026-09-19
 **Branch:** `m1-school-year-classes-students`
-**Signed off by:** *(pending product-owner review)*
+**Signed off by:** Product owner, 2026-09-20 — reviewed on a Windows machine
+(where the gate run found and fixed a data-loss bug), then squash-merged to
+`main` as `ac61eb4` and the branch deleted. The Google Drive half of gate step 5
+on Windows was not run and is accepted as a carried risk, not a blocker — see
+question 4 under "Open questions".
 
 ## What shipped
 
@@ -80,20 +84,35 @@ wanted, it should be added as a vocabulary rather than hardcoded.
 named in M1's scope line, is part of `Class` in the data model, and M7's
 criteria assume it exists by then. Shipped here; easy to defer.
 
-**4. Gate step 5 on Windows — largely answered on 2026-09-20.** It has now been
-run on a physical Windows machine from a live OneDrive folder, including the
-online-only placeholder case, which passed. What remains open is the **Google
-Drive** half on Windows, and two things the run turned up: a confirmed
-data-loss bug in `Νέο τμήμα`, and the fact that the CI Mark-of-the-Web tripwire
-is not measuring SmartScreen. All three are detailed under "Windows gate
-results".
+**4. Gate step 5 on Windows — ANSWERED for OneDrive; the Google Drive half
+ACCEPTED by the product owner (2026-09-20).** It was run on a physical Windows
+machine from a live OneDrive folder, including the online-only placeholder case,
+which passed. The **Google Drive half on Windows was not run** — that client was
+not installed on the machine used — and the product owner has accepted it on the
+same basis as M0's Windows gap: carried forward as a risk, not a blocker, rather
+than holding the milestone for it.
 
-**5. Should the CI Mark-of-the-Web tripwire be reworked, or its claim softened?**
-It cannot observe SmartScreen from a headless runner. Either drop the launch
-assertion and simply assert the `Zone.Identifier` is present and the binary
-unsigned, or keep it and reword both the step and the spec so neither claims CI
-confirmed the SmartScreen behaviour. Raised at the Windows gate run
-(2026-09-20) rather than decided.
+That acceptance is a judgement that the evidence already in hand is enough to
+proceed, not a claim that Drive was tested. It rests on the placeholder case —
+the leading suspect for what killed the previous attempt — having passed on
+OneDrive, which is the harder half of the mechanism. It does **not** transfer:
+Drive streams files by a different mechanism, and the M0 acceptance criterion
+names both clients explicitly. It stays recorded under Carried risks in the spec
+and should be closed before the app reaches the teacher.
+
+The run also turned up two findings detailed under "Windows gate results": a
+confirmed data-loss bug in `Νέο τμήμα`, now fixed, and the fact that the CI
+Mark-of-the-Web tripwire is not measuring SmartScreen — see question 5.
+
+**5. Should the CI Mark-of-the-Web tripwire be reworked, or its claim softened?
+— RESOLVED 2026-09-20: the launch assertion was dropped.** It could not observe
+SmartScreen from a headless runner, so it passed for an unrelated reason; worse,
+had code signing ever landed it would have failed the build and reported the
+opposite of the truth. The step now tags a binary, records what the runner does,
+and never fails the build, stating plainly that only a human double-click (gate
+step 5) can answer the question. The M0 release note's claim that CI "confirmed"
+the SmartScreen behaviour is withdrawn in a dated correction there, and the
+spec's Carried risks bullet now rests on the real-machine observation instead.
 
 ## Gate results (docs/ENGINEERING.md)
 
@@ -106,7 +125,7 @@ Run on macOS 15 (Darwin 25.6.0), Node 24.15.0, Rust 1.98.1.
 | 3 | Automated tests pass | **Pass** — 36 Rust tests (35 unit + the cloud-folder integration test) and 64 frontend tests, green locally and on both CI runners |
 | 3b | Persistence round-trip | **Pass** — `src-tauri/tests/cloud_folder.rs` drives launch → write a year, two classes and a student enrolled in both → quit → relaunch → read it all back, against a real folder on disk. Repeated against the packaged app; see step 5 |
 | 4 | Packaged build on Windows and macOS, structurally verified | **macOS: pass**, locally and in CI (run [35469528187](https://github.com/Vibing101/Agenda-for-Teachers/actions/runs/35469528187), `macos-latest`, 5m13s). Locally, `npm run tauri build -- --target universal-apple-darwin` produced `Teacher Planner.app` (8.6MB); `lipo -archs` reports `x86_64 arm64`, so both slices are present; `Info.plist` and an executable binary verified. **Windows: by CI only** — run [35469528187](https://github.com/Vibing101/Agenda-for-Teachers/actions/runs/35469528187) is green on `windows-latest` (7m12s); it builds the `.exe` and NSIS installer, smoke-launches the binary from a Greek, space-containing path, and checks it creates its data file and writes a snapshot on relaunch. Both installers are uploaded as artifacts. **Updated 2026-09-20: now also verified on a physical Windows machine** — the `teacher-planner-windows-latest` artifact from that run was installed via its NSIS installer and launched by real double-click. See "Windows gate results" below |
-| 5 | Manual launch test from inside a cloud-synced folder, both OSes | **macOS: pass, from both a live Google Drive folder and a live OneDrive folder. Windows: partial pass (2026-09-20)** — performed on a physical Windows 11 Enterprise 26200 machine from a live **OneDrive** folder, including the online-only placeholder case. **The Google Drive half on Windows is still not done** (client not installed on that machine). See "Windows gate results" below |
+| 5 | Manual launch test from inside a cloud-synced folder, both OSes | **macOS: pass, from both a live Google Drive folder and a live OneDrive folder. Windows: partial pass (2026-09-20)** — performed on a physical Windows 11 Enterprise 26200 machine from a live **OneDrive** folder, including the online-only placeholder case. **The Google Drive half on Windows was not done** — client not installed on that machine — and is **accepted by the product owner as a carried risk** (2026-09-20), on the same basis as M0's Windows gap. See "Windows gate results" and question 4 above |
 | 6 | This release note | **Pass** |
 
 ### What step 5 actually covered on macOS
@@ -251,14 +270,18 @@ screens at 1920×1200 maximised.
 
 ## Known gaps
 
-- **RESOLVED 2026-09-20 for OneDrive; still open for Google Drive.** Gate step 5
+- **RESOLVED 2026-09-20 for OneDrive; ACCEPTED as a carried risk for Google
+  Drive.** Gate step 5
   has now been performed on a physical Windows machine, including the
   **online-only placeholder file** case that CI cannot reach — and the app
   launched normally from fully dehydrated placeholders with no hang, no second
   database and no data loss. See "Windows gate results". The **Google Drive**
   half on Windows remains untested, because that client is not installed on the
   machine used. It is a different streaming mechanism from OneDrive's, so the
-  OneDrive result does not carry over.
+  OneDrive result does not carry over. **The product owner accepted this on
+  2026-09-20** rather than holding the milestone for it, on the same basis as
+  M0's Windows gap — a risk carried forward, not a step passed. It should be
+  closed before the app reaches the teacher.
 
 - **RESOLVED 2026-09-20: the M1 screens have now been driven in the packaged
   app** — a school year, two classes with a timetable slot, and a full student

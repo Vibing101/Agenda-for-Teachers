@@ -280,6 +280,7 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
 | Frontend framework | React + TypeScript + Vite (M0) — the "keep it boring" slot, filled |
 | Code signing | Not done for v1. **This is now known to be worse on Windows than assumed** — see Carried risks. macOS needs a one-time right-click → Open; Windows blocks an internet-tagged unsigned build behind a SmartScreen dialog. Revisit before M9, and sooner if the app is to be handed to the teacher in the meantime |
 | macOS binary architecture | Universal (x86_64 + arm64), so the app runs natively on both Intel and Apple Silicon Macs instead of depending on Rosetta |
+| Where the class seating plan lives | **M1, as part of Class.** It is a field of `Class` in the data model, M1's scope line covers class CRUD, no later milestone claims it, and M7's substitute-folder criteria assume it already exists in the Classes module. Raised by the M1 agent and settled by M1 being merged with it (2026-09-20) |
 
 ### Open — flag back rather than silently decide
 
@@ -298,13 +299,27 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
   about a status field anywhere (SupportPlan's, which it says is "written by the
   teacher, never computed"). Raised at M1 (2026-09-19).
 
+- **What locale should native date and time inputs use?** Seen on the packaged
+  Windows build at the M1 gate (2026-09-20): `<input type="date">` and
+  `type="time"` render as `dd/mm/yyyy` and `09:00 am` — US/English formatting —
+  because the WebView control takes its locale from the OS, not from the app's
+  string table. The no-inline-Greek lint rule cannot catch this, and the app is
+  otherwise Greek throughout. It affects every dated field from M1 on, and every
+  date printed into a PDF from M2 on, so it wants deciding before those print
+  views are built rather than after. Options are to set the document locale, to
+  replace the native pickers with our own, or to accept it.
+
+- **Is the `Email` label meant to stay in English?** It is the only English
+  string on the student card; every other label is Greek. It is a common Greek
+  loanword, so this may well be deliberate — but it is currently an implicit
+  choice rather than a recorded one. Raised at M1 (2026-09-20).
+
 ### Carried risks
 
 - **An unsigned Windows build tagged with Mark of the Web will not start without
-  the teacher clicking through SmartScreen.** Confirmed by CI on 2026-09-19: a
-  build carrying a `Zone.Identifier` stream refused to launch unattended. Anything
-  downloaded, emailed, or in some configurations delivered by a sync client
-  arrives with that tag. **Verified on a real Windows machine on 2026-09-20**: a
+  the teacher clicking through SmartScreen.** Anything downloaded, emailed, or in
+  some configurations delivered by a sync client arrives with that tag.
+  **Verified on a real Windows machine on 2026-09-20**: a
   double-click of the MotW-tagged unsigned build shows "Windows protected your
   PC — Microsoft Defender SmartScreen prevented an unrecognised app from
   starting", `Publisher: Unknown publisher`, and the app does not start until
@@ -339,11 +354,15 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
   (database hash byte-identical before and after). **So the leading candidate for
   what killed the previous attempt does not reproduce on OneDrive.**
 
-  **Still open: the same test against Google Drive on Windows.** Drive's
-  streaming implementation is a different mechanism, so the OneDrive result does
-  not carry over, and the client was not installed on the machine used. Gate step
-  5 therefore stays non-skippable, and the Drive half should be closed before the
-  app is handed to the teacher.
+  **The same test against Google Drive on Windows was not run, and is ACCEPTED
+  by the product owner (2026-09-20) as a carried risk rather than a blocker** —
+  the same call M0 took on its Windows gap. Drive's streaming implementation is a
+  different mechanism, so the OneDrive result does not carry over, and the client
+  was not installed on the machine used. The acceptance says the evidence in hand
+  is enough to keep building, not that Drive was tested: the M0 acceptance
+  criterion names both clients, and this one is still unmet. **It should be
+  closed before the app is handed to the teacher**, and gate step 5 stays
+  non-skippable for every later milestone.
 
 - **`Νέο τμήμα` overwrites the previously selected class (found 2026-09-20).**
   Pressing it creates a new empty class card but leaves the editor bound to the

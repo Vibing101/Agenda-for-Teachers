@@ -144,3 +144,40 @@ that looks present but whose contents are not on disk until touched. That remain
 the most plausible remaining explanation for what killed the previous attempt,
 and it still needs a human on a real Windows machine. The risk is narrowed, not
 closed, and stays recorded under "Carried risks" in the rebuild spec.
+
+---
+
+## Correction — 2026-09-20, after the M1 Windows gate run
+
+Two statements in the addendum above are now known to be wrong, and are
+corrected here rather than edited out, so the record shows what was believed at
+the time and why it changed. Both were found by running the gate on a physical
+Windows 11 machine at M1.
+
+**1. "It failed: Windows refused to start the unsigned binary unattended. This is
+not a CI artefact." — Withdrawn. It was a CI artefact.** On a real machine with
+SmartScreen on, both `Start-Process` and `Shell.InvokeVerb("open")` launch a
+Mark-of-the-Web-tagged unsigned build *cleanly, with no dialog*. Only a genuine
+Explorer double-click is blocked. A headless runner also has no interactive
+desktop on which the dialog could appear. So the CI step was passing for a
+reason unrelated to SmartScreen, and its "tripwire" could never have fired
+correctly — worse, had signing ever landed it would have failed the build and
+reported the opposite of the truth. That assertion has been removed; the step is
+now informational only.
+
+**The underlying risk is unchanged and still real** — it now rests on the
+real-machine observation instead: a double-click of the tagged unsigned build
+does show "Windows protected your PC", and the app does not start without
+*More info → Run anyway*. One thing that run also established: the NSIS
+installer does **not** propagate Mark of the Web to the exe it extracts, so the
+prompt hits the installer once, not the app the teacher opens every day. See
+"Carried risks" in the spec.
+
+**2. "Gate step 5 is still not passed on Windows ... online-only placeholder
+files."** — Now partially closed. At the M1 gate this was performed on a real
+Windows machine from a **OneDrive** folder, with the files verified genuinely
+dehydrated before launching: the app hydrated them on demand, opened, stayed
+open, and lost no data. **The Google Drive half remains open**, since that is a
+different streaming mechanism and the client was not installed on that machine.
+Full detail in
+[`2026-09-19-m1-school-year-classes-students.md`](2026-09-19-m1-school-year-classes-students.md).
