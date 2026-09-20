@@ -10,6 +10,8 @@
 ├─ docs/
 │   ├─ REBUILD_SPEC.md      ← the functional/architecture spec, kept in sync
 │   ├─ ENGINEERING.md       ← this document
+│   ├─ MILESTONE_PROMPT.md  ← the standing brief every milestone prompt starts from
+│   ├─ WINDOWS_VM.md        ← standing up a Windows 11 VM on the dev Mac for gate step 5
 │   └─ milestones/           ← one short dated release note per milestone, matching the acceptance criteria below
 ├─ tests/
 └─ .github/workflows/     ← CI: build + test on both Windows and macOS runners
@@ -27,8 +29,16 @@
 2. **Lint** clean.
 3. **Automated tests pass** — unit tests for any calculation logic (the grade-weighting formula above all), component/integration tests for the module's screens, and a persistence round-trip test (write data, close, reopen, data is intact).
 4. **Packaged build succeeds on both Windows and macOS**, structurally verified (the app actually launches from a double-click, not just "the build command exited 0").
-5. **Manual launch test from inside a simulated cloud-sync folder** on both OSes — this is the specific failure mode that killed the previous attempt, so it is a named, non-skippable step every milestone, not just at the end of the project.
+5. **Manual launch test from inside a simulated cloud-sync folder** on both OSes — this is the specific failure mode that killed the previous attempt, so it is a named, non-skippable step every milestone, not just at the end of the project. For the Windows half, see [WINDOWS_VM.md](WINDOWS_VM.md): how to stand up a Windows 11 VM on the development Mac, what an agent can verify in it over SSH, and the two things that still need a human at its screen.
 6. **A short dated release note** goes in `docs/milestones/`, recording what shipped, what was decided (if a milestone touched anything the rebuild spec left open), and the result of steps 1-5 — following the previous project's own practice of writing this down per release rather than only trusting green CI.
+
+## Briefing a milestone agent
+
+Every milestone prompt starts from [MILESTONE_PROMPT.md](MILESTONE_PROMPT.md) —
+the standing brief: which machine the agent is on and what that machine can
+verify, what to read, the language rules, the patterns already settled, and how
+the gate is run now that a Windows VM exists. A milestone prompt is that brief
+plus the milestone's own scope, acceptance criteria and known traps.
 
 ## Milestone sign-off
 

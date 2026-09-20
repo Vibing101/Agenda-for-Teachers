@@ -9,6 +9,10 @@ files in that same folder.
   for scope, data model and already-resolved decisions.
 - **Process:** [docs/ENGINEERING.md](docs/ENGINEERING.md) — repo layout,
   branching, and the gate every milestone passes before it is called done.
+- **Briefing an agent:** [docs/MILESTONE_PROMPT.md](docs/MILESTONE_PROMPT.md) —
+  the standing brief every milestone prompt starts from.
+- **Windows testing:** [docs/WINDOWS_VM.md](docs/WINDOWS_VM.md) — the VM that
+  runs the Windows half of gate step 5, and what still needs a human.
 - **Release notes:** [docs/milestones/](docs/milestones/), one per milestone.
 
 ## Reference material
