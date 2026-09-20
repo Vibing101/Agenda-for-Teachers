@@ -35,6 +35,27 @@ macOS releases ship as a **universal binary** so they run natively on both Intel
 and Apple Silicon rather than falling back to Rosetta. That needs both Rust
 targets installed once: `rustup target add x86_64-apple-darwin aarch64-apple-darwin`.
 
+## Language
+
+The app ships **Greek-only through M1–M8**; the English translation is one
+dedicated pass at M9 (product owner's call, recorded in the spec's Resolved
+table). Bilingual is still the target — only the timing is settled.
+
+So there are no English strings to author yet, but there are no Greek literals
+in components either:
+
+- every user-facing string lives in [`src/i18n/el.ts`](src/i18n/el.ts), keyed by
+  a string id, and is read through `useTranslate()`;
+- fixed reference vocabularies (SEN categories, holiday sources, year models, …)
+  are stable codes in [`src/i18n/vocabularies.ts`](src/i18n/vocabularies.ts),
+  labelled through the same table — the **code** is what the database stores;
+- teacher-entered data is never translated and is rendered exactly as typed;
+- `eslint` fails the build on a Greek literal anywhere under `src/` outside
+  `src/i18n/`, so a screen cannot quietly grow an untranslatable label.
+
+Adding English at M9 is: write `src/i18n/en.ts` with the same keys, add one line
+to `BUNDLES` in `src/i18n/index.ts`, and show the toggle. No screen changes.
+
 ## Getting set up
 
 Requires [Node.js](https://nodejs.org) 22+ and a

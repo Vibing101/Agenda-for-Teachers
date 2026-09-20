@@ -8,6 +8,9 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
+    // The i18n test reads eslint.config.js to check the no-inline-Greek rule
+    // is still configured.
+    "allowJs": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",

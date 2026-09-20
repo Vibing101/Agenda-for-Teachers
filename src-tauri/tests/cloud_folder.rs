@@ -1,11 +1,15 @@
-//! End-to-end checks for M0's acceptance criteria, run against a real folder on
-//! disk rather than through the UI.
+//! End-to-end checks against a real folder on disk rather than through the UI.
 //!
 //! This is a separate integration binary, and deliberately a single test: it
 //! sets `TEACHER_PLANNER_DATA_DIR`, which is process-wide, so it must not run
 //! alongside another test that reads it.
+//!
+//! It covers the gate's persistence round-trip (write, quit, relaunch, the data
+//! is intact) and M0's change-detection criterion, now carrying real M1 data:
+//! a school year, two classes, a student enrolled in both.
 
-use teacher_planner_lib::{backup, db, fingerprint::Fingerprint, paths};
+use teacher_planner_lib::model::*;
+use teacher_planner_lib::{backup, db, fingerprint::Fingerprint, paths, store};
 
 #[test]
 fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
@@ -20,10 +24,103 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     // Nothing to snapshot before the data file exists.
     assert!(backup::snapshot_now().unwrap().is_none());
 
-    // --- the teacher writes something, then quits ---
+    // --- the teacher sets up her year, a couple of classes and a student ---
     let conn = db::open().unwrap();
-    db::write_note(&conn, "Α1 — συνάντηση γονέων").unwrap();
-    drop(conn);
+    store::save_school_year(
+        &conn,
+        &SchoolYear {
+            year_model: "sep_aug".into(),
+            start_date: "2026-09-14".into(),
+        },
+    )
+    .unwrap();
+
+    let class_a = store::save_class(
+        &conn,
+        &Class {
+            id: 0,
+            name: "Α1".into(),
+            subject: "Μαθηματικά".into(),
+            room: "203".into(),
+            responsible: "Μ. Νικολάου".into(),
+            notes: String::new(),
+            position: 0,
+            seating_rows: 5,
+            seating_cols: 6,
+            seating_notes: String::new(),
+            slots: vec![ClassSlot {
+                id: 0,
+                class_id: 0,
+                weekday: 1,
+                period_label: "2η".into(),
+                start_time: "09:20".into(),
+                end_time: "10:05".into(),
+                room: "203".into(),
+            }],
+        },
+    )
+    .unwrap();
+    let class_b = store::save_class(
+        &conn,
+        &Class {
+            id: 0,
+            name: "Β2".into(),
+            subject: "Φυσική".into(),
+            room: "Εργαστήριο".into(),
+            responsible: String::new(),
+            notes: String::new(),
+            position: 0,
+            seating_rows: 5,
+            seating_cols: 6,
+            seating_notes: String::new(),
+            slots: Vec::new(),
+        },
+    )
+    .unwrap();
+
+    let student = store::save_student(
+        &conn,
+        &Student {
+            id: 0,
+            full_name: "Ελένη Παπαδοπούλου".into(),
+            register_number: "12345".into(),
+            birth_date: "2014-03-07".into(),
+            home_language: "Ελληνικά".into(),
+            address: "Λευκωσία".into(),
+            midyear_enrollment: false,
+            guardian1_name: "Άννα Παπαδοπούλου".into(),
+            guardian1_phone: "+357 99 123456".into(),
+            guardian1_email: "anna@example.com".into(),
+            guardian2_name: String::new(),
+            guardian2_phone: String::new(),
+            guardian2_email: String::new(),
+            allergies: "Ξηροί καρποί".into(),
+            conditions: "Άσθμα".into(),
+            medication: "Σαλβουταμόλη".into(),
+            emergency_phone: "+357 22 800800".into(),
+            sen_status: "accommodations".into(),
+            sen_plan: "ΕΠΕ 04/2026".into(),
+            sen_accommodations: "Επιπλέον χρόνος".into(),
+            notes: "Μπροστινό θρανίο".into(),
+            meeting_notes: "18/09 συνάντηση".into(),
+        },
+    )
+    .unwrap();
+    for class_id in [class_a, class_b] {
+        store::set_enrollment(
+            &conn,
+            &Enrollment {
+                class_id,
+                student_id: student,
+                roster_no: 0,
+                support: class_id == class_a,
+                note: String::new(),
+            },
+        )
+        .unwrap();
+    }
+    let saved = store::load(&conn).unwrap();
+    drop(conn); // the app quits
     let after_write = Fingerprint::of(&paths::db_path()).unwrap();
 
     // The data file is self-contained at rest: no WAL sidecars for a sync
@@ -31,27 +128,63 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert!(!paths::data_dir().join("planner.sqlite-wal").exists());
     assert!(!paths::data_dir().join("planner.sqlite-shm").exists());
 
-    // --- relaunch: a snapshot is taken, and the data is still there ---
+    // --- relaunch: a snapshot is taken, and everything is still there ---
     assert!(backup::snapshot_now().unwrap().is_some());
     assert_eq!(backup::count_snapshots(), 1);
 
     let conn = db::open().unwrap();
-    assert_eq!(db::read_note(&conn).unwrap(), "Α1 — συνάντηση γονέων");
+    let reloaded = store::load(&conn).unwrap();
+    assert_eq!(
+        reloaded, saved,
+        "every field survives a full quit and relaunch"
+    );
+    assert_eq!(reloaded.school_year.start_date, "2026-09-14");
+    assert_eq!(reloaded.students[0].full_name, "Ελένη Παπαδοπούλου");
+    assert_eq!(
+        reloaded.enrollments.len(),
+        2,
+        "the student shows on both class rosters"
+    );
+
+    // --- the start date moves, and nothing else does ---
+    store::save_school_year(
+        &conn,
+        &SchoolYear {
+            year_model: "sep_aug".into(),
+            start_date: "2026-09-07".into(),
+        },
+    )
+    .unwrap();
+    let moved = store::load(&conn).unwrap();
+    assert_eq!(moved.classes, reloaded.classes);
+    assert_eq!(moved.students, reloaded.students);
+    assert_eq!(moved.enrollments, reloaded.enrollments);
     drop(conn);
 
     // Opening and reading must not disturb the file, or every session would
     // look like a conflict.
-    assert_eq!(Fingerprint::of(&paths::db_path()).unwrap(), after_write);
+    let conn = db::open().unwrap();
+    let _ = store::load(&conn).unwrap();
+    drop(conn);
+    let read_only_pass = Fingerprint::of(&paths::db_path()).unwrap();
 
     // --- the other device's copy lands while this session is open ---
     let conn = db::open().unwrap();
-    db::write_note(&conn, "written elsewhere").unwrap();
+    store::save_student(
+        &conn,
+        &Student {
+            full_name: "Γραμμένο αλλού".into(),
+            ..store::load(&conn).unwrap().students[0].clone()
+        },
+    )
+    .unwrap();
     drop(conn);
     assert_ne!(
         Fingerprint::of(&paths::db_path()).unwrap(),
-        after_write,
+        read_only_pass,
         "an outside write must be visible as a fingerprint change, which is what blocks the save"
     );
+    assert_ne!(after_write, None);
 
     std::env::remove_var(paths::DATA_DIR_ENV);
 }

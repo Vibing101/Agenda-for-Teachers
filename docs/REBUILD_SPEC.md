@@ -265,6 +265,7 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
 | Grade weighting | Percentage per column (Cyprus convention), teacher-entered, not a fixed 1–5 scale |
 | Scope | Full functionality across every module in the source product — no permanent MVP cut, only a build sequence |
 | Language | Bilingual UI, Greek and English |
+| Language rollout timing | **Greek-only through M1–M8; the English translation happens in one dedicated pass at M9** (decided by the product owner, 2026-09-19, answering the question M9's entry flags). This is a call about *sequencing only* — it does not cut English from scope, and the row above still stands. The constraint it puts on every milestone from M1 on: no Greek text literal may appear inline in a component. Every user-facing string goes through a single lookup keyed by a string id, and fixed reference vocabularies (SEN categories, conduct levels, holiday sources, …) are stored as stable codes labelled through a translation table rather than hardcoded per language. Adding English at M9 must therefore be adding one language file, not editing every screen. Teacher-entered data is never translated — it stays exactly as typed |
 | Letters/messages/forms output | Real generated PDF, not print-dialog-only or text-only |
 | PDF generation | WebView print-to-PDF path, not a native Rust PDF library |
 | English translation authorship | Machine-translated draft, for the message bank and letters |
@@ -282,7 +283,20 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
 
 ### Open — flag back rather than silently decide
 
-None currently — every open item raised during spec drafting was answered by the product owner and is recorded in the Resolved table above.
+- **Does the Feb–Dec year model cover eleven months or twelve?** Read literally
+  it is February to December, which is eleven. The source product's own
+  quick-start page promises "53 εβδομάδες και 12 μήνες" for every model. M1
+  implements the literal reading (Feb–Dec = 11 months) rather than guessing at a
+  wrap into January, because guessing would silently change which months a
+  teacher's calendar shows. Raised at M1 (2026-09-19); one line in
+  `src/domain/schoolYear.ts` changes it either way.
+
+- **Should an annual goal's status be free text or a fixed vocabulary?** The
+  spec lists `status` as a field on each of the six goal areas without saying
+  which. The source product leaves the whole area as an open box. M1 ships it as
+  free text, matching the source and matching the spec's only explicit statement
+  about a status field anywhere (SupportPlan's, which it says is "written by the
+  teacher, never computed"). Raised at M1 (2026-09-19).
 
 ### Carried risks
 
@@ -290,26 +304,67 @@ None currently — every open item raised during spec drafting was answered by t
   the teacher clicking through SmartScreen.** Confirmed by CI on 2026-09-19: a
   build carrying a `Zone.Identifier` stream refused to launch unattended. Anything
   downloaded, emailed, or in some configurations delivered by a sync client
-  arrives with that tag. On a real machine it surfaces as "Windows protected your
-  PC", and starting the app requires *More info → Run anyway* — a step a
-  non-technical teacher may well read as "this program is dangerous" and stop at.
-  Code signing with an Authenticode certificate removes it. CI asserts the current
-  blocked state as a tripwire, so if it ever changes, someone has to come back
-  here. **This needs a decision before the app is handed to the end user, not at
-  M9**, because it can stop her using the app at all on Windows.
+  arrives with that tag. **Verified on a real Windows machine on 2026-09-20**: a
+  double-click of the MotW-tagged unsigned build shows "Windows protected your
+  PC — Microsoft Defender SmartScreen prevented an unrecognised app from
+  starting", `Publisher: Unknown publisher`, and the app does not start until
+  *More info → Run anyway* — a step a non-technical teacher may well read as
+  "this program is dangerous" and stop at. Code signing with an Authenticode
+  certificate removes it. **This needs a decision before the app is handed to the
+  end user, not at M9**, because it can stop her using the app at all on Windows.
 
-- **No human has ever double-clicked this app on Windows from inside a real
-  cloud-synced folder.** M0 was signed off without it (2026-09-19). CI now goes
-  further than building: on every push it launches the real Windows binary from a
-  path shaped like the user's own (Greek characters, spaces, deep nesting) and
-  carrying a Mark-of-the-Web tag, and checks that it stays open, creates
-  `data/planner.sqlite` beside itself, and writes a backup snapshot on relaunch.
-  **What that still does not cover is online-only placeholder files** — where a
-  sync client leaves a file that looks present but whose contents are not on disk
-  until something touches it. That needs a real Drive or OneDrive client, and it
-  is the most plausible remaining candidate for what killed the previous attempt.
-  Gate step 5 therefore stays non-skippable, and the first Windows run of any
-  milestone should happen from inside a Drive- and a OneDrive-synced folder.
+  Two corrections from that run. **First, the CI tripwire does not actually
+  measure SmartScreen.** It launches the tagged exe with `Start-Process` and
+  treats a non-running process as proof of a block, but on a real machine with
+  SmartScreen on, both `Start-Process` and `Shell.InvokeVerb("open")` launch the
+  tagged build **cleanly with no dialog**; only a genuine Explorer double-click
+  is blocked. A headless runner also has no interactive desktop to show that
+  dialog. So the step passes for the wrong reason and would not detect signing
+  landing. The earlier claim that CI "confirmed" this behaviour on 2026-09-19 is
+  withdrawn; the risk stands on the real-machine observation above.
+  **Second, the NSIS installer does not propagate Mark of the Web to what it
+  extracts** — the installed `teacher-planner.exe` carries no `Zone.Identifier`.
+  So the prompt hits the **installer, once**; the app she launches daily
+  afterwards is untagged and starts without a prompt. That makes this a first-run
+  barrier rather than a permanent one, though still a real one.
+
+- **A human has now double-clicked this app on Windows from inside a real
+  OneDrive folder, including the online-only placeholder case — and it passed.**
+  Done at the M1 gate (2026-09-20) on Windows 11 Enterprise 26200, from
+  `OneDrive\Ατζέντα Εκπαιδευτικού M1`. The files were forced online-only and
+  verified genuinely dehydrated (0 bytes on disk against full logical size,
+  `OFFLINE + UNPINNED + RECALL_ON_DATA_ACCESS`), then double-clicked: Windows
+  hydrated the exe and the database on demand within 8s, the app opened and
+  stayed open, and there was **no hang, no second database and no data loss**
+  (database hash byte-identical before and after). **So the leading candidate for
+  what killed the previous attempt does not reproduce on OneDrive.**
+
+  **Still open: the same test against Google Drive on Windows.** Drive's
+  streaming implementation is a different mechanism, so the OneDrive result does
+  not carry over, and the client was not installed on the machine used. Gate step
+  5 therefore stays non-skippable, and the Drive half should be closed before the
+  app is handed to the teacher.
+
+- **`Νέο τμήμα` overwrites the previously selected class (found 2026-09-20).**
+  Pressing it creates a new empty class card but leaves the editor bound to the
+  previously selected class, so typing a name and saving — the obvious gesture —
+  renames the *existing* class and leaves the new one empty. **`Νέος μαθητής` had
+  the identical defect**, where it would have overwritten a whole student card,
+  guardians and SEN included. Found by driving the packaged Windows build by
+  hand.
+
+  **Fixed on the M1 branch (2026-09-20).** Neither button moved the selection to
+  the record it had just created; `Run` now hands back the planner so each can
+  select the row the backend assigned an id to. Both existing creation tests
+  started from an *empty* planner — the one case where the selection effect
+  compensates — which is why 64 component tests missed it. Two regression tests
+  now start from a non-empty planner and were confirmed to fail against the
+  unfixed code.
+
+  **The lesson worth keeping:** a create-then-edit flow tested only from an empty
+  fixture is not tested. Later milestones add the same shape (lesson plans,
+  support plans, print forms), so their tests should start from a planner that
+  already has a record of that kind selected.
 
 ## Engineering process & repo conventions
 

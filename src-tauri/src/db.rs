@@ -1,4 +1,4 @@
-//! The SQLite data file.
+//! The SQLite data file: opening it, and migrating its schema.
 //!
 //! Two choices here are about surviving a cloud-synced folder rather than about
 //! raw speed:
@@ -15,10 +15,11 @@
 //! what makes the change-detection check in `fingerprint` meaningful.
 
 use crate::error::AppResult;
+use crate::model::GOAL_AREAS;
 use rusqlite::Connection;
 use std::path::Path;
 
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 pub fn open_at(db_path: &Path) -> AppResult<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -36,15 +37,29 @@ pub fn open() -> AppResult<Connection> {
     open_at(&crate::paths::db_path())
 }
 
+/// Applies every migration the file has not seen yet, in order.
+///
+/// Each step is kept as it was written, including M0's — a file created by the
+/// signed-off M0 build is at `user_version = 1` and must climb from there, so
+/// history is added to rather than edited.
 fn migrate(conn: &Connection) -> AppResult<()> {
-    let current: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    if current >= SCHEMA_VERSION {
-        return Ok(());
+    let mut current: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
+    if current < 1 {
+        migrate_to_1(conn)?;
+        conn.pragma_update(None, "user_version", 1)?;
+        current = 1;
     }
-    // M0 carries no feature tables yet. `scratch_note` exists so that the
-    // milestone's "write data, quit, relaunch, data is still there" criterion
-    // is testable against a real write path; M1 replaces it with the real
-    // school-year/class/student schema.
+    if current < 2 {
+        migrate_to_2(conn)?;
+        conn.pragma_update(None, "user_version", 2)?;
+    }
+    Ok(())
+}
+
+/// M0. `scratch_note` was a persistence probe so that milestone's "write data,
+/// quit, relaunch, data is still there" criterion had a real write path to test
+/// against. M1 drops it — see [`migrate_to_2`].
+fn migrate_to_1(conn: &Connection) -> AppResult<()> {
     conn.execute_batch(
         "BEGIN;
          CREATE TABLE IF NOT EXISTS scratch_note (
@@ -55,28 +70,155 @@ fn migrate(conn: &Connection) -> AppResult<()> {
          INSERT OR IGNORE INTO scratch_note (id, body) VALUES (1, '');
          COMMIT;",
     )?;
-    conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     Ok(())
 }
 
-pub fn read_note(conn: &Connection) -> AppResult<String> {
-    let body = conn.query_row("SELECT body FROM scratch_note WHERE id = 1", [], |r| {
-        r.get(0)
-    })?;
-    Ok(body)
-}
+/// M1 — school year, classes, students.
+///
+/// Three things are worth reading twice:
+///
+/// * **Nothing is keyed by week index.** `start_date`, `date`, `birth_date` and
+///   the period/holiday ranges are all real dates, so moving the school year's
+///   start date re-derives week numbers for display and touches no stored row.
+/// * **`enrollment` is a join table**, so one student can sit in several
+///   classes at once with a per-class support flag and note.
+/// * **Foreign keys cascade on delete and are enforced** (`foreign_keys = ON`
+///   in `open_at`), so a roster or seat row can never be written against a
+///   student who is not there — the spec asks for that to be rejected at write
+///   time rather than left dangling.
+fn migrate_to_2(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "BEGIN;
 
-pub fn write_note(conn: &Connection, body: &str) -> AppResult<()> {
-    conn.execute(
-        "UPDATE scratch_note SET body = ?1, updated_at = datetime('now') WHERE id = 1",
-        [body],
+         DROP TABLE IF EXISTS scratch_note;
+
+         CREATE TABLE school_year (
+             id          INTEGER PRIMARY KEY CHECK (id = 1),
+             year_model  TEXT NOT NULL DEFAULT 'sep_aug',
+             start_date  TEXT NOT NULL DEFAULT ''
+         );
+         INSERT OR IGNORE INTO school_year (id) VALUES (1);
+
+         CREATE TABLE grading_period (
+             ordinal    INTEGER PRIMARY KEY CHECK (ordinal BETWEEN 1 AND 3),
+             name       TEXT NOT NULL DEFAULT '',
+             start_date TEXT NOT NULL DEFAULT '',
+             end_date   TEXT NOT NULL DEFAULT '',
+             notes      TEXT NOT NULL DEFAULT ''
+         );
+         INSERT OR IGNORE INTO grading_period (ordinal) VALUES (1), (2), (3);
+
+         CREATE TABLE holiday (
+             id         INTEGER PRIMARY KEY,
+             name       TEXT NOT NULL DEFAULT '',
+             start_date TEXT NOT NULL DEFAULT '',
+             end_date   TEXT NOT NULL DEFAULT '',
+             source     TEXT NOT NULL DEFAULT 'ministry',
+             notes      TEXT NOT NULL DEFAULT ''
+         );
+
+         CREATE TABLE important_date (
+             id    INTEGER PRIMARY KEY,
+             name  TEXT NOT NULL DEFAULT '',
+             date  TEXT NOT NULL DEFAULT '',
+             kind  TEXT NOT NULL DEFAULT 'other',
+             notes TEXT NOT NULL DEFAULT ''
+         );
+
+         CREATE TABLE annual_goal (
+             area               TEXT PRIMARY KEY,
+             goal               TEXT NOT NULL DEFAULT '',
+             actions            TEXT NOT NULL DEFAULT '',
+             success_indicators TEXT NOT NULL DEFAULT '',
+             deadline           TEXT NOT NULL DEFAULT '',
+             status             TEXT NOT NULL DEFAULT '',
+             review             TEXT NOT NULL DEFAULT ''
+         );
+
+         CREATE TABLE class (
+             id            INTEGER PRIMARY KEY,
+             name          TEXT NOT NULL DEFAULT '',
+             subject       TEXT NOT NULL DEFAULT '',
+             room          TEXT NOT NULL DEFAULT '',
+             responsible   TEXT NOT NULL DEFAULT '',
+             notes         TEXT NOT NULL DEFAULT '',
+             position      INTEGER NOT NULL DEFAULT 0,
+             seating_rows  INTEGER NOT NULL DEFAULT 5,
+             seating_cols  INTEGER NOT NULL DEFAULT 6,
+             seating_notes TEXT NOT NULL DEFAULT ''
+         );
+
+         CREATE TABLE class_slot (
+             id           INTEGER PRIMARY KEY,
+             class_id     INTEGER NOT NULL REFERENCES class(id) ON DELETE CASCADE,
+             weekday      INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 6),
+             period_label TEXT NOT NULL DEFAULT '',
+             start_time   TEXT NOT NULL DEFAULT '',
+             end_time     TEXT NOT NULL DEFAULT '',
+             room         TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX class_slot_by_class ON class_slot(class_id);
+
+         CREATE TABLE student (
+             id                 INTEGER PRIMARY KEY,
+             full_name          TEXT NOT NULL DEFAULT '',
+             register_number    TEXT NOT NULL DEFAULT '',
+             birth_date         TEXT NOT NULL DEFAULT '',
+             home_language      TEXT NOT NULL DEFAULT '',
+             address            TEXT NOT NULL DEFAULT '',
+             midyear_enrollment INTEGER NOT NULL DEFAULT 0,
+             guardian1_name     TEXT NOT NULL DEFAULT '',
+             guardian1_phone    TEXT NOT NULL DEFAULT '',
+             guardian1_email    TEXT NOT NULL DEFAULT '',
+             guardian2_name     TEXT NOT NULL DEFAULT '',
+             guardian2_phone    TEXT NOT NULL DEFAULT '',
+             guardian2_email    TEXT NOT NULL DEFAULT '',
+             allergies          TEXT NOT NULL DEFAULT '',
+             conditions         TEXT NOT NULL DEFAULT '',
+             medication         TEXT NOT NULL DEFAULT '',
+             emergency_phone    TEXT NOT NULL DEFAULT '',
+             sen_status         TEXT NOT NULL DEFAULT 'none',
+             sen_plan           TEXT NOT NULL DEFAULT '',
+             sen_accommodations TEXT NOT NULL DEFAULT '',
+             notes              TEXT NOT NULL DEFAULT '',
+             meeting_notes      TEXT NOT NULL DEFAULT ''
+         );
+
+         CREATE TABLE enrollment (
+             class_id   INTEGER NOT NULL REFERENCES class(id)   ON DELETE CASCADE,
+             student_id INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+             roster_no  INTEGER NOT NULL DEFAULT 0,
+             support    INTEGER NOT NULL DEFAULT 0,
+             note       TEXT    NOT NULL DEFAULT '',
+             PRIMARY KEY (class_id, student_id)
+         );
+         CREATE INDEX enrollment_by_student ON enrollment(student_id);
+
+         CREATE TABLE seat (
+             class_id   INTEGER NOT NULL REFERENCES class(id)   ON DELETE CASCADE,
+             row        INTEGER NOT NULL,
+             col        INTEGER NOT NULL,
+             student_id INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+             PRIMARY KEY (class_id, row, col)
+         );
+         CREATE INDEX seat_by_student ON seat(student_id);
+
+         COMMIT;",
     )?;
+
+    // The six goal areas are a fixed set, so they are rows from the start
+    // rather than something the teacher creates.
+    let mut insert = conn.prepare("INSERT OR IGNORE INTO annual_goal (area) VALUES (?1)")?;
+    for area in GOAL_AREAS {
+        insert.execute([area])?;
+    }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::store;
 
     #[test]
     fn first_open_creates_the_file_and_the_schema() {
@@ -86,7 +228,6 @@ mod tests {
 
         let conn = open_at(&path).unwrap();
         assert!(path.exists());
-        assert_eq!(read_note(&conn).unwrap(), "");
 
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
@@ -95,16 +236,59 @@ mod tests {
     }
 
     #[test]
-    fn data_survives_closing_and_reopening() {
+    fn a_fresh_file_starts_with_the_fixed_rows_and_nothing_else() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let planner = store::load(&conn).unwrap();
+
+        assert_eq!(planner.grading_periods.len(), 3);
+        assert_eq!(planner.annual_goals.len(), 6);
+        assert_eq!(planner.school_year.start_date, "");
+        assert_eq!(planner.school_year.year_model, "sep_aug");
+        assert!(planner.classes.is_empty());
+        assert!(planner.students.is_empty());
+    }
+
+    #[test]
+    fn an_m0_file_migrates_forward_without_being_recreated() {
+        // Exactly what a teacher who has been running the M0 build has on disk.
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("planner.sqlite");
+        let conn = Connection::open(&path).unwrap();
+        migrate_to_1(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 1).unwrap();
+        conn.execute("UPDATE scratch_note SET body = 'Α1'", [])
+            .unwrap();
+        drop(conn);
 
         let conn = open_at(&path).unwrap();
-        write_note(&conn, "Α1 — συνάντηση γονέων").unwrap();
-        drop(conn); // the app quits
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 2);
+        // The M0 probe table is gone, replaced by the real schema.
+        let scratch: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE name = 'scratch_note'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(scratch, 0);
+        assert_eq!(store::load(&conn).unwrap().annual_goals.len(), 6);
+    }
+
+    #[test]
+    fn migrating_twice_is_a_no_op() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+        let conn = open_at(&path).unwrap();
+        let id = store::save_class(&conn, &crate::store::tests_support::sample_class()).unwrap();
+        drop(conn);
 
         let conn = open_at(&path).unwrap();
-        assert_eq!(read_note(&conn).unwrap(), "Α1 — συνάντηση γονέων");
+        assert_eq!(store::load(&conn).unwrap().classes.len(), 1);
+        assert_eq!(store::load(&conn).unwrap().classes[0].id, id);
     }
 
     #[test]
@@ -113,22 +297,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("planner.sqlite");
         let conn = open_at(&path).unwrap();
-        write_note(&conn, "x").unwrap();
+        store::save_student(&conn, &crate::store::tests_support::sample_student()).unwrap();
         drop(conn);
 
         assert!(!dir.path().join("planner.sqlite-wal").exists());
         assert!(!dir.path().join("planner.sqlite-shm").exists());
-    }
-
-    #[test]
-    fn reopening_an_existing_file_does_not_reset_it() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("planner.sqlite");
-        let conn = open_at(&path).unwrap();
-        write_note(&conn, "keep me").unwrap();
-        drop(conn);
-
-        let conn = open_at(&path).unwrap();
-        assert_eq!(read_note(&conn).unwrap(), "keep me");
     }
 }

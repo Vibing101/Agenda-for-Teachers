@@ -1,0 +1,60 @@
+/**
+ * The fixed reference vocabularies: year models, holiday sources,
+ * important-date types, SEN categories, goal areas, weekdays, months.
+ *
+ * The spec's Language section asks for these to live in a translation table
+ * rather than being hardcoded per language, because several modules reuse the
+ * same vocabulary. So a vocabulary here is a list of **stable codes** — those
+ * are what the database stores — and the label for a code is looked up as the
+ * string id `vocab.<kind>.<code>`. Translating a vocabulary is then the same
+ * act as translating any other string: one more block in the language file.
+ *
+ * Storing the code and never the label is also what keeps a teacher's data
+ * readable after a language switch: a student's SEN status is `accommodations`
+ * on disk, and reads as "Προσαρμογές" or "Accommodations" depending on the UI.
+ */
+import type { StringId } from "./index";
+
+export const YEAR_MODELS = ["sep_aug", "jan_dec", "feb_dec"] as const;
+export const HOLIDAY_SOURCES = ["ministry", "school"] as const;
+export const IMPORTANT_DATE_KINDS = [
+  "deadline",
+  "meeting",
+  "exam_window",
+  "event",
+  "other",
+] as const;
+export const SEN_STATUSES = ["none", "reinforcement", "accommodations", "gifted"] as const;
+/** The six fixed areas, in the order the source product prints them. */
+export const GOAL_AREAS = [
+  "teaching",
+  "development",
+  "students",
+  "colleagues",
+  "parents",
+  "wellbeing",
+] as const;
+/** Monday–Saturday, matching the source timetable grid. */
+export const WEEKDAYS = [1, 2, 3, 4, 5, 6] as const;
+export const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+
+export type YearModel = (typeof YEAR_MODELS)[number];
+export type HolidaySource = (typeof HOLIDAY_SOURCES)[number];
+export type ImportantDateKind = (typeof IMPORTANT_DATE_KINDS)[number];
+export type SenStatus = (typeof SEN_STATUSES)[number];
+export type GoalArea = (typeof GOAL_AREAS)[number];
+export type Weekday = (typeof WEEKDAYS)[number];
+export type Month = (typeof MONTHS)[number];
+
+/** The string id that labels one code of one vocabulary. */
+export function vocabLabelId(kind: string, code: string | number): StringId {
+  return `vocab.${kind}.${code}` as StringId;
+}
+
+export const yearModelLabel = (code: string) => vocabLabelId("yearModel", code);
+export const holidaySourceLabel = (code: string) => vocabLabelId("holidaySource", code);
+export const importantDateKindLabel = (code: string) => vocabLabelId("importantDateKind", code);
+export const senStatusLabel = (code: string) => vocabLabelId("senStatus", code);
+export const goalAreaLabel = (code: string) => vocabLabelId("goalArea", code);
+export const weekdayLabel = (day: number) => vocabLabelId("weekday", day);
+export const monthLabel = (month: number) => vocabLabelId("month", month);

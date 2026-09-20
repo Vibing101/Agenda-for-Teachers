@@ -1,112 +1,103 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import App from "../../src/App";
 
-/**
- * The Tauri command bridge is mocked at the `invoke` boundary, so these tests
- * cover the frontend's behaviour — above all the block-and-reload path, which
- * is M0's headline safety requirement.
- */
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 
-const baseStatus = {
-  app_folder: "/Drive/Agenda",
-  db_path: "/Drive/Agenda/data/planner.sqlite",
-  db_exists: true,
-  schema_version: 1,
-  backup_count: 2,
-  last_backup: "2026-09-19T07:30:00+03:00",
-  disk_changed: false,
-};
+const { createFakeBackend, emptyPlanner } = await import("../helpers/fakeBackend");
+const { default: App } = await import("../../src/App");
 
-function mockBackend(overrides: Record<string, unknown> = {}) {
-  const handlers: Record<string, (args?: Record<string, unknown>) => unknown> = {
-    status: () => baseStatus,
-    load: () => ({ note: "existing note" }),
-    reload: () => ({ note: "the other device's note" }),
-    save: () => undefined,
-    make_backup: () => "/Drive/Agenda/data/backups/planner-2026-09-19-0730.sqlite",
-    ...overrides,
-  };
-  invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
-    const handler = handlers[cmd];
-    if (!handler) return Promise.reject(new Error(`unexpected command ${cmd}`));
+type Backend = ReturnType<typeof createFakeBackend>;
+
+function mount(planner = emptyPlanner()): Backend {
+  const backend = createFakeBackend(planner);
+  invoke.mockImplementation((command: string, args?: Record<string, unknown>) => {
     try {
-      return Promise.resolve(handler(args));
+      return Promise.resolve(backend.handle(command, args));
     } catch (e) {
       return Promise.reject(e);
     }
   });
+  render(<App />);
+  return backend;
 }
 
-describe("App", () => {
+describe("the app shell", () => {
   beforeEach(() => {
     invoke.mockReset();
   });
 
-  it("loads the saved note and shows where the data lives", async () => {
-    mockBackend();
-    render(<App />);
+  it("opens on the year section and moves between the three M1 sections", async () => {
+    mount();
+    const user = userEvent.setup();
 
-    expect(await screen.findByDisplayValue("existing note")).toBeInTheDocument();
-    expect(await screen.findByText("/Drive/Agenda/data/planner.sqlite")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Σχολικό έτος" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Τάξεις" }));
+    expect(await screen.findByRole("heading", { name: "Τα τμήματά μου" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Μαθητές" }));
+    expect(await screen.findByRole("heading", { name: "Ευρετήριο μαθητών" })).toBeInTheDocument();
   });
 
-  it("saves what was typed", async () => {
-    mockBackend();
-    const user = userEvent.setup();
-    render(<App />);
-
-    const box = await screen.findByLabelText("Persistence check");
-    await user.clear(box);
-    await user.type(box, "Α1");
-    await user.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith("save", { note: "Α1" }));
-    expect(await screen.findByText("Saved")).toBeInTheDocument();
+  it("shows where the data lives, including the M1 schema version", async () => {
+    mount();
+    expect(await screen.findByText("/Drive/Ατζέντα/data/planner.sqlite")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
   });
 
-  it("blocks saving and offers a reload when the file changed on disk", async () => {
-    mockBackend({
-      save: () => {
-        throw { code: "disk_changed", message: "the data file changed on disk" };
-      },
-    });
+  /**
+   * M0's headline safety requirement, now standing in front of real data: a
+   * save against a file the cloud sync replaced is refused, and the only way
+   * forward is an explicit reload.
+   */
+  it("blocks editing and offers a reload when the file changed on disk", async () => {
+    const backend = mount();
     const user = userEvent.setup();
-    render(<App />);
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
 
-    await screen.findByDisplayValue("existing note");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    backend.markDiskChanged();
+    await user.type(screen.getByLabelText("Πρώτη Δευτέρα της εβδομάδας 1"), "2026-09-14");
+    await user.click(screen.getAllByRole("button", { name: "Αποθήκευση" })[0]);
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("The data file changed on disk");
-    // The save button is disabled: there is deliberately no "save anyway".
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(alert).toHaveTextContent("Το αρχείο δεδομένων άλλαξε στον δίσκο");
+    // There is deliberately no "save anyway": every control in the section is
+    // disabled until the teacher reloads.
+    await waitFor(() =>
+      expect(screen.getByLabelText("Πρώτη Δευτέρα της εβδομάδας 1")).toBeDisabled(),
+    );
+    expect(screen.getAllByRole("button", { name: "Αποθήκευση" })[0]).toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: "Reload from disk" }));
-    expect(await screen.findByDisplayValue("the other device's note")).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Επαναφόρτωση από τον δίσκο" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Πρώτη Δευτέρα της εβδομάδας 1")).toBeEnabled();
   });
 
-  it("blocks immediately when the status reports the file already changed", async () => {
-    mockBackend({ status: () => ({ ...baseStatus, disk_changed: true }) });
+  it("blocks immediately when the status already reports the file changed", async () => {
+    const backend = createFakeBackend(emptyPlanner());
+    backend.markDiskChanged();
+    invoke.mockImplementation((command: string, args?: Record<string, unknown>) => {
+      try {
+        return Promise.resolve(backend.handle(command, args));
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    });
     render(<App />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("The data file changed on disk");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeDisabled());
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Το αρχείο δεδομένων άλλαξε στον δίσκο",
+    );
   });
 
   it("reports a written snapshot", async () => {
-    mockBackend();
+    mount();
     const user = userEvent.setup();
-    render(<App />);
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
 
-    await screen.findByDisplayValue("existing note");
-    await user.click(screen.getByRole("button", { name: "Back up now" }));
-
+    await user.click(screen.getByRole("button", { name: "Δημιουργία αντιγράφου τώρα" }));
     expect(await screen.findByText(/planner-2026-09-19-0730\.sqlite/)).toBeInTheDocument();
   });
 });

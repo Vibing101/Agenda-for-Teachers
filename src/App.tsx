@@ -1,13 +1,46 @@
-import { useCallback, useEffect, useState } from "react";
+/**
+ * The app shell: the three M1 sections, the storage panel M0 left behind, and
+ * the block-and-reload guard that now stands in front of real teacher data
+ * rather than a scratch note.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, isAppError, type Status } from "./api";
+import { Button } from "./components/Fields";
+import type { Planner } from "./domain/types";
+import { DEFAULT_LOCALE, translatorFor, type StringId } from "./i18n";
+import { LocaleContext, useTranslate } from "./i18n/useTranslate";
+import ClassesScreen from "./screens/ClassesScreen";
+import StudentsScreen from "./screens/StudentsScreen";
+import YearScreen from "./screens/YearScreen";
+import type { Run } from "./screens/types";
 
-type SaveState = "idle" | "saving" | "saved" | "error";
+type Section = "year" | "classes" | "students";
+const SECTIONS: { key: Section; labelId: StringId }[] = [
+  { key: "year", labelId: "nav.year" },
+  { key: "classes", labelId: "nav.classes" },
+  { key: "students", labelId: "nav.students" },
+];
 
 export default function App() {
+  // The app ships Greek-only through M8; M9 turns this into state behind a
+  // toggle. Every string already resolves through the context, so that change
+  // is here and nowhere else.
+  const locale = DEFAULT_LOCALE;
+  const value = useMemo(() => ({ locale, t: translatorFor(locale) }), [locale]);
+  return (
+    <LocaleContext.Provider value={value}>
+      <Shell />
+    </LocaleContext.Provider>
+  );
+}
+
+function Shell() {
+  const t = useTranslate();
+  const [planner, setPlanner] = useState<Planner | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
-  const [note, setNote] = useState("");
-  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [section, setSection] = useState<Section>("year");
   const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   /**
    * Set when the data file changed on disk since we read it — most likely the
    * cloud sync caught up with another device after we opened. While it is set,
@@ -29,8 +62,7 @@ export default function App() {
   useEffect(() => {
     void (async () => {
       try {
-        const loaded = await api.load();
-        setNote(loaded.note);
+        setPlanner(await api.load());
       } catch (e) {
         setMessage(isAppError(e) ? e.message : String(e));
       }
@@ -38,31 +70,38 @@ export default function App() {
     })();
   }, [refreshStatus]);
 
-  async function onSave() {
-    setSaveState("saving");
-    setMessage(null);
-    try {
-      await api.save(note);
-      setSaveState("saved");
-      await refreshStatus();
-    } catch (e) {
-      if (isAppError(e) && e.code === "disk_changed") {
-        setBlocked(true);
-        setSaveState("idle");
-        return;
+  /**
+   * The one path every change takes. A mutation that comes back `disk_changed`
+   * raises the block instead of reporting an error the teacher cannot act on.
+   */
+  const run: Run = useCallback(
+    async (call) => {
+      setSaving(true);
+      setMessage(null);
+      try {
+        const next = await call();
+        setPlanner(next);
+        await refreshStatus();
+        return next;
+      } catch (e) {
+        if (isAppError(e) && e.code === "disk_changed") {
+          setBlocked(true);
+        } else {
+          setMessage(isAppError(e) ? e.message : String(e));
+        }
+        return null;
+      } finally {
+        setSaving(false);
       }
-      setSaveState("error");
-      setMessage(isAppError(e) ? e.message : String(e));
-    }
-  }
+    },
+    [refreshStatus],
+  );
 
   async function onReload() {
     try {
-      const loaded = await api.reload();
-      setNote(loaded.note);
+      setPlanner(await api.reload());
       setBlocked(false);
-      setSaveState("idle");
-      setMessage("Reloaded the version that is now on disk.");
+      setMessage(t("blocked.reloaded"));
       await refreshStatus();
     } catch (e) {
       setMessage(isAppError(e) ? e.message : String(e));
@@ -72,7 +111,9 @@ export default function App() {
   async function onBackup() {
     try {
       const path = await api.makeBackup();
-      setMessage(path ? `Snapshot written: ${path}` : "Nothing to back up yet.");
+      setMessage(
+        path ? t("storage.backupWritten", { path }) : t("storage.nothingToBackUp"),
+      );
       await refreshStatus();
     } catch (e) {
       setMessage(isAppError(e) ? e.message : String(e));
@@ -82,70 +123,72 @@ export default function App() {
   return (
     <main className="app">
       <header>
-        <h1>Ατζέντα Εκπαιδευτικού</h1>
-        <p className="milestone">M0 — shell &amp; persistence</p>
+        <h1>{t("app.title")}</h1>
+        <p className="subtitle">{t("app.subtitle")}</p>
+        <nav>
+          {SECTIONS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className={s.key === section ? "tab selected" : "tab"}
+              aria-current={s.key === section ? "page" : undefined}
+              onClick={() => setSection(s.key)}
+            >
+              {t(s.labelId)}
+            </button>
+          ))}
+        </nav>
       </header>
 
       {blocked && (
         <section className="blocked" role="alert">
-          <h2>The data file changed on disk</h2>
-          <p>
-            Another copy of this folder has been saved since this app read the file — most
-            likely the cloud sync finished catching up from another device. Saving is
-            blocked so that work is not overwritten.
-          </p>
+          <h2>{t("blocked.title")}</h2>
+          <p>{t("blocked.body")}</p>
           <button type="button" onClick={onReload}>
-            Reload from disk
+            {t("blocked.reload")}
           </button>
         </section>
       )}
 
-      <section className="panel">
-        <label htmlFor="note">Persistence check</label>
-        <textarea
-          id="note"
-          value={note}
-          onChange={(e) => {
-            setNote(e.target.value);
-            setSaveState("idle");
-          }}
-          rows={5}
-          placeholder="Type something, save, quit the app completely, and reopen it."
-        />
-        <div className="actions">
-          <button type="button" onClick={onSave} disabled={blocked || saveState === "saving"}>
-            {saveState === "saving" ? "Saving…" : "Save"}
-          </button>
-          <button type="button" onClick={onBackup}>
-            Back up now
-          </button>
-          {saveState === "saved" && <span className="ok">Saved</span>}
-        </div>
-      </section>
-
       {message && <p className="message">{message}</p>}
+      {saving && <p className="message">{t("common.saving")}</p>}
+
+      {planner === null ? (
+        <p>{t("common.loading")}</p>
+      ) : (
+        <fieldset className="sections" disabled={blocked}>
+          {section === "year" && <YearScreen planner={planner} run={run} />}
+          {section === "classes" && <ClassesScreen planner={planner} run={run} />}
+          {section === "students" && <StudentsScreen planner={planner} run={run} />}
+        </fieldset>
+      )}
 
       <section className="panel">
-        <h2>Where the data lives</h2>
+        <h2>{t("storage.heading")}</h2>
         {status ? (
           <dl>
-            <dt>App folder</dt>
+            <dt>{t("storage.appFolder")}</dt>
             <dd>{status.app_folder}</dd>
-            <dt>Data file</dt>
+            <dt>{t("storage.dataFile")}</dt>
             <dd>
-              {status.db_path} {status.db_exists ? "" : "(not created yet)"}
+              {status.db_path} {status.db_exists ? "" : t("storage.notCreated")}
             </dd>
-            <dt>Schema version</dt>
+            <dt>{t("storage.schemaVersion")}</dt>
             <dd>{status.schema_version}</dd>
-            <dt>Backups</dt>
+            <dt>{t("storage.backups")}</dt>
             <dd>
               {status.backup_count}
-              {status.last_backup ? ` — latest ${status.last_backup}` : ""}
+              {status.last_backup
+                ? ` — ${t("storage.latest", { when: status.last_backup })}`
+                : ""}
             </dd>
           </dl>
         ) : (
-          <p>Loading…</p>
+          <p>{t("common.loading")}</p>
         )}
+        <div className="actions">
+          <Button labelId="storage.backupNow" onClick={onBackup} />
+        </div>
       </section>
     </main>
   );
