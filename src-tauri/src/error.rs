@@ -10,6 +10,10 @@ pub enum AppError {
     Db(#[from] rusqlite::Error),
     #[error("file error: {0}")]
     Io(#[from] std::io::Error),
+    /// Anything that went wrong on the way to writing a PDF: the print window,
+    /// the platform's print pipeline, or the file it was meant to leave behind.
+    #[error("PDF export failed: {0}")]
+    Pdf(String),
 }
 
 impl AppError {
@@ -18,6 +22,7 @@ impl AppError {
             AppError::DiskChanged => "disk_changed",
             AppError::Db(_) => "db",
             AppError::Io(_) => "io",
+            AppError::Pdf(_) => "pdf",
         }
     }
 }
@@ -29,6 +34,23 @@ impl Serialize for AppError {
         st.serialize_field("code", self.code())?;
         st.serialize_field("message", &self.to_string())?;
         st.end()
+    }
+}
+
+/// A WebView2 call that fails is a failed export, the same as any other step
+/// on the way to the file.
+#[cfg(target_os = "windows")]
+impl From<windows::core::Error> for AppError {
+    fn from(e: windows::core::Error) -> Self {
+        AppError::Pdf(e.to_string())
+    }
+}
+
+/// A Tauri failure — creating the hidden print window, mostly — reads to the
+/// teacher as a failed export, because that is what it is.
+impl From<tauri::Error> for AppError {
+    fn from(e: tauri::Error) -> Self {
+        AppError::Pdf(e.to_string())
     }
 }
 

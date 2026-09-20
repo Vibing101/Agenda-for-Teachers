@@ -19,6 +19,7 @@ export const el = {
   "nav.year": "Έτος",
   "nav.classes": "Τάξεις",
   "nav.students": "Μαθητές",
+  "nav.grades": "Βαθμοί",
   "nav.storage": "Αρχείο",
 
   "common.add": "Προσθήκη",
@@ -196,6 +197,89 @@ export const el = {
   "birthdays.none": "Καμία ημερομηνία γέννησης ακόμη.",
   "birthdays.emptyMonth": "—",
 
+  "grades.heading": "Μητρώο βαθμών",
+  "grades.intro":
+    "Ένα φύλλο ανά τμήμα: οι στήλες βαθμολόγησης με τη βαρύτητά τους, οι βαθμοί των μαθητών, ο μέσος όρος και η πρόταση βαθμού.",
+  "grades.noClasses": "Δεν υπάρχουν ακόμη τμήματα. Δημιουργήστε πρώτα ένα τμήμα στην ενότητα «Τάξεις».",
+  "grades.emptyRoster": "Δεν υπάρχουν μαθητές σε αυτό το τμήμα. Προσθέστε μαθητές από τον κατάλογο του τμήματος.",
+
+  "grades.sheetSettings": "Στοιχεία φύλλου",
+  "grades.period": "Περίοδος",
+  "grades.scaleMax": "Ανώτατος βαθμός κλίμακας",
+  "grades.passMark": "Βάση",
+  "grades.passMarkHint": "Ο χαμηλότερος βαθμός που θεωρείται επιτυχία. Προεπιλογή 10 στην κλίμακα 0–20.",
+
+  "grades.columns": "Στήλες βαθμολόγησης",
+  "grades.columnsIntro":
+    "Προσθέστε όσες στήλες χρειάζεστε. Μόνο οι αριθμητικές στήλες μετρούν στον μέσο όρο — οι περιγραφικές, οι στήλες επιτυχίας/αποτυχίας και τα σχόλια καταγράφονται και εκτυπώνονται, αλλά δεν συμμετέχουν στον υπολογισμό.",
+  "grades.columnLabel": "Ονομασία",
+  "grades.columnKind": "Τύπος",
+  "grades.weight": "Βαρύτητα (%)",
+  "grades.weightBlank": "Κενή βαρύτητα σημαίνει «δεν έχει οριστεί ακόμη» και η στήλη δεν μετρά μέχρι να συμπληρωθεί.",
+  "grades.addColumn": "Νέα στήλη",
+  "grades.removeColumn": "Διαγραφή στήλης",
+  "grades.removeColumnWarning": "Η διαγραφή μιας στήλης σβήνει και τους βαθμούς που έχουν γραφτεί σε αυτήν.",
+  "grades.noColumns": "Δεν έχει προστεθεί ακόμη καμία στήλη βαθμολόγησης.",
+  "grades.newColumnLabel": "Βαθμός {n}",
+
+  "grades.weightTotal": "Σύνολο βαρυτήτων: {total}%",
+  "grades.weightUnder":
+    "Οι βαρύτητες αθροίζουν {total}% αντί για 100%. Ο μέσος όρος υπολογίζεται πάνω στο {total}% που έχει οριστεί.",
+  "grades.weightOver": "Οι βαρύτητες αθροίζουν {total}%, δηλαδή πάνω από 100%.",
+  "grades.weightNeverBlocks": "Αυτή είναι μόνο υπενθύμιση — δεν εμποδίζει ποτέ την αποθήκευση.",
+  "grades.weightInvalid": "Η βαρύτητα πρέπει να είναι αριθμός από 0 έως 100.",
+
+  "grades.sheet": "Βαθμοί τάξης",
+  "grades.rosterNo": "Αρ.",
+  "grades.average": "Μέσος όρος",
+  "grades.suggestion": "Πρόταση",
+  "grades.noValue": "—",
+  "grades.gradeInvalid": "Ο βαθμός πρέπει να είναι αριθμός από 0 έως {max}.",
+
+  "grades.conductHeading": "Συμπεριφορά και στάση",
+  "grades.conductIntro":
+    "Η διαγωγή δεν συμμετέχει στον μέσο όρο. Ο συνολικός βαθμός γράφεται από τον εκπαιδευτικό και δεν υπολογίζεται από την εφαρμογή.",
+  "grades.conduct": "Διαγωγή",
+  "grades.overallResult": "Συνολικός βαθμός",
+  "grades.observations": "Παρατηρήσεις",
+
+  "grades.classSummary": "Σύνοψη τμήματος",
+  "grades.summaryAverage": "Μέσος όρος τμήματος",
+  "grades.summaryHighest": "Υψηλότερος μέσος όρος",
+  "grades.summaryLowest": "Χαμηλότερος μέσος όρος",
+  "grades.summaryAbove": "Βαθμοί πάνω από τη βάση (≥ βάση)",
+  "grades.summaryBelow": "Κινδυνεύουν με βαθμό κάτω της βάσης",
+  "grades.summaryRoster": "Αριθμός μαθητών",
+  "grades.summaryIntervention": "Διαγωγή που χρειάζεται παρέμβαση",
+
+  "grades.yearSummary": "Σύνοψη — όλα τα τμήματα",
+  "grades.yearSummaryIntro":
+    "Ενημερώνεται μόνη της από τα φύλλα των τμημάτων· τίποτα εδώ δεν συμπληρώνεται χωριστά.",
+  "grades.summaryClass": "Τμήμα",
+  "grades.summarySubject": "Μάθημα",
+  "grades.summaryStudents": "Μαθητές",
+  "grades.overallAverage": "Γενικός μέσος όρος",
+
+  "grades.exportSheet": "Εξαγωγή PDF βαθμών",
+  "grades.exportConduct": "Εξαγωγή PDF συμπεριφοράς",
+  "grades.exporting": "Δημιουργία PDF…",
+  "grades.exported": "Το PDF γράφτηκε: {path}",
+  "grades.sheetFileName": "Βαθμοί — {class} — {date}",
+  "grades.conductFileName": "Συμπεριφορά και στάση — {class} — {date}",
+
+  "grades.printClass": "ΤΑΞΗ",
+  "grades.printSubject": "ΜΑΘΗΜΑ",
+  "grades.printPeriod": "ΠΕΡΙΟΔΟΣ",
+  "grades.printTeacher": "ΕΚΠΑΙΔΕΥΤΙΚΟΣ",
+  "grades.printScale": "ΚΛΙΜΑΚΑ",
+  "grades.printBase": "ΒΑΣΗ",
+  "grades.printWeightRow": "ΒΑΡΥΤΗΤΑ",
+  "grades.printAverage": "Μ.Ο.",
+  "grades.printConductTitle": "Συμπεριφορά και στάση του μαθητή, με πρόταση βαθμού",
+  "grades.printNote":
+    "Η στήλη Μ.Ο. λαμβάνει υπόψη τις βαρύτητες· οι στήλες που δεν είναι αριθμητικές δεν μετρούν, ούτε η βαρύτητά τους.",
+  "grades.printedOn": "Εκτυπώθηκε {date}",
+
   "vocab.yearModel.sep_aug": "Σεπτέμβριος – Αύγουστος",
   "vocab.yearModel.jan_dec": "Ιανουάριος – Δεκέμβριος",
   "vocab.yearModel.feb_dec": "Φεβρουάριος – Δεκέμβριος",
@@ -240,4 +324,24 @@ export const el = {
   "vocab.month.10": "Οκτώβριος",
   "vocab.month.11": "Νοέμβριος",
   "vocab.month.12": "Δεκέμβριος",
+
+  "vocab.gradeColumnKind.numeric": "Αριθμητικός βαθμός",
+  "vocab.gradeColumnKind.descriptive": "Περιγραφικός (Α–Δ)",
+  "vocab.gradeColumnKind.pass_fail": "Επιτυχία / Αποτυχία",
+  "vocab.gradeColumnKind.comment": "Σχόλιο",
+
+  "vocab.descriptiveGrade.a": "Α",
+  "vocab.descriptiveGrade.b": "Β",
+  "vocab.descriptiveGrade.c": "Γ",
+  "vocab.descriptiveGrade.d": "Δ",
+
+  "vocab.passFailGrade.pass": "Επιτυχία",
+  "vocab.passFailGrade.fail": "Αποτυχία",
+
+  "vocab.conduct.exemplary": "Υποδειγματική",
+  "vocab.conduct.very_good": "Πολύ καλή",
+  "vocab.conduct.good": "Καλή",
+  "vocab.conduct.satisfactory": "Ικανοποιητική",
+  "vocab.conduct.needs_support": "Χρειάζεται στήριξη",
+  "vocab.conduct.needs_intervention": "Χρειάζεται παρέμβαση",
 } as const;

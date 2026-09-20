@@ -199,3 +199,63 @@ dd { margin: 0; overflow-wrap: anywhere; }
   dl, .derived { grid-template-columns: 1fr; }
   dt { margin-top: 8px; }
 }
+
+/* --- M2: the gradebook, its roll-ups and the conduct sheet --- */
+
+/* A class with ten columns is wider than the window; the grid scrolls rather
+   than squeezing the marks into unreadable columns. */
+.scroller { overflow-x: auto; margin-top: 12px; }
+
+table.gradebook { border-collapse: collapse; min-width: 100%; }
+table.gradebook th {
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 4px 8px 6px 0;
+  white-space: nowrap;
+}
+table.gradebook td {
+  padding: 3px 8px 3px 0;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+table.gradebook input,
+table.gradebook select { width: 5.5rem; }
+/* The two computed columns read as results, not as more fields to fill in. */
+table.gradebook td:nth-last-child(2),
+table.gradebook td:last-child { font-weight: 600; }
+td.at-risk { color: var(--danger); }
+
+table.summary { width: 100%; border-collapse: collapse; margin-top: 12px; }
+table.summary th {
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 4px 12px 6px 0;
+}
+table.summary td { padding: 4px 12px 4px 0; border-top: 1px solid var(--line); }
+table.summary tr.total-row td {
+  border-top: 2px solid var(--line);
+  font-weight: 700;
+}
+
+.total { margin: 12px 0 0; font-weight: 600; }
+.total.warning { color: var(--danger); }
+
+/* The running-total warning: visible enough to notice before printing, quiet
+   enough that a teacher mid-term can ignore it — it never blocks a save. */
+.warning-box {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--warn-line);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: var(--warn-bg);
+  font-size: 0.9rem;
+}
+
+li.conduct-row { align-items: flex-start; }
+li.conduct-row > strong { min-width: 12rem; padding-top: 6px; }

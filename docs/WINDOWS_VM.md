@@ -71,6 +71,17 @@ git clone -b main C:\Dev\agenda.bundle Agenda-for-Teachers
 git -C C:\Dev\Agenda-for-Teachers pull C:\Dev\agenda.bundle <branch>
 ```
 
+A note from the M2 gate, since it costs a round trip to rediscover: **fetching a
+branch into itself while it is checked out is refused** (`fatal: refusing to
+fetch into branch 'refs/heads/<branch>' checked out at ...`), and git says so on
+stderr, which over SSH is easy to read past. Fetch and reset instead:
+
+```powershell
+git fetch C:\Dev\agenda.bundle <branch>   # lands in FETCH_HEAD
+git reset --hard FETCH_HEAD
+git log --oneline -1                      # always confirm which commit is being tested
+```
+
 Around 7 MB, no credentials, and it survives the snapshot-revert workflow. If a
 normal `git pull` is ever wanted in there, a **read-only deploy key** scoped to
 this repo is the way, and that is a product-owner decision because it changes

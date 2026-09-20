@@ -286,6 +286,9 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
 | Progress-check periods | **Not in M2.** They appear in the spec's Βαθμοί module list but not in M2's delivery scope line, so M2 ships its scope line exactly and progress checks are picked up in a later milestone. Decided 2026-09-20, keeping M2 focused on the weighting logic the spec asked for concentrated test coverage on |
 | If PDF export proves blocked at M2 | **Ship the gradebook, defer the PDF.** If the WebView print-to-PDF path cannot be made to work, M2 lands with the weighted gradebook, all four grade types, conduct and the summary roll-ups — fully tested — and PDF export becomes its own piece of work with its own gate. Decided 2026-09-20. The reasoning: the weighting logic is what later milestones depend on, and it should not be held hostage to a platform rendering problem. This is a fallback, not permission to skip the attempt |
 
+| How the WebView print-to-PDF path is actually done | **`createPDF` plus app-side pagination on macOS; `PrintToPdf` on Windows** (M2). AppKit's print pipeline (`printOperationWithPrintInfo:`) does not work against wry's webview — its print view is zero-sized and renders nothing, so the job emits blank pages indefinitely; that was tried hidden and visible, with default and explicit settings, with the print view's frame forced, and run both directly and modally. WebKit's `createPDFWithConfiguration:` does render the whole document and embeds its fonts, but does not paginate. So the app lays each sheet out into fixed A4 blocks, macOS captures one rectangle per block and PDFKit assembles them, and WebView2 paginates the same blocks itself. The spec's resolved approach stands — this is how it is done |
+| Who decides where a printed sheet breaks | **The app, not the rendering engine** (M2). The print window measures the rendered rows and places them into A4 blocks, repeating the sheet header and the column headers and never splitting a row. Forced by the above. It gives both platforms the same page structure and the same A4 sheet; it does not make the break points identical, because row heights come from each platform's own text measurement — at the M2 gate a 45-row roster was five pages on macOS and six on Windows, differing only in whether the closing note shared the last page |
+
 ### Open — flag back rather than silently decide
 
 - **Does the Feb–Dec year model cover eleven months or twelve?** Read literally
@@ -307,6 +310,28 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
   string on the student card; every other label is Greek. It is a common Greek
   loanword, so this may well be deliberate — but it is currently an implicit
   choice rather than a recorded one. Raised at M1 (2026-09-20).
+
+- **Where should the per-class pass threshold ("Βάση") live?** M2 gives it, the
+  scale's upper bound and the printed sheet's period caption their own
+  `class_grading` table keyed by `class_id`, rather than three more columns on
+  `class`: it is a gradebook setting, the source registry keeps it in the
+  header of each class's grade sheet, and keeping it out of `class` leaves M1's
+  table and its round-trip tests untouched. A class with no row reads back as
+  the defaults. Raised at M2 (2026-09-20); one migration changes it either way.
+
+- **Should the conduct sheet print as part of the grade-sheet PDF or as its own
+  file?** M2 ships it as its own, matching the source product, which keeps
+  "Συμπεριφορά και στάση" as a separate page — and M7 is the only place the
+  spec asks for several pages bundled into one PDF. Raised at M2 (2026-09-20).
+  Now that pagination is the app's own, merging the two is a small change.
+
+- **The source's conduct page rates four things; the data model names one.** The
+  PDF's conduct page has columns for *Συμμετοχή, Αυτονομία, Διαγωγή* and
+  *Συνέπεια* plus the written overall result, while this spec's `GradeRow` names
+  a single six-level conduct rating plus observations — which is also what the
+  Excel registry has. M2 ships the data model as written rather than inventing
+  three fields or quietly dropping three columns the source has. Raised at M2
+  (2026-09-20).
 
 ### Carried risks
 
@@ -348,7 +373,19 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
   (database hash byte-identical before and after). **So the leading candidate for
   what killed the previous attempt does not reproduce on OneDrive.**
 
-  **The same test against Google Drive on Windows was not run, and is ACCEPTED
+  **Partly addressed at the M2 gate (2026-09-20): the app has now been run from
+  a live Google Drive folder on Windows.** In the `MilestoneTesting` VM, which
+  has the Drive client installed, the packaged exe ran from `G:\My Drive\…`,
+  created `data/planner.sqlite` and a dated backup there, exported a PDF into
+  `exports/`, and left no `-wal`/`-shm` sidecars. That is the first evidence for
+  Drive on Windows this project has. **It does not close the criterion**: the
+  launch was a scheduled task in the console session rather than a human
+  double-click, and the **online-only placeholder case was not driven against
+  Drive** — which is the half that matters most, since Drive streams files by a
+  different mechanism from OneDrive's and that case is the leading suspect for
+  what killed the previous attempt. The rest of what follows still stands.
+
+  **The full test against Google Drive on Windows was not run, and is ACCEPTED
   by the product owner (2026-09-20) as a carried risk rather than a blocker** —
   the same call M0 took on its Windows gap. Drive's streaming implementation is a
   different mechanism, so the OneDrive result does not carry over, and the client

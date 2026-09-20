@@ -21,23 +21,42 @@ pub mod error;
 pub mod fingerprint;
 pub mod model;
 pub mod paths;
+pub mod pdf;
 pub mod store;
 
 use error::{AppError, AppResult};
 use fingerprint::Fingerprint;
 use model::*;
 use serde::Serialize;
+use std::sync::mpsc::{channel, Sender};
 use std::sync::Mutex;
 use std::time::Duration;
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// How often a long session snapshots itself, per the spec.
 const BACKUP_INTERVAL: Duration = Duration::from_secs(30 * 60);
+
+/// The label of the hidden window a PDF is rendered in. One at a time: an
+/// export is a few hundred milliseconds and the teacher pressed one button.
+const PRINT_WINDOW: &str = "print";
+/// How long an export may take before it is reported as failed rather than
+/// leaving the teacher looking at a spinner forever.
+const PRINT_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// An export waiting for its print window to say it has rendered.
+struct PendingPrint {
+    job: pdf::PrintJob,
+    /// Where the finished path — or the failure — goes back to `export_pdf`.
+    reply: Sender<Result<String, String>>,
+}
 
 #[derive(Default)]
 pub struct AppState {
     /// The fingerprint of `planner.sqlite` as of our last read or write.
     /// `None` means we have not read the file yet this session.
     last_seen: Mutex<Option<Fingerprint>>,
+    /// The export currently being rendered, if any.
+    pending_print: Mutex<Option<PendingPrint>>,
 }
 
 #[derive(Serialize)]
@@ -233,8 +252,294 @@ fn save_seating(
 }
 
 #[tauri::command]
+fn save_class_grading(
+    state: tauri::State<'_, AppState>,
+    grading: ClassGrading,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_class_grading(tx, &grading))
+}
+
+#[tauri::command]
+fn save_grade_column(state: tauri::State<'_, AppState>, column: GradeColumn) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_grade_column(tx, &column).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_grade_column(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_grade_column(tx, id))
+}
+
+#[tauri::command]
+fn set_grade_value(state: tauri::State<'_, AppState>, value: GradeValue) -> AppResult<Planner> {
+    mutate(&state, |tx| store::set_grade_value(tx, &value))
+}
+
+#[tauri::command]
+fn save_grade_row(state: tauri::State<'_, AppState>, row: GradeRow) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_grade_row(tx, &row))
+}
+
+// ------------------------------------------------------------ PDF export ---
+
+/// Writes one document to `exports/` as a real PDF and returns its path.
+///
+/// The document arrives as HTML built by the frontend, because that is where
+/// every user-facing string lives. What happens here is the part the frontend
+/// cannot do:
+///
+/// 1. a hidden window is opened on the app's own page with `?print=1`;
+/// 2. that window asks for the job, renders it, waits for its fonts, and calls
+///    [`print_ready`];
+/// 3. the platform's own print-to-PDF writes the file, and the window closes.
+///
+/// It is `async` on purpose: it blocks waiting for step 3, and a synchronous
+/// command would block the thread the window it is waiting for has to run on.
+#[tauri::command]
+async fn export_pdf(
+    app: tauri::AppHandle,
+    file_name: String,
+    html: String,
+    landscape: bool,
+) -> AppResult<String> {
+    paths::ensure_dirs()?;
+    let target = pdf::target_path(&paths::exports_dir(), &file_name);
+    run_export(app, html, landscape, target).await
+}
+
+/// The body of an export, shared by the command and the print self-test.
+async fn run_export(
+    app: tauri::AppHandle,
+    html: String,
+    landscape: bool,
+    target: std::path::PathBuf,
+) -> AppResult<String> {
+    let (reply, outcome) = channel();
+    {
+        // Scoped so the guard — and the borrow of the app's state — is gone
+        // before the first await.
+        let state = app.state::<AppState>();
+        let mut pending = state.pending_print.lock().unwrap();
+        if pending.is_some() {
+            return Err(AppError::Pdf("another export is still running".into()));
+        }
+        *pending = Some(PendingPrint {
+            job: pdf::PrintJob {
+                html,
+                landscape,
+                target: target.clone(),
+            },
+            reply,
+        });
+    }
+
+    // A window left over from an export that failed badly would stop the next
+    // one from ever rendering, so clear it first.
+    if let Some(stale) = app.get_webview_window(PRINT_WINDOW) {
+        let _ = stale.close();
+    }
+
+    let built = WebviewWindowBuilder::new(
+        &app,
+        PRINT_WINDOW,
+        WebviewUrl::App("index.html?print=1".into()),
+    )
+    // Hidden: the teacher pressed "export", not "open a window". The document
+    // is still laid out and captured — a hidden window renders, it just does
+    // not run animation frames, which is why the print window waits on a timer
+    // rather than on `requestAnimationFrame`.
+    .visible(false)
+    .build();
+    if let Err(e) = built {
+        app.state::<AppState>().pending_print.lock().unwrap().take();
+        return Err(e.into());
+    }
+
+    // `recv_timeout` blocks, so it goes to a blocking thread rather than
+    // holding an async worker.
+    let result = tauri::async_runtime::spawn_blocking(move || outcome.recv_timeout(PRINT_TIMEOUT))
+        .await
+        .map_err(|e| AppError::Pdf(e.to_string()))?;
+
+    match result {
+        Ok(Ok(path)) => Ok(path),
+        Ok(Err(message)) => Err(AppError::Pdf(message)),
+        Err(_) => {
+            app.state::<AppState>().pending_print.lock().unwrap().take();
+            if let Some(window) = app.get_webview_window(PRINT_WINDOW) {
+                let _ = window.close();
+            }
+            Err(AppError::Pdf(
+                "the print window did not answer in time".into(),
+            ))
+        }
+    }
+}
+
+/// What the hidden print window renders. Called by it, not by a screen.
+#[tauri::command]
+fn print_job(state: tauri::State<'_, AppState>) -> AppResult<String> {
+    state
+        .pending_print
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|p| p.job.html.clone())
+        .ok_or_else(|| AppError::Pdf("there is no document waiting to be printed".into()))
+}
+
+/// Called by the print window once its document is laid out and its fonts are
+/// loaded, with the number of A4 pages it laid the document out onto.
+///
+/// Waiting for the frontend to say "ready" rather than guessing with a sleep is
+/// what makes Greek safe here: `document.fonts.ready` has resolved by the time
+/// this is called, so a page is never captured mid-fallback-font — which is the
+/// classic way Greek text ends up drawn in a face that has none of it.
+#[tauri::command]
+async fn print_ready(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    pages: usize,
+) -> AppResult<()> {
+    let pending = {
+        let state = state.pending_print.lock().unwrap().take();
+        state.ok_or_else(|| AppError::Pdf("nothing was waiting to be printed".into()))?
+    };
+
+    let outcome = render_pages(&app, &pending.job, pages)
+        .map(|()| pending.job.target.display().to_string())
+        .map_err(|e| e.to_string());
+
+    if let Some(window) = app.get_webview_window(PRINT_WINDOW) {
+        let _ = window.close();
+    }
+    let _ = pending.reply.send(outcome);
+    // Whatever happened, the export that is waiting has already been told; a
+    // second report through this command's own result would only surface the
+    // same failure twice, in the window that is closing.
+    Ok(())
+}
+
+/// Turns the laid-out print window into the finished file.
+///
+/// On macOS that is one capture per page and then an assemble; on Windows
+/// WebView2 paginates the same page-sized blocks itself and writes the file in
+/// one call. Either way the pages are the ones the app laid out, so the two
+/// platforms produce the same document.
+fn render_pages(app: &tauri::AppHandle, job: &pdf::PrintJob, pages: usize) -> AppResult<()> {
+    let window = app
+        .get_webview_window(PRINT_WINDOW)
+        .ok_or_else(|| AppError::Pdf("the print window closed too early".into()))?;
+
+    #[cfg(target_os = "macos")]
+    {
+        if pages == 0 {
+            return Err(AppError::Pdf("the document had no pages".into()));
+        }
+        let mut captured: Vec<Vec<u8>> = Vec::with_capacity(pages);
+        for page in 0..pages {
+            let (send, receive) = channel();
+            let job = job.clone();
+            let (started_tx, started_rx) = channel();
+            window.with_webview(move |webview| {
+                let started = pdf::capture_page(webview.inner(), &job, page, send);
+                let _ = started_tx.send(started.map_err(|e| e.to_string()));
+            })?;
+            started_rx
+                .recv_timeout(PRINT_TIMEOUT)
+                .map_err(|_| AppError::Pdf("the capture never started".into()))?
+                .map_err(AppError::Pdf)?;
+            // The handler fires on the main thread's run loop, which is free
+            // to run because this is not on it.
+            let bytes = receive
+                .recv_timeout(PRINT_TIMEOUT)
+                .map_err(|_| AppError::Pdf("a page was never captured".into()))?
+                .map_err(AppError::Pdf)?;
+            captured.push(bytes);
+        }
+        pdf::merge_pages(captured, &job.target)
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = pages;
+        let job = job.clone();
+        let (send, receive) = channel();
+        window.with_webview(move |webview| {
+            let _ = send.send(
+                pdf::capture(webview.controller(), webview.environment(), &job)
+                    .map_err(|e| e.to_string()),
+            );
+        })?;
+        receive
+            .recv_timeout(PRINT_TIMEOUT)
+            .map_err(|_| AppError::Pdf("the print pipeline never finished".into()))?
+            .map_err(AppError::Pdf)
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (window, job, pages);
+        Err(AppError::Pdf(
+            "PDF export is not implemented on this platform".into(),
+        ))
+    }
+}
+
+#[tauri::command]
 fn make_backup() -> AppResult<Option<String>> {
     Ok(backup::snapshot_now()?.map(|p| p.display().to_string()))
+}
+
+/// The print self-test: render one HTML file to one PDF and exit.
+///
+/// Set `TEACHER_PLANNER_PRINT_SELFTEST_HTML` and
+/// `TEACHER_PLANNER_PRINT_SELFTEST_PDF` and the app starts, drives the *same*
+/// export path a button does, reports what happened on stdout and quits.
+///
+/// It exists because of a gap in how this project is verified: an agent can
+/// build and launch the app on either OS but cannot click in it, and the one
+/// thing M2 must prove — that a real PDF comes out and that Greek renders in
+/// it — lives behind a button. The document is supplied by the caller rather
+/// than baked in here, which keeps every Greek string out of the Rust side and
+/// makes this a genuine end-to-end test of the print pipeline rather than a
+/// test of a fixture.
+fn print_self_test(app: &tauri::AppHandle) -> Option<()> {
+    let html_path = std::env::var_os("TEACHER_PLANNER_PRINT_SELFTEST_HTML")?;
+    let pdf_path = std::env::var_os("TEACHER_PLANNER_PRINT_SELFTEST_PDF")?;
+    let landscape = std::env::var("TEACHER_PLANNER_PRINT_SELFTEST_PORTRAIT").is_err();
+    let app = app.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let code = match std::fs::read_to_string(&html_path) {
+            Err(e) => {
+                eprintln!("print self-test: could not read the document: {e}");
+                2
+            }
+            Ok(html) => {
+                match run_export(
+                    app.clone(),
+                    html,
+                    landscape,
+                    std::path::PathBuf::from(&pdf_path),
+                )
+                .await
+                {
+                    Ok(path) => {
+                        println!("print self-test: wrote {path}");
+                        0
+                    }
+                    Err(e) => {
+                        eprintln!("print self-test: {e}");
+                        1
+                    }
+                }
+            }
+        };
+        app.exit(code);
+    });
+    Some(())
 }
 
 pub fn run() {
@@ -276,9 +581,18 @@ pub fn run() {
             set_enrollment,
             remove_enrollment,
             save_seating,
+            save_class_grading,
+            save_grade_column,
+            delete_grade_column,
+            set_grade_value,
+            save_grade_row,
+            export_pdf,
+            print_job,
+            print_ready,
             make_backup
         ])
-        .setup(|_app| {
+        .setup(|app| {
+            print_self_test(&app.handle().clone());
             std::thread::spawn(|| loop {
                 std::thread::sleep(BACKUP_INTERVAL);
                 if let Err(e) = backup::snapshot_now() {

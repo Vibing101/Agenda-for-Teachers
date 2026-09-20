@@ -68,3 +68,15 @@ export function formatDate(value: string): string {
   if (!isIsoDate(value)) return value;
   return `${value.slice(8, 10)}.${value.slice(5, 7)}.${value.slice(0, 4)}`;
 }
+
+/**
+ * Today, as this device's calendar reads it.
+ *
+ * Built from the local year/month/day rather than from `toISOString()`, which
+ * is UTC: on a Cyprus evening those are different days, and a sheet printed at
+ * 22:00 should carry the date the teacher would write on it.
+ */
+export function todayIso(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}

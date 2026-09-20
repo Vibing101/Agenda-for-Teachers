@@ -5,8 +5,10 @@
 //! alongside another test that reads it.
 //!
 //! It covers the gate's persistence round-trip (write, quit, relaunch, the data
-//! is intact) and M0's change-detection criterion, now carrying real M1 data:
-//! a school year, two classes, a student enrolled in both.
+//! is intact) and M0's change-detection criterion, now carrying real M1 and M2
+//! data: a school year, two classes, a student enrolled in both, and that
+//! class's gradebook — columns with and without a weight, marks of more than
+//! one type, the pass threshold and a conduct rating.
 
 use teacher_planner_lib::model::*;
 use teacher_planner_lib::{backup, db, fingerprint::Fingerprint, paths, store};
@@ -119,6 +121,75 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
         )
         .unwrap();
     }
+    // --- and then her gradebook for that class ---
+    store::save_class_grading(
+        &conn,
+        &ClassGrading {
+            class_id: class_a,
+            pass_threshold: 12.0,
+            scale_max: 20.0,
+            period: "Α΄ τρίμηνο".into(),
+        },
+    )
+    .unwrap();
+    let mark_column = store::save_grade_column(
+        &conn,
+        &GradeColumn {
+            id: 0,
+            class_id: class_a,
+            position: 0,
+            label: "Διαγώνισμα".into(),
+            kind: "numeric".into(),
+            weight: Some(60.0),
+        },
+    )
+    .unwrap();
+    // Deliberately left unweighted: "not decided yet" has to survive the round
+    // trip as blank, because a zero would change every average on the sheet.
+    let comment_column = store::save_grade_column(
+        &conn,
+        &GradeColumn {
+            id: 0,
+            class_id: class_a,
+            position: 1,
+            label: "Σχόλιο".into(),
+            kind: "comment".into(),
+            weight: None,
+        },
+    )
+    .unwrap();
+    store::set_grade_value(
+        &conn,
+        &GradeValue {
+            class_id: class_a,
+            column_id: mark_column,
+            student_id: student,
+            value: "17.5".into(),
+        },
+    )
+    .unwrap();
+    store::set_grade_value(
+        &conn,
+        &GradeValue {
+            class_id: class_a,
+            column_id: comment_column,
+            student_id: student,
+            value: "Δούλεψε πολύ καλά — χρειάζεται στήριξη στα κλάσματα".into(),
+        },
+    )
+    .unwrap();
+    store::save_grade_row(
+        &conn,
+        &GradeRow {
+            class_id: class_a,
+            student_id: student,
+            conduct: "very_good".into(),
+            observations: "Βοηθά τους συμμαθητές της".into(),
+            overall_result: "Ικανοποιητική πορεία".into(),
+        },
+    )
+    .unwrap();
+
     let saved = store::load(&conn).unwrap();
     drop(conn); // the app quits
     let after_write = Fingerprint::of(&paths::db_path()).unwrap();
@@ -146,6 +217,37 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
         "the student shows on both class rosters"
     );
 
+    // The gradebook came back whole, including the two things most easily lost
+    // in a round trip: an undecided weight, and a written conduct result.
+    let grading = reloaded
+        .class_gradings
+        .iter()
+        .find(|g| g.class_id == class_a)
+        .unwrap();
+    assert_eq!(grading.pass_threshold, 12.0);
+    assert_eq!(grading.period, "Α΄ τρίμηνο");
+    let weights: Vec<Option<f64>> = reloaded
+        .grade_columns
+        .iter()
+        .filter(|c| c.class_id == class_a)
+        .map(|c| c.weight)
+        .collect();
+    assert_eq!(
+        weights,
+        vec![Some(60.0), None],
+        "a blank weight must not come back as zero"
+    );
+    assert_eq!(reloaded.grade_values.len(), 2);
+    assert!(reloaded
+        .grade_values
+        .iter()
+        .any(|v| v.value == "Δούλεψε πολύ καλά — χρειάζεται στήριξη στα κλάσματα"));
+    assert_eq!(reloaded.grade_rows[0].conduct, "very_good");
+    assert_eq!(
+        reloaded.grade_rows[0].overall_result,
+        "Ικανοποιητική πορεία"
+    );
+
     // --- the start date moves, and nothing else does ---
     store::save_school_year(
         &conn,
@@ -159,6 +261,9 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert_eq!(moved.classes, reloaded.classes);
     assert_eq!(moved.students, reloaded.students);
     assert_eq!(moved.enrollments, reloaded.enrollments);
+    assert_eq!(moved.grade_columns, reloaded.grade_columns);
+    assert_eq!(moved.grade_values, reloaded.grade_values);
+    assert_eq!(moved.grade_rows, reloaded.grade_rows);
     drop(conn);
 
     // Opening and reading must not disturb the file, or every session would

@@ -19,7 +19,7 @@ use crate::model::GOAL_AREAS;
 use rusqlite::Connection;
 use std::path::Path;
 
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 3;
 
 pub fn open_at(db_path: &Path) -> AppResult<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -52,6 +52,11 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     if current < 2 {
         migrate_to_2(conn)?;
         conn.pragma_update(None, "user_version", 2)?;
+        current = 2;
+    }
+    if current < 3 {
+        migrate_to_3(conn)?;
+        conn.pragma_update(None, "user_version", 3)?;
     }
     Ok(())
 }
@@ -215,6 +220,70 @@ fn migrate_to_2(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
+/// M2 — the gradebook, conduct, and the per-class grading settings.
+///
+/// Three things are worth reading twice:
+///
+/// * **`grade_column.weight` is the only nullable column in the schema.** A
+///   `NULL` weight means the teacher has not decided it yet and the column
+///   takes no part in the average; `0` means she decided it is worth nothing,
+///   which keeps it in and can trigger the plain-average fallback. Storing a
+///   blank as `0` would silently change results, so the distinction is carried
+///   all the way down to the file.
+/// * **A cell is text, whatever the column's type.** Marks, the descriptive
+///   Α–Δ codes, pass/fail and free comments share one table; turning a numeric
+///   cell into a number is the calculation's job, so a typo can never be
+///   rounded into a mark at write time.
+/// * **The grading settings are their own table, keyed by class.** They belong
+///   to the gradebook rather than to the class list, and keeping them out of
+///   `class` leaves M1's table and its round-trip tests untouched. A class with
+///   no row here is read back with the defaults.
+fn migrate_to_3(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "BEGIN;
+
+         CREATE TABLE class_grading (
+             class_id       INTEGER PRIMARY KEY REFERENCES class(id) ON DELETE CASCADE,
+             pass_threshold REAL NOT NULL DEFAULT 10,
+             scale_max      REAL NOT NULL DEFAULT 20,
+             period         TEXT NOT NULL DEFAULT ''
+         );
+
+         CREATE TABLE grade_column (
+             id       INTEGER PRIMARY KEY,
+             class_id INTEGER NOT NULL REFERENCES class(id) ON DELETE CASCADE,
+             position INTEGER NOT NULL DEFAULT 0,
+             label    TEXT NOT NULL DEFAULT '',
+             kind     TEXT NOT NULL DEFAULT 'numeric',
+             weight   REAL
+         );
+         CREATE INDEX grade_column_by_class ON grade_column(class_id);
+
+         CREATE TABLE grade_value (
+             class_id   INTEGER NOT NULL REFERENCES class(id)        ON DELETE CASCADE,
+             column_id  INTEGER NOT NULL REFERENCES grade_column(id) ON DELETE CASCADE,
+             student_id INTEGER NOT NULL REFERENCES student(id)      ON DELETE CASCADE,
+             value      TEXT NOT NULL DEFAULT '',
+             PRIMARY KEY (column_id, student_id)
+         );
+         CREATE INDEX grade_value_by_student ON grade_value(student_id);
+         CREATE INDEX grade_value_by_class ON grade_value(class_id);
+
+         CREATE TABLE grade_row (
+             class_id       INTEGER NOT NULL REFERENCES class(id)   ON DELETE CASCADE,
+             student_id     INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+             conduct        TEXT NOT NULL DEFAULT '',
+             observations   TEXT NOT NULL DEFAULT '',
+             overall_result TEXT NOT NULL DEFAULT '',
+             PRIMARY KEY (class_id, student_id)
+         );
+         CREATE INDEX grade_row_by_student ON grade_row(student_id);
+
+         COMMIT;",
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,7 +334,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, SCHEMA_VERSION);
         // The M0 probe table is gone, replaced by the real schema.
         let scratch: i64 = conn
             .query_row(

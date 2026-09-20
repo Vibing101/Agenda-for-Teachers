@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main window. M0 needs only the core command bridge; all file access happens in Rust, not through a frontend plugin.",
-  "windows": ["main"],
+  "description": "Permissions for the main window. M0 needs only the core command bridge; all file access happens in Rust, not through a frontend plugin. The hidden `print` window M2 renders a PDF in needs the same bridge, to ask for its document and report that it is ready.",
+  "windows": ["main", "print"],
   "permissions": ["core:default"]
 }

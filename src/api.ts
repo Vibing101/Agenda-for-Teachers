@@ -1,7 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AnnualGoal,
+  ClassGrading,
   Enrollment,
+  GradeColumn,
+  GradeRow,
+  GradeValue,
   GradingPeriod,
   Holiday,
   ImportantDate,
@@ -24,7 +28,7 @@ export interface Status {
 
 /** Shape of the errors the Rust side returns. `code` is what we branch on. */
 export interface AppError {
-  code: "disk_changed" | "db" | "io";
+  code: "disk_changed" | "db" | "io" | "pdf";
   message: string;
 }
 
@@ -73,4 +77,22 @@ export const api = {
 
   saveSeating: (classId: number, rows: number, cols: number, notes: string, seats: Seat[]) =>
     invoke<Planner>("save_seating", { classId, rows, cols, notes, seats }),
+
+  saveClassGrading: (grading: ClassGrading) => invoke<Planner>("save_class_grading", { grading }),
+  saveGradeColumn: (column: GradeColumn) => invoke<Planner>("save_grade_column", { column }),
+  deleteGradeColumn: (id: number) => invoke<Planner>("delete_grade_column", { id }),
+  setGradeValue: (value: GradeValue) => invoke<Planner>("set_grade_value", { value }),
+  saveGradeRow: (row: GradeRow) => invoke<Planner>("save_grade_row", { row }),
+
+  /**
+   * Writes one document into `exports/` as a real PDF and resolves with its
+   * path. The document is built here, in the frontend, because that is where
+   * every user-facing string lives; Rust owns the page and the file.
+   */
+  exportPdf: (fileName: string, html: string, landscape: boolean) =>
+    invoke<string>("export_pdf", { fileName, html, landscape }),
+
+  /** Asked for, and answered, only by the hidden print window. */
+  printJob: () => invoke<string>("print_job"),
+  printReady: (pages: number) => invoke<void>("print_ready", { pages }),
 };

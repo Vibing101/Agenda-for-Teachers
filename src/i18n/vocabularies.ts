@@ -34,6 +34,26 @@ export const GOAL_AREAS = [
   "parents",
   "wellbeing",
 ] as const;
+/**
+ * The four grade types one column can hold. Only `numeric` takes part in the
+ * weighted average — the other three are recorded, shown and printed, and take
+ * no part in it, nor does their weight (resolved by the product owner before
+ * M2, so the app never invents a number the teacher did not type).
+ */
+export const GRADE_COLUMN_KINDS = ["numeric", "descriptive", "pass_fail", "comment"] as const;
+/** The descriptive scale's four steps, Α–Δ. Codes, never the letters. */
+export const DESCRIPTIVE_GRADES = ["a", "b", "c", "d"] as const;
+export const PASS_FAIL_GRADES = ["pass", "fail"] as const;
+/** The six conduct levels, in the order the source registry lists them. */
+export const CONDUCT_LEVELS = [
+  "exemplary",
+  "very_good",
+  "good",
+  "satisfactory",
+  "needs_support",
+  "needs_intervention",
+] as const;
+
 /** Monday–Saturday, matching the source timetable grid. */
 export const WEEKDAYS = [1, 2, 3, 4, 5, 6] as const;
 export const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
@@ -42,6 +62,10 @@ export type YearModel = (typeof YEAR_MODELS)[number];
 export type HolidaySource = (typeof HOLIDAY_SOURCES)[number];
 export type ImportantDateKind = (typeof IMPORTANT_DATE_KINDS)[number];
 export type SenStatus = (typeof SEN_STATUSES)[number];
+export type GradeColumnKind = (typeof GRADE_COLUMN_KINDS)[number];
+export type DescriptiveGrade = (typeof DESCRIPTIVE_GRADES)[number];
+export type PassFailGrade = (typeof PASS_FAIL_GRADES)[number];
+export type ConductLevel = (typeof CONDUCT_LEVELS)[number];
 export type GoalArea = (typeof GOAL_AREAS)[number];
 export type Weekday = (typeof WEEKDAYS)[number];
 export type Month = (typeof MONTHS)[number];
@@ -55,6 +79,10 @@ export const yearModelLabel = (code: string) => vocabLabelId("yearModel", code);
 export const holidaySourceLabel = (code: string) => vocabLabelId("holidaySource", code);
 export const importantDateKindLabel = (code: string) => vocabLabelId("importantDateKind", code);
 export const senStatusLabel = (code: string) => vocabLabelId("senStatus", code);
+export const gradeColumnKindLabel = (code: string) => vocabLabelId("gradeColumnKind", code);
+export const descriptiveGradeLabel = (code: string) => vocabLabelId("descriptiveGrade", code);
+export const passFailGradeLabel = (code: string) => vocabLabelId("passFailGrade", code);
+export const conductLabel = (code: string) => vocabLabelId("conduct", code);
 export const goalAreaLabel = (code: string) => vocabLabelId("goalArea", code);
 export const weekdayLabel = (day: number) => vocabLabelId("weekday", day);
 export const monthLabel = (month: number) => vocabLabelId("month", month);

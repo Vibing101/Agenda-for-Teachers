@@ -171,7 +171,7 @@ pub struct Seat {
 /// hundred students), and a single snapshot keeps the frontend's state a plain
 /// value rather than a cache that can drift from the file the M0 change
 /// detection is guarding.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Planner {
     pub school_year: SchoolYear,
     pub grading_periods: Vec<GradingPeriod>,
@@ -182,4 +182,94 @@ pub struct Planner {
     pub students: Vec<Student>,
     pub enrollments: Vec<Enrollment>,
     pub seats: Vec<Seat>,
+    pub class_gradings: Vec<ClassGrading>,
+    pub grade_columns: Vec<GradeColumn>,
+    pub grade_values: Vec<GradeValue>,
+    pub grade_rows: Vec<GradeRow>,
+}
+
+// ------------------------------------------------------------- M2: grades ---
+
+/// The per-class grading settings M2 introduces.
+///
+/// These live in their own table rather than as columns on `Class` because
+/// they belong to the gradebook, not to the class list: the source registry
+/// keeps them in the header of each class's *grade sheet*, and keeping them
+/// apart leaves M1's `Class` — and its round-trip tests — untouched.
+///
+/// A class that has never had its grading settings saved has no row here; the
+/// loader supplies the defaults instead, so every class always has settings
+/// even before the teacher has opened its gradebook.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClassGrading {
+    pub class_id: i64,
+    /// "Βάση" — the lowest passing mark. 10 on the 0–20 Cyprus scale.
+    pub pass_threshold: f64,
+    pub scale_max: f64,
+    /// The free-text period label the source's sheet header carries. This is a
+    /// caption on the printed sheet, not the school year's grading periods and
+    /// not the progress-check periods (explicitly not in M2).
+    pub period: String,
+}
+
+pub const DEFAULT_PASS_THRESHOLD: f64 = 10.0;
+pub const DEFAULT_SCALE_MAX: f64 = 20.0;
+
+impl ClassGrading {
+    pub fn default_for(class_id: i64) -> Self {
+        Self {
+            class_id,
+            pass_threshold: DEFAULT_PASS_THRESHOLD,
+            scale_max: DEFAULT_SCALE_MAX,
+            period: String::new(),
+        }
+    }
+}
+
+/// One assessment column on a class's gradebook.
+///
+/// `weight` is the one nullable field in the whole schema, and deliberately so:
+/// `None` means "the teacher has not decided this column's weight yet" and
+/// `Some(0.0)` means "she decided it is worth nothing". They behave differently
+/// in the average — blank drops the column out, zero keeps it in and can
+/// trigger the plain-average fallback — so collapsing them would be a bug.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GradeColumn {
+    #[serde(default)]
+    pub id: i64,
+    pub class_id: i64,
+    #[serde(default)]
+    pub position: i64,
+    pub label: String,
+    /// `numeric` | `descriptive` | `pass_fail` | `comment`
+    pub kind: String,
+    /// A percentage, 0–100, or `None` for not yet decided.
+    pub weight: Option<f64>,
+}
+
+/// One cell. Always text, whatever the column's type: a mark, a descriptive
+/// code, `pass`/`fail`, or the teacher's own comment. Parsing a numeric cell
+/// into a number happens in the calculation, never at the storage layer, so
+/// nothing here ever turns a typo into a zero.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GradeValue {
+    pub class_id: i64,
+    pub column_id: i64,
+    pub student_id: i64,
+    pub value: String,
+}
+
+/// The per-(student, class) record that is not a cell.
+///
+/// `overall_result` is the conduct sheet's written overall result. The spec
+/// says it is "kept as a manually-written field, not computed", so nothing in
+/// this app ever writes it except the teacher.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GradeRow {
+    pub class_id: i64,
+    pub student_id: i64,
+    /// A conduct code, or empty when she has not been rated.
+    pub conduct: String,
+    pub observations: String,
+    pub overall_result: String,
 }

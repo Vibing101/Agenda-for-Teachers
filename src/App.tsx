@@ -10,15 +10,17 @@ import type { Planner } from "./domain/types";
 import { DEFAULT_LOCALE, translatorFor, type StringId } from "./i18n";
 import { LocaleContext, useTranslate } from "./i18n/useTranslate";
 import ClassesScreen from "./screens/ClassesScreen";
+import GradesScreen from "./screens/GradesScreen";
 import StudentsScreen from "./screens/StudentsScreen";
 import YearScreen from "./screens/YearScreen";
 import type { Run } from "./screens/types";
 
-type Section = "year" | "classes" | "students";
+type Section = "year" | "classes" | "students" | "grades";
 const SECTIONS: { key: Section; labelId: StringId }[] = [
   { key: "year", labelId: "nav.year" },
   { key: "classes", labelId: "nav.classes" },
   { key: "students", labelId: "nav.students" },
+  { key: "grades", labelId: "nav.grades" },
 ];
 
 export default function App() {
@@ -160,6 +162,7 @@ function Shell() {
           {section === "year" && <YearScreen planner={planner} run={run} />}
           {section === "classes" && <ClassesScreen planner={planner} run={run} />}
           {section === "students" && <StudentsScreen planner={planner} run={run} />}
+          {section === "grades" && <GradesScreen planner={planner} run={run} />}
         </fieldset>
       )}
 

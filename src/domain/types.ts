@@ -3,6 +3,7 @@
  * because they are the wire format, not a style choice — see `src-tauri/src/model.rs`,
  * which is the definition these mirror.
  */
+import type { ClassGrading, GradeColumn, GradeRow, GradeValue } from "./grades";
 import type {
   GoalArea,
   HolidaySource,
@@ -117,6 +118,15 @@ export interface Seat {
   student_id: number;
 }
 
+/**
+ * The M2 records are declared next to the arithmetic that reads them, in
+ * `grades.ts`, rather than here — the calculation is the reason they have the
+ * shape they do, and a `weight` of `null` only makes sense beside the rule that
+ * treats it as undecided. They are re-exported so a screen still has one place
+ * to import a planner's parts from.
+ */
+export type { ClassGrading, GradeColumn, GradeRow, GradeValue };
+
 export interface Planner {
   school_year: SchoolYear;
   grading_periods: GradingPeriod[];
@@ -127,6 +137,10 @@ export interface Planner {
   students: Student[];
   enrollments: Enrollment[];
   seats: Seat[];
+  class_gradings: ClassGrading[];
+  grade_columns: GradeColumn[];
+  grade_values: GradeValue[];
+  grade_rows: GradeRow[];
 }
 
 /** A blank card, so "new student" and "loaded student" are the same shape. */

@@ -24,6 +24,10 @@ pub fn load(conn: &Connection) -> AppResult<Planner> {
         students: students(conn)?,
         enrollments: enrollments(conn)?,
         seats: seats(conn)?,
+        class_gradings: class_gradings(conn)?,
+        grade_columns: grade_columns(conn)?,
+        grade_values: grade_values(conn)?,
+        grade_rows: grade_rows(conn)?,
     })
 }
 
@@ -244,6 +248,94 @@ fn seats(conn: &Connection) -> AppResult<Vec<Seat>> {
                 row: r.get(1)?,
                 col: r.get(2)?,
                 student_id: r.get(3)?,
+            })
+        },
+    )
+}
+
+// ----------------------------------------------------- reading M2 grades ---
+
+/// Every class's grading settings, defaulted for the classes that have none.
+///
+/// The teacher does not have to visit a class's gradebook for it to have a
+/// pass threshold, so the absence of a row means "the defaults", not "no
+/// settings". Doing that here rather than in the UI means the frontend, the
+/// print view and any later module all see the same numbers.
+fn class_gradings(conn: &Connection) -> AppResult<Vec<ClassGrading>> {
+    let stored: Vec<ClassGrading> = collect(
+        conn,
+        "SELECT class_id, pass_threshold, scale_max, period FROM class_grading",
+        |r| {
+            Ok(ClassGrading {
+                class_id: r.get(0)?,
+                pass_threshold: r.get(1)?,
+                scale_max: r.get(2)?,
+                period: r.get(3)?,
+            })
+        },
+    )?;
+    let class_ids: Vec<i64> = collect(conn, "SELECT id FROM class ORDER BY position, id", |r| {
+        r.get(0)
+    })?;
+    Ok(class_ids
+        .into_iter()
+        .map(|id| {
+            stored
+                .iter()
+                .find(|g| g.class_id == id)
+                .cloned()
+                .unwrap_or_else(|| ClassGrading::default_for(id))
+        })
+        .collect())
+}
+
+fn grade_columns(conn: &Connection) -> AppResult<Vec<GradeColumn>> {
+    collect(
+        conn,
+        "SELECT id, class_id, position, label, kind, weight
+           FROM grade_column ORDER BY class_id, position, id",
+        |r| {
+            Ok(GradeColumn {
+                id: r.get(0)?,
+                class_id: r.get(1)?,
+                position: r.get(2)?,
+                label: r.get(3)?,
+                kind: r.get(4)?,
+                // NULL stays None: an undecided weight is not a zero one.
+                weight: r.get(5)?,
+            })
+        },
+    )
+}
+
+fn grade_values(conn: &Connection) -> AppResult<Vec<GradeValue>> {
+    collect(
+        conn,
+        "SELECT class_id, column_id, student_id, value
+           FROM grade_value ORDER BY class_id, column_id, student_id",
+        |r| {
+            Ok(GradeValue {
+                class_id: r.get(0)?,
+                column_id: r.get(1)?,
+                student_id: r.get(2)?,
+                value: r.get(3)?,
+            })
+        },
+    )
+}
+
+fn grade_rows(conn: &Connection) -> AppResult<Vec<GradeRow>> {
+    collect(
+        conn,
+        "SELECT class_id, student_id, conduct, observations, overall_result
+           FROM grade_row ORDER BY class_id, student_id",
+        |r| {
+            Ok(GradeRow {
+                class_id: r.get(0)?,
+                student_id: r.get(1)?,
+                conduct: r.get(2)?,
+                observations: r.get(3)?,
+                overall_result: r.get(4)?,
             })
         },
     )
@@ -566,6 +658,101 @@ pub fn save_seating(
             params![class_id, seat.row, seat.col, seat.student_id],
         )?;
     }
+    Ok(())
+}
+
+// ----------------------------------------------------- writing M2 grades ---
+
+pub fn save_class_grading(conn: &Connection, g: &ClassGrading) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO class_grading (class_id, pass_threshold, scale_max, period)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (class_id)
+         DO UPDATE SET pass_threshold = excluded.pass_threshold,
+                       scale_max      = excluded.scale_max,
+                       period         = excluded.period",
+        params![g.class_id, g.pass_threshold, g.scale_max, g.period],
+    )?;
+    Ok(())
+}
+
+/// Inserts or updates one gradebook column.
+///
+/// A new column goes on the end of its own class's sheet. `weight` is written
+/// through as it arrives, `NULL` included — that is the difference between a
+/// column the teacher has not weighted yet and one she weighted at zero.
+pub fn save_grade_column(conn: &Connection, c: &GradeColumn) -> AppResult<i64> {
+    if c.id == 0 {
+        let next: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM grade_column WHERE class_id = ?1",
+            [c.class_id],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO grade_column (class_id, position, label, kind, weight)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![c.class_id, next, c.label, c.kind, c.weight],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE grade_column SET label = ?2, kind = ?3, weight = ?4, position = ?5
+              WHERE id = ?1",
+            params![c.id, c.label, c.kind, c.weight, c.position],
+        )?;
+        Ok(c.id)
+    }
+}
+
+/// Deletes a column and, by cascade, every mark entered under it.
+pub fn delete_grade_column(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM grade_column WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Writes one cell.
+///
+/// Clearing a cell **deletes** its row rather than storing an empty string, so
+/// "no mark" is the absence of a record at every layer. It is also why a blank
+/// can never be read back as a zero.
+pub fn set_grade_value(conn: &Connection, v: &GradeValue) -> AppResult<()> {
+    if v.value.trim().is_empty() {
+        conn.execute(
+            "DELETE FROM grade_value WHERE column_id = ?1 AND student_id = ?2",
+            params![v.column_id, v.student_id],
+        )?;
+        return Ok(());
+    }
+    conn.execute(
+        "INSERT INTO grade_value (class_id, column_id, student_id, value)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (column_id, student_id)
+         DO UPDATE SET value = excluded.value, class_id = excluded.class_id",
+        params![v.class_id, v.column_id, v.student_id, v.value],
+    )?;
+    Ok(())
+}
+
+/// Writes a student's conduct, observations and written overall result.
+///
+/// `overall_result` is stored exactly as typed and is never derived from the
+/// conduct level or from any mark — the spec keeps it a teacher-written field.
+pub fn save_grade_row(conn: &Connection, r: &GradeRow) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO grade_row (class_id, student_id, conduct, observations, overall_result)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT (class_id, student_id)
+         DO UPDATE SET conduct        = excluded.conduct,
+                       observations   = excluded.observations,
+                       overall_result = excluded.overall_result",
+        params![
+            r.class_id,
+            r.student_id,
+            r.conduct,
+            r.observations,
+            r.overall_result
+        ],
+    )?;
     Ok(())
 }
 
@@ -1087,5 +1274,313 @@ mod tests {
         assert_eq!(planner.classes[0].seating_rows, 4);
         assert_eq!(planner.classes[0].seating_cols, 4);
         assert_eq!(planner.classes[0].seating_notes, "Κύκλος");
+    }
+    // ------------------------------------------------------- M2: grades ---
+
+    /// Sets up one class with one student on its roster, which is what every
+    /// gradebook test below starts from.
+    fn class_with_one_student(conn: &Connection) -> (i64, i64) {
+        let class_id = save_class(conn, &sample_class()).unwrap();
+        let student_id = save_student(conn, &sample_student()).unwrap();
+        set_enrollment(
+            conn,
+            &Enrollment {
+                class_id,
+                student_id,
+                roster_no: 1,
+                support: false,
+                note: String::new(),
+            },
+        )
+        .unwrap();
+        (class_id, student_id)
+    }
+
+    fn column(class_id: i64, label: &str, kind: &str, weight: Option<f64>) -> GradeColumn {
+        GradeColumn {
+            id: 0,
+            class_id,
+            position: 0,
+            label: label.into(),
+            kind: kind.into(),
+            weight,
+        }
+    }
+
+    #[test]
+    fn a_blank_weight_survives_the_round_trip_as_blank_and_not_as_zero() {
+        // The distinction the whole calculation rests on: `None` means the
+        // teacher has not decided, `Some(0.0)` means she decided zero. If the
+        // file collapsed them, every average over a half-weighted sheet would
+        // change silently.
+        let (_dir, conn) = open();
+        let (class_id, _) = class_with_one_student(&conn);
+        save_grade_column(&conn, &column(class_id, "Διαγώνισμα", "numeric", None)).unwrap();
+        save_grade_column(&conn, &column(class_id, "Εργασία", "numeric", Some(0.0))).unwrap();
+
+        let columns = load(&conn).unwrap().grade_columns;
+        assert_eq!(columns[0].weight, None);
+        assert_eq!(columns[1].weight, Some(0.0));
+    }
+
+    #[test]
+    fn every_grade_type_round_trips_through_save_and_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+        let conn = db::open_at(&path).unwrap();
+        let (class_id, student_id) = class_with_one_student(&conn);
+
+        let kinds = [
+            ("numeric", "17.5"),
+            ("descriptive", "b"),
+            ("pass_fail", "pass"),
+            (
+                "comment",
+                "Δούλεψε πολύ καλά — χρειάζεται λίγη στήριξη στα κλάσματα",
+            ),
+        ];
+        for (kind, value) in kinds {
+            let column_id =
+                save_grade_column(&conn, &column(class_id, kind, kind, Some(25.0))).unwrap();
+            set_grade_value(
+                &conn,
+                &GradeValue {
+                    class_id,
+                    column_id,
+                    student_id,
+                    value: value.to_string(),
+                },
+            )
+            .unwrap();
+        }
+        drop(conn); // the app quits
+
+        let conn = db::open_at(&path).unwrap();
+        let planner = load(&conn).unwrap();
+        let stored: Vec<&str> = planner
+            .grade_values
+            .iter()
+            .map(|v| v.value.as_str())
+            .collect();
+        for (_, value) in kinds {
+            assert!(stored.contains(&value), "{value} did not come back");
+        }
+    }
+
+    #[test]
+    fn clearing_a_cell_removes_it_rather_than_storing_an_empty_mark() {
+        let (_dir, conn) = open();
+        let (class_id, student_id) = class_with_one_student(&conn);
+        let column_id =
+            save_grade_column(&conn, &column(class_id, "Τεστ", "numeric", Some(50.0))).unwrap();
+        let cell = |value: &str| GradeValue {
+            class_id,
+            column_id,
+            student_id,
+            value: value.to_string(),
+        };
+
+        set_grade_value(&conn, &cell("14")).unwrap();
+        assert_eq!(load(&conn).unwrap().grade_values.len(), 1);
+
+        set_grade_value(&conn, &cell("")).unwrap();
+        assert!(
+            load(&conn).unwrap().grade_values.is_empty(),
+            "a cleared cell must leave no row behind, so 'no mark' is never read back as a mark"
+        );
+    }
+
+    #[test]
+    fn deleting_a_column_takes_its_marks_with_it_and_leaves_the_others_alone() {
+        let (_dir, conn) = open();
+        let (class_id, student_id) = class_with_one_student(&conn);
+        let first =
+            save_grade_column(&conn, &column(class_id, "Α", "numeric", Some(50.0))).unwrap();
+        let second =
+            save_grade_column(&conn, &column(class_id, "Β", "numeric", Some(50.0))).unwrap();
+        for column_id in [first, second] {
+            set_grade_value(
+                &conn,
+                &GradeValue {
+                    class_id,
+                    column_id,
+                    student_id,
+                    value: "12".into(),
+                },
+            )
+            .unwrap();
+        }
+
+        delete_grade_column(&conn, first).unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.grade_columns.len(), 1);
+        assert_eq!(planner.grade_values.len(), 1);
+        assert_eq!(planner.grade_values[0].column_id, second);
+    }
+
+    #[test]
+    fn a_class_with_no_saved_settings_still_has_the_default_threshold() {
+        let (_dir, conn) = open();
+        let (class_id, _) = class_with_one_student(&conn);
+        let grading = &load(&conn).unwrap().class_gradings[0];
+        assert_eq!(grading.class_id, class_id);
+        assert_eq!(grading.pass_threshold, DEFAULT_PASS_THRESHOLD);
+        assert_eq!(grading.scale_max, DEFAULT_SCALE_MAX);
+    }
+
+    #[test]
+    fn the_pass_threshold_round_trips_and_is_per_class() {
+        let (_dir, conn) = open();
+        let a = save_class(&conn, &sample_class()).unwrap();
+        let mut second = sample_class();
+        second.name = "Β2".into();
+        let b = save_class(&conn, &second).unwrap();
+
+        save_class_grading(
+            &conn,
+            &ClassGrading {
+                class_id: a,
+                pass_threshold: 12.0,
+                scale_max: 20.0,
+                period: "Α΄ τρίμηνο".into(),
+            },
+        )
+        .unwrap();
+
+        let gradings = load(&conn).unwrap().class_gradings;
+        let for_a = gradings.iter().find(|g| g.class_id == a).unwrap();
+        let for_b = gradings.iter().find(|g| g.class_id == b).unwrap();
+        assert_eq!(for_a.pass_threshold, 12.0);
+        assert_eq!(for_a.period, "Α΄ τρίμηνο");
+        assert_eq!(
+            for_b.pass_threshold, DEFAULT_PASS_THRESHOLD,
+            "one class's threshold must not move another's"
+        );
+    }
+
+    #[test]
+    fn conduct_and_the_written_overall_result_round_trip_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+        let conn = db::open_at(&path).unwrap();
+        let (class_id, student_id) = class_with_one_student(&conn);
+
+        let row = GradeRow {
+            class_id,
+            student_id,
+            conduct: "needs_support".into(),
+            observations: "Δυσκολεύεται στη συγκέντρωση μετά το διάλειμμα".into(),
+            overall_result: "Ικανοποιητική πορεία με περιθώρια βελτίωσης".into(),
+        };
+        save_grade_row(&conn, &row).unwrap();
+        drop(conn);
+
+        let conn = db::open_at(&path).unwrap();
+        assert_eq!(load(&conn).unwrap().grade_rows, vec![row]);
+    }
+
+    #[test]
+    fn a_mark_cannot_be_written_against_a_student_who_is_not_there() {
+        // The same rule M1 established for roster rows, now for cells: an
+        // orphaned reference is rejected at write time rather than dangling.
+        let (_dir, conn) = open();
+        let (class_id, _) = class_with_one_student(&conn);
+        let column_id =
+            save_grade_column(&conn, &column(class_id, "Τεστ", "numeric", Some(50.0))).unwrap();
+
+        let orphan = set_grade_value(
+            &conn,
+            &GradeValue {
+                class_id,
+                column_id,
+                student_id: 9999,
+                value: "10".into(),
+            },
+        );
+        assert!(orphan.is_err());
+    }
+
+    #[test]
+    fn deleting_a_student_takes_her_marks_and_her_conduct_with_her() {
+        let (_dir, conn) = open();
+        let (class_id, student_id) = class_with_one_student(&conn);
+        let column_id =
+            save_grade_column(&conn, &column(class_id, "Τεστ", "numeric", Some(50.0))).unwrap();
+        set_grade_value(
+            &conn,
+            &GradeValue {
+                class_id,
+                column_id,
+                student_id,
+                value: "18".into(),
+            },
+        )
+        .unwrap();
+        save_grade_row(
+            &conn,
+            &GradeRow {
+                class_id,
+                student_id,
+                conduct: "good".into(),
+                observations: String::new(),
+                overall_result: String::new(),
+            },
+        )
+        .unwrap();
+
+        delete_student(&conn, student_id).unwrap();
+        let planner = load(&conn).unwrap();
+        assert!(planner.grade_values.is_empty());
+        assert!(planner.grade_rows.is_empty());
+        assert_eq!(planner.grade_columns.len(), 1, "the column is the class's");
+    }
+
+    #[test]
+    fn deleting_a_class_takes_its_whole_gradebook_with_it() {
+        let (_dir, conn) = open();
+        let (class_id, student_id) = class_with_one_student(&conn);
+        let column_id =
+            save_grade_column(&conn, &column(class_id, "Τεστ", "numeric", Some(50.0))).unwrap();
+        set_grade_value(
+            &conn,
+            &GradeValue {
+                class_id,
+                column_id,
+                student_id,
+                value: "18".into(),
+            },
+        )
+        .unwrap();
+        save_class_grading(&conn, &ClassGrading::default_for(class_id)).unwrap();
+
+        delete_class(&conn, class_id).unwrap();
+        let planner = load(&conn).unwrap();
+        assert!(planner.grade_columns.is_empty());
+        assert!(planner.grade_values.is_empty());
+        assert!(planner.class_gradings.is_empty());
+        assert_eq!(planner.students.len(), 1, "the student is the year's");
+    }
+
+    #[test]
+    fn columns_come_back_in_the_order_they_were_added_within_each_class() {
+        let (_dir, conn) = open();
+        let a = save_class(&conn, &sample_class()).unwrap();
+        let mut second = sample_class();
+        second.name = "Β2".into();
+        let b = save_class(&conn, &second).unwrap();
+
+        for label in ["Πρώτο", "Δεύτερο", "Τρίτο"] {
+            save_grade_column(&conn, &column(a, label, "numeric", None)).unwrap();
+        }
+        save_grade_column(&conn, &column(b, "Μόνο", "numeric", None)).unwrap();
+
+        let columns = load(&conn).unwrap().grade_columns;
+        let for_a: Vec<&str> = columns
+            .iter()
+            .filter(|c| c.class_id == a)
+            .map(|c| c.label.as_str())
+            .collect();
+        assert_eq!(for_a, vec!["Πρώτο", "Δεύτερο", "Τρίτο"]);
+        assert_eq!(columns.iter().filter(|c| c.class_id == b).count(), 1);
     }
 }

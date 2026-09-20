@@ -16,7 +16,11 @@
  */
 import type {
   AnnualGoal,
+  ClassGrading,
   Enrollment,
+  GradeColumn,
+  GradeRow,
+  GradeValue,
   GradingPeriod,
   Holiday,
   ImportantDate,
@@ -53,6 +57,10 @@ export function emptyPlanner(): Planner {
     students: [],
     enrollments: [],
     seats: [],
+    class_gradings: [],
+    grade_columns: [],
+    grade_values: [],
+    grade_rows: [],
   };
 }
 
@@ -200,6 +208,46 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           ];
           break;
         }
+        case "save_class_grading":
+          planner.class_gradings = upsert(
+            planner.class_gradings,
+            args.grading as ClassGrading,
+            (g) => g.class_id,
+          );
+          break;
+        case "save_grade_column": {
+          const c = { ...(args.column as GradeColumn) };
+          if (c.id === 0) c.id = nextId++;
+          planner.grade_columns = upsert(planner.grade_columns, c, (x) => x.id);
+          break;
+        }
+        case "delete_grade_column":
+          planner.grade_columns = planner.grade_columns.filter((c) => c.id !== args.id);
+          // As the real schema's cascade does.
+          planner.grade_values = planner.grade_values.filter((v) => v.column_id !== args.id);
+          break;
+        case "set_grade_value": {
+          const v = args.value as GradeValue;
+          // Clearing a cell removes it, exactly as the storage layer does, so
+          // "no mark" is an absent row everywhere.
+          planner.grade_values = planner.grade_values.filter(
+            (x) => !(x.column_id === v.column_id && x.student_id === v.student_id),
+          );
+          if (v.value.trim() !== "") planner.grade_values = [...planner.grade_values, v];
+          break;
+        }
+        case "save_grade_row":
+          planner.grade_rows = upsert(
+            planner.grade_rows,
+            args.row as GradeRow,
+            (r) => `${r.class_id}:${r.student_id}`,
+          );
+          break;
+        case "export_pdf":
+          // The real export opens a hidden window and drives the platform's
+          // print pipeline; there is no webview here, so the fake only records
+          // that it was asked and hands back the path it would have written.
+          return `/Drive/Ατζέντα/exports/${String(args.fileName)}.pdf`;
         default:
           throw new Error(`unexpected command ${command}`);
       }
