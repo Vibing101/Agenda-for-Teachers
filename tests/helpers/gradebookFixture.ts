@@ -50,7 +50,6 @@ export function gradedPlanner(): Planner {
       seating_rows: 5,
       seating_cols: 6,
       seating_notes: "",
-      slots: [],
     },
     {
       id: OTHER_CLASS_ID,
@@ -63,7 +62,6 @@ export function gradedPlanner(): Planner {
       seating_rows: 5,
       seating_cols: 6,
       seating_notes: "",
-      slots: [],
     },
   ];
 

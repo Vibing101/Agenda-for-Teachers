@@ -19,14 +19,32 @@ export interface ScreenProps {
   run: Run;
 }
 
-function Harness({ Screen, initial }: { Screen: ComponentType<ScreenProps>; initial: Planner }) {
+/**
+ * Anything a screen needs beyond the planner and `run` — in practice M3's
+ * `today`, which the shell passes down so no screen reads the clock itself, and
+ * the Today view's `onOpenPlan`.
+ */
+type Extra<P> = Omit<P, "planner" | "run">;
+
+function Harness<P extends { planner: Planner }>({
+  Screen,
+  initial,
+  extra,
+}: {
+  Screen: ComponentType<P>;
+  initial: Planner;
+  extra?: Extra<P>;
+}) {
   const [planner, setPlanner] = useState(initial);
   const run: Run = async (call) => {
     const next = await call();
     setPlanner(next);
     return next;
   };
-  return <Screen planner={planner} run={run} />;
+  // `run` is handed to every screen; one that does not declare it — the Today
+  // view, which writes nothing — simply ignores it.
+  const props = { planner, run, ...extra } as unknown as P;
+  return <Screen {...props} />;
 }
 
 interface MockedInvoke {
@@ -38,10 +56,11 @@ interface MockedInvoke {
  * against it, and hands the backend back so a test can assert on what actually
  * reached storage.
  */
-export function renderScreen(
-  Screen: ComponentType<ScreenProps>,
+export function renderScreen<P extends { planner: Planner }>(
+  Screen: ComponentType<P>,
   planner: Planner,
   invoke: MockedInvoke,
+  extra?: Extra<P>,
 ): FakeBackend {
   const backend = createFakeBackend(planner);
   invoke.mockImplementation((command, args) => {
@@ -53,7 +72,7 @@ export function renderScreen(
   });
   render(
     <LocaleContext.Provider value={{ locale: DEFAULT_LOCALE, t: translatorFor(DEFAULT_LOCALE) }}>
-      <Harness Screen={Screen} initial={backend.planner} />
+      <Harness Screen={Screen} initial={backend.planner} extra={extra} />
     </LocaleContext.Provider>,
   );
   return backend;

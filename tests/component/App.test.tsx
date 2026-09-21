@@ -28,7 +28,7 @@ describe("the app shell", () => {
     invoke.mockReset();
   });
 
-  it("opens on the year section and moves between the three M1 sections", async () => {
+  it("opens on the year section and moves between the sections", async () => {
     mount();
     const user = userEvent.setup();
 
@@ -41,10 +41,51 @@ describe("the app shell", () => {
     expect(await screen.findByRole("heading", { name: "Ευρετήριο μαθητών" })).toBeInTheDocument();
   });
 
-  it("shows where the data lives, including the M1 schema version", async () => {
+  it("shows where the data lives, including the schema version", async () => {
     mount();
     expect(await screen.findByText("/Drive/Ατζέντα/data/planner.sqlite")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
+    // M3's forward migration: `user_version = 4`.
+    expect(screen.getByText("4")).toBeInTheDocument();
+  });
+
+  it("reaches the four M3 sections", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+
+    for (const [tab, heading] of [
+      ["Πρόγραμμα", "Ωρολόγιο πρόγραμμα"],
+      ["Πλάνο", "Εβδομαδιαίο πλάνο"],
+      ["Ατζέντα", "Ατζέντα"],
+      ["Σημερινό", "Σημερινό μάθημα"],
+    ]) {
+      await user.click(screen.getByRole("button", { name: tab }));
+      expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+    }
+  });
+
+  /**
+   * The shell is the single place the calendar is read, and it takes an override
+   * so every screen below it can be driven to a chosen day. This is what makes
+   * M3's "on a spot-checked date" criterion testable rather than a matter of
+   * waiting for the right weekday.
+   */
+  it("reads the calendar once, at the shell, and passes the day down", async () => {
+    const backend = createFakeBackend(emptyPlanner());
+    invoke.mockImplementation((command: string, args?: Record<string, unknown>) => {
+      try {
+        return Promise.resolve(backend.handle(command, args));
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    });
+    // A Wednesday in the middle of the school year.
+    render(<App today="2026-09-16" />);
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+
+    await user.click(screen.getByRole("button", { name: "Σημερινό" }));
+    expect(await screen.findByText("Τετάρτη 16.09.2026")).toBeInTheDocument();
   });
 
   /**

@@ -28,6 +28,10 @@ pub fn load(conn: &Connection) -> AppResult<Planner> {
         grade_columns: grade_columns(conn)?,
         grade_values: grade_values(conn)?,
         grade_rows: grade_rows(conn)?,
+        timetable_periods: timetable_periods(conn)?,
+        timetable_cells: timetable_cells(conn)?,
+        lesson_plans: lesson_plans(conn)?,
+        agenda_notes: agenda_notes(conn)?,
     })
 }
 
@@ -137,7 +141,7 @@ fn annual_goals(conn: &Connection) -> AppResult<Vec<AnnualGoal>> {
 }
 
 fn classes(conn: &Connection) -> AppResult<Vec<Class>> {
-    let mut classes: Vec<Class> = collect(
+    collect(
         conn,
         "SELECT id, name, subject, room, responsible, notes, position,
                 seating_rows, seating_cols, seating_notes
@@ -154,33 +158,9 @@ fn classes(conn: &Connection) -> AppResult<Vec<Class>> {
                 seating_rows: r.get(7)?,
                 seating_cols: r.get(8)?,
                 seating_notes: r.get(9)?,
-                slots: Vec::new(),
             })
         },
-    )?;
-
-    let slots: Vec<ClassSlot> = collect(
-        conn,
-        "SELECT id, class_id, weekday, period_label, start_time, end_time, room
-           FROM class_slot ORDER BY weekday, start_time, id",
-        |r| {
-            Ok(ClassSlot {
-                id: r.get(0)?,
-                class_id: r.get(1)?,
-                weekday: r.get(2)?,
-                period_label: r.get(3)?,
-                start_time: r.get(4)?,
-                end_time: r.get(5)?,
-                room: r.get(6)?,
-            })
-        },
-    )?;
-    for slot in slots {
-        if let Some(class) = classes.iter_mut().find(|c| c.id == slot.class_id) {
-            class.slots.push(slot);
-        }
-    }
-    Ok(classes)
+    )
 }
 
 fn students(conn: &Connection) -> AppResult<Vec<Student>> {
@@ -341,6 +321,80 @@ fn grade_rows(conn: &Connection) -> AppResult<Vec<GradeRow>> {
     )
 }
 
+// ------------------------------------------ reading M3 timetable and plans ---
+
+/// The teacher's named hours, in the order the grid shows them.
+fn timetable_periods(conn: &Connection) -> AppResult<Vec<TimetablePeriod>> {
+    collect(
+        conn,
+        "SELECT id, position, name, start_time, end_time
+           FROM timetable_period ORDER BY position, id",
+        |r| {
+            Ok(TimetablePeriod {
+                id: r.get(0)?,
+                position: r.get(1)?,
+                name: r.get(2)?,
+                start_time: r.get(3)?,
+                end_time: r.get(4)?,
+            })
+        },
+    )
+}
+
+/// Every filled cell of the master timetable. An empty cell has no row at all,
+/// so a week the teacher has barely filled in costs almost nothing.
+fn timetable_cells(conn: &Connection) -> AppResult<Vec<TimetableCell>> {
+    collect(
+        conn,
+        "SELECT period_id, weekday, class_id, subject, room, duty, notes
+           FROM timetable_cell ORDER BY period_id, weekday",
+        |r| {
+            Ok(TimetableCell {
+                period_id: r.get(0)?,
+                weekday: r.get(1)?,
+                // NULL stays None: an hour with no class is a cover, a duty or
+                // a free hour, not a link to class zero.
+                class_id: r.get(2)?,
+                subject: r.get(3)?,
+                room: r.get(4)?,
+                duty: r.get(5)?,
+                notes: r.get(6)?,
+            })
+        },
+    )
+}
+
+/// Every weekly lesson plan, ordered by the actual Monday it belongs to.
+fn lesson_plans(conn: &Connection) -> AppResult<Vec<LessonPlan>> {
+    collect(
+        conn,
+        "SELECT class_id, week_monday, notes, assessment
+           FROM lesson_plan ORDER BY class_id, week_monday",
+        |r| {
+            Ok(LessonPlan {
+                class_id: r.get(0)?,
+                week_monday: r.get(1)?,
+                notes: r.get(2)?,
+                assessment: r.get(3)?,
+            })
+        },
+    )
+}
+
+fn agenda_notes(conn: &Connection) -> AppResult<Vec<AgendaNote>> {
+    collect(
+        conn,
+        "SELECT scope, date, body FROM agenda_note ORDER BY scope, date",
+        |r| {
+            Ok(AgendaNote {
+                scope: r.get(0)?,
+                date: r.get(1)?,
+                body: r.get(2)?,
+            })
+        },
+    )
+}
+
 // ---------------------------------------------------------------- writing ---
 
 /// Changes the year model and start date, and nothing else.
@@ -434,11 +488,12 @@ pub fn save_annual_goal(conn: &Connection, g: &AnnualGoal) -> AppResult<()> {
     Ok(())
 }
 
-/// Inserts or updates a class along with its timetable slots.
+/// Inserts or updates a class.
 ///
-/// Slots are replaced wholesale rather than diffed: there are a handful per
-/// class, the whole thing arrives from one form, and replacing avoids the class
-/// of bug where a removed row quietly survives.
+/// M1 also wrote the class's timetable slots here. M3 moved the teacher's week
+/// into one master register (`timetable_cell`), so a class's hours are derived
+/// from the cells that link to it and are not written through this function at
+/// all — see `db::migrate_to_4`.
 pub fn save_class(conn: &Connection, c: &Class) -> AppResult<i64> {
     let id = if c.id == 0 {
         let next: i64 = conn.query_row(
@@ -483,27 +538,13 @@ pub fn save_class(conn: &Connection, c: &Class) -> AppResult<i64> {
         )?;
         c.id
     };
-
-    conn.execute("DELETE FROM class_slot WHERE class_id = ?1", [id])?;
-    for slot in &c.slots {
-        conn.execute(
-            "INSERT INTO class_slot (class_id, weekday, period_label, start_time, end_time, room)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                id,
-                slot.weekday,
-                slot.period_label,
-                slot.start_time,
-                slot.end_time,
-                slot.room
-            ],
-        )?;
-    }
     Ok(id)
 }
 
-/// Deletes a class. Its slots, roster rows and seats go with it; the students
-/// themselves stay, because they belong to the teacher's year, not to a class.
+/// Deletes a class. Its roster rows, seats and gradebook go with it; the
+/// students themselves stay, because they belong to the teacher's year, not to
+/// a class. Its hours stay on the master timetable too, with the link emptied —
+/// the hour is still in the teacher's week even once the class is gone.
 pub fn delete_class(conn: &Connection, id: i64) -> AppResult<()> {
     conn.execute("DELETE FROM class WHERE id = ?1", [id])?;
     Ok(())
@@ -756,6 +797,128 @@ pub fn save_grade_row(conn: &Connection, r: &GradeRow) -> AppResult<()> {
     Ok(())
 }
 
+// ------------------------------------------ writing M3 timetable and plans ---
+
+/// Inserts or updates one named hour of the teacher's week.
+///
+/// A new hour goes on the end of the grid. Nothing here touches its cells, so
+/// renaming "3η" or correcting its clock times leaves every lesson placed in it
+/// exactly where it was.
+pub fn save_timetable_period(conn: &Connection, p: &TimetablePeriod) -> AppResult<i64> {
+    if p.id == 0 {
+        let next: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM timetable_period",
+            [],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO timetable_period (position, name, start_time, end_time)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![next, p.name, p.start_time, p.end_time],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE timetable_period SET name = ?2, start_time = ?3, end_time = ?4, position = ?5
+              WHERE id = ?1",
+            params![p.id, p.name, p.start_time, p.end_time, p.position],
+        )?;
+        Ok(p.id)
+    }
+}
+
+/// Deletes an hour and, by cascade, every cell the teacher filled in on it.
+pub fn delete_timetable_period(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM timetable_period WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Writes one cell of the master timetable.
+///
+/// A cell with nothing in it — no class, no subject, no room, no duty, no note —
+/// is **deleted** rather than stored blank, so "the teacher is free then" is the
+/// absence of a row at every layer. Same rule as a cleared grade cell.
+pub fn save_timetable_cell(conn: &Connection, c: &TimetableCell) -> AppResult<()> {
+    let empty = c.class_id.is_none()
+        && c.subject.trim().is_empty()
+        && c.room.trim().is_empty()
+        && c.duty.trim().is_empty()
+        && c.notes.trim().is_empty();
+    if empty {
+        conn.execute(
+            "DELETE FROM timetable_cell WHERE period_id = ?1 AND weekday = ?2",
+            params![c.period_id, c.weekday],
+        )?;
+        return Ok(());
+    }
+    conn.execute(
+        "INSERT INTO timetable_cell (period_id, weekday, class_id, subject, room, duty, notes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT (period_id, weekday)
+         DO UPDATE SET class_id = excluded.class_id,
+                       subject  = excluded.subject,
+                       room     = excluded.room,
+                       duty     = excluded.duty,
+                       notes    = excluded.notes",
+        params![
+            c.period_id,
+            c.weekday,
+            c.class_id,
+            c.subject,
+            c.room,
+            c.duty,
+            c.notes
+        ],
+    )?;
+    Ok(())
+}
+
+/// Writes one class's plan for one week.
+///
+/// The key is `(class_id, week_monday)` — an actual date, never a week index —
+/// so this is an upsert with no id to hand back and nothing for the caller to
+/// select afterwards. A plan emptied of both its notes and its assessment is
+/// deleted, so an untouched week is an absent row and M6's progress matrix can
+/// read "nothing entered" as exactly that.
+pub fn save_lesson_plan(conn: &Connection, p: &LessonPlan) -> AppResult<()> {
+    if p.notes.trim().is_empty() && p.assessment.trim().is_empty() {
+        conn.execute(
+            "DELETE FROM lesson_plan WHERE class_id = ?1 AND week_monday = ?2",
+            params![p.class_id, p.week_monday],
+        )?;
+        return Ok(());
+    }
+    conn.execute(
+        "INSERT INTO lesson_plan (class_id, week_monday, notes, assessment)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (class_id, week_monday)
+         DO UPDATE SET notes = excluded.notes, assessment = excluded.assessment",
+        params![p.class_id, p.week_monday, p.notes, p.assessment],
+    )?;
+    Ok(())
+}
+
+/// Writes one day, week or month agenda note, keyed by an actual date.
+///
+/// Emptying a note deletes it, for the same reason as above. `date` arrives
+/// already normalised for its scope (the Monday of a week, the first of a
+/// month) — see `domain/agenda.ts`.
+pub fn save_agenda_note(conn: &Connection, n: &AgendaNote) -> AppResult<()> {
+    if n.body.trim().is_empty() {
+        conn.execute(
+            "DELETE FROM agenda_note WHERE scope = ?1 AND date = ?2",
+            params![n.scope, n.date],
+        )?;
+        return Ok(());
+    }
+    conn.execute(
+        "INSERT INTO agenda_note (scope, date, body) VALUES (?1, ?2, ?3)
+         ON CONFLICT (scope, date) DO UPDATE SET body = excluded.body",
+        params![n.scope, n.date, n.body],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 pub mod tests_support {
     use super::*;
@@ -772,15 +935,18 @@ pub mod tests_support {
             seating_rows: 5,
             seating_cols: 6,
             seating_notes: "Ομάδες των τεσσάρων".into(),
-            slots: vec![ClassSlot {
-                id: 0,
-                class_id: 0,
-                weekday: 2,
-                period_label: "3η".into(),
-                start_time: "10:15".into(),
-                end_time: "11:00".into(),
-                room: "203".into(),
-            }],
+        }
+    }
+
+    /// The 3rd hour on a Tuesday — the hour M1's `sample_class` used to carry
+    /// as its own slot, now a row of the teacher's master timetable.
+    pub fn sample_period() -> TimetablePeriod {
+        TimetablePeriod {
+            id: 0,
+            position: 0,
+            name: "3η".into(),
+            start_time: "10:15".into(),
+            end_time: "11:00".into(),
         }
     }
 
@@ -1031,16 +1197,371 @@ mod tests {
         );
     }
 
-    #[test]
-    fn saving_a_class_replaces_its_timetable_slots_rather_than_appending() {
-        let (_dir, conn) = open();
-        let mut class = sample_class();
-        class.id = save_class(&conn, &class).unwrap();
-        assert_eq!(load(&conn).unwrap().classes[0].slots.len(), 1);
+    // ------------------------------------------- M3: timetable and planning ---
 
-        class.slots.clear();
-        save_class(&conn, &class).unwrap();
-        assert!(load(&conn).unwrap().classes[0].slots.is_empty());
+    /// M1 wrote a class's hours through `save_class`; M3 replaced that with one
+    /// master register. This is the same guarantee as the M1 test it supersedes
+    /// — a class's hours are whatever the grid says and nothing stale survives
+    /// — asserted at the register that now owns them.
+    #[test]
+    fn a_class_hour_lives_on_the_master_timetable_and_moves_when_the_cell_does() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let period_id = save_timetable_period(&conn, &sample_period()).unwrap();
+
+        save_timetable_cell(
+            &conn,
+            &TimetableCell {
+                period_id,
+                weekday: 2,
+                class_id: Some(class_id),
+                subject: String::new(),
+                room: "203".into(),
+                duty: String::new(),
+                notes: String::new(),
+            },
+        )
+        .unwrap();
+
+        let cells = load(&conn).unwrap().timetable_cells;
+        assert_eq!(cells.len(), 1);
+        assert_eq!(cells[0].class_id, Some(class_id));
+        assert_eq!(cells[0].weekday, 2);
+
+        // Clearing the cell leaves no row behind, so the hour reads as free.
+        save_timetable_cell(
+            &conn,
+            &TimetableCell {
+                period_id,
+                weekday: 2,
+                class_id: None,
+                subject: String::new(),
+                room: String::new(),
+                duty: String::new(),
+                notes: String::new(),
+            },
+        )
+        .unwrap();
+        assert!(load(&conn).unwrap().timetable_cells.is_empty());
+        // The hour itself stays: it is still in the teacher's week.
+        assert_eq!(load(&conn).unwrap().timetable_periods.len(), 1);
+    }
+
+    /// A cover or a duty is exactly the case a per-class timetable could not
+    /// hold, and is the reason the master timetable is its own register.
+    #[test]
+    fn a_cell_can_hold_a_duty_with_no_class_at_all() {
+        let (_dir, conn) = open();
+        let period_id = save_timetable_period(&conn, &sample_period()).unwrap();
+        save_timetable_cell(
+            &conn,
+            &TimetableCell {
+                period_id,
+                weekday: 5,
+                class_id: None,
+                subject: String::new(),
+                room: String::new(),
+                duty: "Εφημερία στο προαύλιο".into(),
+                notes: String::new(),
+            },
+        )
+        .unwrap();
+
+        let cells = load(&conn).unwrap().timetable_cells;
+        assert_eq!(cells.len(), 1);
+        assert_eq!(cells[0].class_id, None);
+        assert_eq!(cells[0].duty, "Εφημερία στο προαύλιο");
+    }
+
+    /// Renaming an hour or correcting its clock times must not disturb the
+    /// lessons already placed in it.
+    #[test]
+    fn renaming_an_hour_leaves_every_lesson_placed_in_it_alone() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let mut period = sample_period();
+        period.id = save_timetable_period(&conn, &period).unwrap();
+        save_timetable_cell(
+            &conn,
+            &TimetableCell {
+                period_id: period.id,
+                weekday: 2,
+                class_id: Some(class_id),
+                subject: String::new(),
+                room: String::new(),
+                duty: String::new(),
+                notes: "Διπλή ώρα".into(),
+            },
+        )
+        .unwrap();
+
+        period.name = "4η".into();
+        period.start_time = "11:10".into();
+        save_timetable_period(&conn, &period).unwrap();
+
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.timetable_periods[0].name, "4η");
+        assert_eq!(planner.timetable_periods[0].start_time, "11:10");
+        assert_eq!(planner.timetable_cells.len(), 1);
+        assert_eq!(planner.timetable_cells[0].class_id, Some(class_id));
+        assert_eq!(planner.timetable_cells[0].notes, "Διπλή ώρα");
+    }
+
+    /// Deleting an hour is the teacher saying the hour is not in her week; its
+    /// cells go with it. Deleting a *class* is a different statement, covered
+    /// below.
+    #[test]
+    fn deleting_an_hour_takes_its_cells_with_it() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let period_id = save_timetable_period(&conn, &sample_period()).unwrap();
+        save_timetable_cell(
+            &conn,
+            &TimetableCell {
+                period_id,
+                weekday: 1,
+                class_id: Some(class_id),
+                subject: String::new(),
+                room: String::new(),
+                duty: String::new(),
+                notes: String::new(),
+            },
+        )
+        .unwrap();
+
+        delete_timetable_period(&conn, period_id).unwrap();
+        let planner = load(&conn).unwrap();
+        assert!(planner.timetable_periods.is_empty());
+        assert!(planner.timetable_cells.is_empty());
+        assert_eq!(planner.classes.len(), 1, "the class itself is untouched");
+    }
+
+    /// Deleting a class empties the link and keeps the hour, with the cell's own
+    /// duty and notes intact — the hour is still in the teacher's week.
+    #[test]
+    fn deleting_a_class_empties_its_cells_without_removing_the_hour() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let period_id = save_timetable_period(&conn, &sample_period()).unwrap();
+        save_timetable_cell(
+            &conn,
+            &TimetableCell {
+                period_id,
+                weekday: 3,
+                class_id: Some(class_id),
+                subject: String::new(),
+                room: "203".into(),
+                duty: String::new(),
+                notes: "Εργαστήριο".into(),
+            },
+        )
+        .unwrap();
+
+        delete_class(&conn, class_id).unwrap();
+
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.timetable_periods.len(), 1);
+        assert_eq!(planner.timetable_cells.len(), 1);
+        assert_eq!(planner.timetable_cells[0].class_id, None);
+        assert_eq!(planner.timetable_cells[0].room, "203");
+        assert_eq!(planner.timetable_cells[0].notes, "Εργαστήριο");
+    }
+
+    #[test]
+    fn a_lesson_plan_round_trips_and_is_keyed_by_its_monday() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+
+        save_lesson_plan(
+            &conn,
+            &LessonPlan {
+                class_id,
+                week_monday: "2026-11-02".into(),
+                notes: "Κεφάλαιο 4: εξισώσεις".into(),
+                assessment: "Ολιγόλεπτο διαγώνισμα την Πέμπτη".into(),
+            },
+        )
+        .unwrap();
+
+        let plans = load(&conn).unwrap().lesson_plans;
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].week_monday, "2026-11-02");
+        assert_eq!(plans[0].notes, "Κεφάλαιο 4: εξισώσεις");
+        assert_eq!(plans[0].assessment, "Ολιγόλεπτο διαγώνισμα την Πέμπτη");
+    }
+
+    /// Two weeks of the same class are two rows, and saving one leaves the other
+    /// alone — the upsert keys on `(class, Monday)`, not on the class.
+    #[test]
+    fn each_week_of_a_class_is_its_own_plan() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        for (monday, notes) in [("2026-09-14", "Εισαγωγή"), ("2026-09-21", "Κλάσματα")]
+        {
+            save_lesson_plan(
+                &conn,
+                &LessonPlan {
+                    class_id,
+                    week_monday: monday.into(),
+                    notes: notes.into(),
+                    assessment: String::new(),
+                },
+            )
+            .unwrap();
+        }
+
+        let plans = load(&conn).unwrap().lesson_plans;
+        assert_eq!(plans.len(), 2);
+        assert_eq!(plans[0].notes, "Εισαγωγή");
+        assert_eq!(plans[1].notes, "Κλάσματα");
+    }
+
+    /// M3's first acceptance criterion at the storage layer: the start date is
+    /// one field on one row and no other table names a week, so moving it can
+    /// only re-label weeks — it cannot touch a plan or a note.
+    #[test]
+    fn moving_the_school_year_start_date_leaves_every_plan_and_note_where_it_was() {
+        let (_dir, conn) = open();
+        save_school_year(
+            &conn,
+            &SchoolYear {
+                year_model: "sep_aug".into(),
+                start_date: "2026-09-14".into(),
+            },
+        )
+        .unwrap();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        save_lesson_plan(
+            &conn,
+            &LessonPlan {
+                class_id,
+                week_monday: "2026-11-02".into(),
+                notes: "Κεφάλαιο 4".into(),
+                assessment: "Τεστ".into(),
+            },
+        )
+        .unwrap();
+        for (scope, date, body) in [
+            ("day", "2026-11-05", "Συνάντηση με τη μητέρα"),
+            ("week", "2026-11-02", "Εβδομάδα επανάληψης"),
+            ("month", "2026-11-01", "Εστίαση: ανάγνωση"),
+        ] {
+            save_agenda_note(
+                &conn,
+                &AgendaNote {
+                    scope: scope.into(),
+                    date: date.into(),
+                    body: body.into(),
+                },
+            )
+            .unwrap();
+        }
+        let before = load(&conn).unwrap();
+
+        // The teacher realises the year actually started a week earlier, and
+        // switches the model while she is in there.
+        save_school_year(
+            &conn,
+            &SchoolYear {
+                year_model: "jan_dec".into(),
+                start_date: "2026-09-07".into(),
+            },
+        )
+        .unwrap();
+
+        let after = load(&conn).unwrap();
+        assert_ne!(before.school_year, after.school_year);
+        assert_eq!(
+            before.lesson_plans, after.lesson_plans,
+            "a plan is keyed by an actual Monday, so nothing about it can move"
+        );
+        assert_eq!(before.agenda_notes, after.agenda_notes);
+        assert_eq!(before.timetable_periods, after.timetable_periods);
+        assert_eq!(before.timetable_cells, after.timetable_cells);
+    }
+
+    /// The same rule as a cleared grade cell: emptying a record removes it, so
+    /// "nothing entered for this week" is an absent row at every layer — which
+    /// is what M6's progress matrix will read.
+    #[test]
+    fn emptying_a_plan_or_a_note_removes_the_row_rather_than_storing_a_blank() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let plan = LessonPlan {
+            class_id,
+            week_monday: "2026-09-14".into(),
+            notes: "Εισαγωγή".into(),
+            assessment: String::new(),
+        };
+        save_lesson_plan(&conn, &plan).unwrap();
+        assert_eq!(load(&conn).unwrap().lesson_plans.len(), 1);
+        save_lesson_plan(
+            &conn,
+            &LessonPlan {
+                notes: String::new(),
+                ..plan
+            },
+        )
+        .unwrap();
+        assert!(load(&conn).unwrap().lesson_plans.is_empty());
+
+        let note = AgendaNote {
+            scope: "week".into(),
+            date: "2026-09-14".into(),
+            body: "Καλή αρχή".into(),
+        };
+        save_agenda_note(&conn, &note).unwrap();
+        assert_eq!(load(&conn).unwrap().agenda_notes.len(), 1);
+        save_agenda_note(
+            &conn,
+            &AgendaNote {
+                body: "   ".into(),
+                ..note
+            },
+        )
+        .unwrap();
+        assert!(load(&conn).unwrap().agenda_notes.is_empty());
+    }
+
+    /// Each scope keeps its own note for the same date without either standing
+    /// on the other: the key is `(scope, date)`.
+    #[test]
+    fn the_three_agenda_scopes_are_independent_records() {
+        let (_dir, conn) = open();
+        for scope in ["day", "week", "month"] {
+            save_agenda_note(
+                &conn,
+                &AgendaNote {
+                    scope: scope.into(),
+                    date: "2026-09-14".into(),
+                    body: format!("σημείωση {scope}"),
+                },
+            )
+            .unwrap();
+        }
+        let notes = load(&conn).unwrap().agenda_notes;
+        assert_eq!(notes.len(), 3);
+        assert_eq!(
+            notes.iter().find(|n| n.scope == "week").unwrap().body,
+            "σημείωση week"
+        );
+    }
+
+    /// A plan for a class that is not there must be refused at write time, not
+    /// left dangling — the same rule the spec sets for a student reference.
+    #[test]
+    fn a_plan_for_a_class_that_does_not_exist_is_refused() {
+        let (_dir, conn) = open();
+        let failed = save_lesson_plan(
+            &conn,
+            &LessonPlan {
+                class_id: 9999,
+                week_monday: "2026-09-14".into(),
+                notes: "Κάτι".into(),
+                assessment: String::new(),
+            },
+        );
+        assert!(failed.is_err());
     }
 
     #[test]

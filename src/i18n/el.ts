@@ -20,6 +20,10 @@ export const el = {
   "nav.classes": "Τάξεις",
   "nav.students": "Μαθητές",
   "nav.grades": "Βαθμοί",
+  "nav.timetable": "Πρόγραμμα",
+  "nav.agenda": "Ατζέντα",
+  "nav.plan": "Πλάνο",
+  "nav.today": "Σημερινό",
   "nav.storage": "Αρχείο",
 
   "common.add": "Προσθήκη",
@@ -38,7 +42,11 @@ export const el = {
   "common.saved": "Αποθηκεύτηκε",
   "common.saving": "Αποθήκευση…",
   "common.to": "Έως",
+  "common.today": "Σήμερα",
   "common.unnamed": "Χωρίς όνομα",
+  "common.previous": "Προηγούμενο",
+  "common.next": "Επόμενο",
+  "common.none": "—",
 
   "blocked.title": "Το αρχείο δεδομένων άλλαξε στον δίσκο",
   "blocked.body":
@@ -120,13 +128,12 @@ export const el = {
   "classes.deleteWarning":
     "Θα διαγραφεί το τμήμα μαζί με το πρόγραμμα, τη λίστα και το πλάνο αίθουσάς του. Οι μαθητές παραμένουν στο ευρετήριο.",
 
-  "classes.slots": "Ωρολόγιο πρόγραμμα",
-  "classes.slotsIntro": "Δίπλα σε κάθε ώρα γράψτε τη μέρα και την αίθουσα.",
+  "classes.slots": "Ώρες του τμήματος",
+  "classes.slotsIntro":
+    "Οι ώρες του τμήματος προκύπτουν από το ωρολόγιο πρόγραμμα. Για να τις αλλάξετε, πηγαίνετε στην ενότητα «Πρόγραμμα» — έτσι το ίδιο μάθημα δεν γράφεται δύο φορές.",
   "classes.slotDay": "Ημέρα",
   "classes.slotPeriod": "Ώρα",
-  "classes.addSlot": "Προσθήκη ώρας",
-  "classes.noSlots": "Καμία ώρα ακόμη.",
-  "classes.removeSlot": "Αφαίρεση ώρας",
+  "classes.noSlots": "Το τμήμα δεν έχει ακόμη ώρα στο ωρολόγιο πρόγραμμα.",
 
   "classes.roster": "Λίστα τμήματος",
   "classes.rosterNo": "Α/Α",
@@ -280,6 +287,93 @@ export const el = {
     "Η στήλη Μ.Ο. λαμβάνει υπόψη τις βαρύτητες· οι στήλες που δεν είναι αριθμητικές δεν μετρούν, ούτε η βαρύτητά τους.",
   "grades.printedOn": "Εκτυπώθηκε {date}",
 
+  "timetable.heading": "Ωρολόγιο πρόγραμμα",
+  "timetable.intro":
+    "Δίπλα σε κάθε ώρα γράψτε το μάθημα και το τμήμα. Αυτό είναι το πρόγραμμα της εβδομάδας σας: από εδώ προκύπτουν οι ώρες κάθε τμήματος και το σημερινό σας μάθημα.",
+  "timetable.hours": "Οι ώρες μου",
+  "timetable.hoursIntro":
+    "Ονομάστε τις ώρες της μέρας σας μία φορά, με τις ώρες του ρολογιού. Κάθε μέρα της εβδομάδας χρησιμοποιεί τις ίδιες ώρες.",
+  "timetable.hour": "Ώρα",
+  "timetable.hourName": "Ονομασία ώρας",
+  "timetable.hourNamePlaceholder": "1η, 2η, διάλειμμα…",
+  "timetable.addHour": "Προσθήκη ώρας",
+  "timetable.removeHour": "Διαγραφή ώρας",
+  "timetable.removeHourWarning":
+    "Η διαγραφή μιας ώρας σβήνει και ό,τι έχει γραφτεί στα κελιά της σε όλες τις μέρες.",
+  "timetable.noHours": "Δεν έχει οριστεί ακόμη ώρα. Προσθέστε την πρώτη σας ώρα για να ξεκινήσει το πρόγραμμα.",
+  "timetable.grid": "Η εβδομάδα μου",
+  "timetable.cell": "{day}, {hour}",
+  "timetable.cellClass": "Τμήμα",
+  "timetable.cellNoClass": "Χωρίς τμήμα",
+  "timetable.cellSubject": "Μάθημα",
+  "timetable.cellSubjectHint":
+    "Μόνο όταν η ώρα δεν αντιστοιχεί σε τμήμα. Διαφορετικά συμπληρώνεται από το τμήμα.",
+  "timetable.cellRoom": "Αίθουσα",
+  "timetable.cellRoomHint": "Κενό σημαίνει την αίθουσα του τμήματος.",
+  "timetable.cellDuty": "Αναπληρώσεις και άλλα καθήκοντα",
+  "timetable.cellNotes": "Παρατηρήσεις",
+  "timetable.cellFree": "Ελεύθερη ώρα",
+  "timetable.cellEdit": "Επεξεργασία κελιού",
+  "timetable.cellClose": "Κλείσιμο κελιού",
+  "timetable.cellClear": "Καθαρισμός κελιού",
+  "timetable.fromClass": "Από το τμήμα",
+  "timetable.printLater":
+    "Η εκτύπωση του προγράμματος σε PDF δεν έχει υλοποιηθεί ακόμη σε αυτό το στάδιο.",
+
+  "agenda.heading": "Ατζέντα",
+  "agenda.intro":
+    "Σημειώσεις για τη μέρα, την εβδομάδα και τον μήνα. Κάθε σημείωση κρατιέται με την πραγματική της ημερομηνία.",
+  "agenda.scope": "Προβολή",
+  "agenda.jumpToToday": "Σήμερα",
+  "agenda.dayNote": "Σημειώσεις της ημέρας",
+  "agenda.dayNoteFor": "Σημειώσεις — {date}",
+  "agenda.weekNote": "Σημειώσεις της εβδομάδας",
+  "agenda.monthNote": "Εστίαση του μήνα",
+  "agenda.weekTitle": "Εβδομάδα αρ. {n}",
+  "agenda.weekTitleOutside": "Εβδομάδα εκτός της σχολικής χρονιάς",
+  "agenda.weekSpan": "{from} – {to}",
+  "agenda.monthTitle": "{month} επισκόπηση",
+  "agenda.monthCounter": "{n} / 12",
+  "agenda.dayTitle": "{weekday} {date}",
+  "agenda.hasNote": "Έχει σημείωση",
+  "agenda.selectDay": "Επιλογή ημέρας {date}",
+  "agenda.noStartDate":
+    "Ορίστε πρώτα την ημερομηνία έναρξης στην ενότητα «Έτος» για να φαίνεται ο αριθμός της εβδομάδας.",
+  "agenda.todaysHours": "Το πρόγραμμα της ημέρας",
+  "agenda.weekDays": "Οι μέρες της εβδομάδας",
+  "agenda.monthDays": "Το ημερολόγιο του μήνα",
+
+  "plan.heading": "Εβδομαδιαίο πλάνο",
+  "plan.intro":
+    "Ένα πλάνο για κάθε τμήμα και κάθε εβδομάδα. Κρατιέται με τη Δευτέρα της εβδομάδας ως πραγματική ημερομηνία, οπότε αν αλλάξετε την έναρξη της χρονιάς αλλάζει μόνο ο αριθμός της εβδομάδας — τίποτα από όσα γράψατε δεν μετακινείται.",
+  "plan.noClasses": "Δεν υπάρχουν ακόμη τμήματα. Δημιουργήστε πρώτα ένα τμήμα στην ενότητα «Τάξεις».",
+  "plan.week": "Εβδομάδα",
+  "plan.notes": "Πλάνο της εβδομάδας",
+  "plan.assessment": "Αξιολόγηση της εβδομάδας",
+  "plan.assessmentHint": "Μία αξιολόγηση ανά εβδομάδα — διαγώνισμα, εργασία, παρουσίαση.",
+  "plan.hoursThisWeek": "Οι ώρες του τμήματος αυτή την εβδομάδα",
+  "plan.noHours": "Το τμήμα δεν έχει ώρα στο ωρολόγιο πρόγραμμα.",
+  "plan.empty": "Δεν έχει γραφτεί ακόμη πλάνο για αυτή την εβδομάδα.",
+  "plan.written": "Γραμμένο πλάνο",
+
+  "today.heading": "Σημερινό μάθημα",
+  "today.intro":
+    "Ό,τι χρειάζεστε για σήμερα, μαζεμένο. Τίποτα εδώ δεν συμπληρώνεται — όλα γράφονται στις άλλες ενότητες.",
+  "today.date": "{weekday} {date}",
+  "today.week": "Εβδομάδα αρ. {n}",
+  "today.weekOutside": "Εκτός της σχολικής χρονιάς",
+  "today.schedule": "Το πρόγραμμα της ημέρας",
+  "today.noSchedule": "Δεν υπάρχει μάθημα σήμερα στο ωρολόγιο πρόγραμμα.",
+  "today.noHoursAtAll":
+    "Δεν έχει οριστεί ακόμη ωρολόγιο πρόγραμμα. Συμπληρώστε το στην ενότητα «Πρόγραμμα».",
+  "today.sunday": "Η Κυριακή δεν υπάρχει στο ωρολόγιο πρόγραμμα.",
+  "today.note": "Σημειώσεις της ημέρας",
+  "today.noNote": "Καμία σημείωση για σήμερα.",
+  "today.plans": "Τα πλάνα της εβδομάδας",
+  "today.openPlan": "Άνοιγμα πλάνου",
+  "today.planEmpty": "Χωρίς πλάνο αυτή την εβδομάδα",
+  "today.weekNote": "Σημειώσεις της εβδομάδας",
+
   "vocab.yearModel.sep_aug": "Σεπτέμβριος – Αύγουστος",
   "vocab.yearModel.jan_dec": "Ιανουάριος – Δεκέμβριος",
   "vocab.yearModel.feb_dec": "Φεβρουάριος – Δεκέμβριος",
@@ -311,6 +405,7 @@ export const el = {
   "vocab.weekday.4": "Πέμπτη",
   "vocab.weekday.5": "Παρασκευή",
   "vocab.weekday.6": "Σάββατο",
+  "vocab.weekday.7": "Κυριακή",
 
   "vocab.month.1": "Ιανουάριος",
   "vocab.month.2": "Φεβρουάριος",
@@ -324,6 +419,10 @@ export const el = {
   "vocab.month.10": "Οκτώβριος",
   "vocab.month.11": "Νοέμβριος",
   "vocab.month.12": "Δεκέμβριος",
+
+  "vocab.agendaScope.day": "Ημέρα",
+  "vocab.agendaScope.week": "Εβδομάδα",
+  "vocab.agendaScope.month": "Μήνας",
 
   "vocab.gradeColumnKind.numeric": "Αριθμητικός βαθμός",
   "vocab.gradeColumnKind.descriptive": "Περιγραφικός (Α–Δ)",

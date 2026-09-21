@@ -1,6 +1,9 @@
 /**
- * Τάξεις — the classes, each with its timetable slots, its roster and its room
- * plan.
+ * Τάξεις — the classes, each with its hours, its roster and its room plan.
+ *
+ * The class's **hours are read-only here**: M3 moved the teacher's week into one
+ * master timetable, so a class's hours are derived from the cells that link to it
+ * and are edited on the Πρόγραμμα screen. Everything else on the card is M1's.
  *
  * The roster is where M1's second acceptance criterion lives: a class's list is
  * built from `enrollment` rows, so the same student can be added to as many
@@ -15,14 +18,14 @@ import {
   CheckboxField,
   DeferredTextField,
   Panel,
-  SelectField,
   TextArea,
   TextField,
 } from "../components/Fields";
 import { useStoredDraft } from "../components/useStoredDraft";
-import { emptyClass, type ClassSlot, type Planner, type SchoolClass, type Seat } from "../domain/types";
+import { formatHourTimes, hoursOfClass } from "../domain/timetable";
+import { emptyClass, type Planner, type SchoolClass, type Seat } from "../domain/types";
 import { useTranslate } from "../i18n/useTranslate";
-import { WEEKDAYS, weekdayLabel, type Weekday } from "../i18n/vocabularies";
+import { weekdayLabel } from "../i18n/vocabularies";
 import type { Run } from "./types";
 
 export default function ClassesScreen({ planner, run }: { planner: Planner; run: Run }) {
@@ -86,7 +89,12 @@ export default function ClassesScreen({ planner, run }: { planner: Planner; run:
 
       {selected && (
         <>
-          <ClassDetails key={`d${selected.id}`} schoolClass={selected} run={run} />
+          <ClassDetails
+            key={`d${selected.id}`}
+            schoolClass={selected}
+            planner={planner}
+            run={run}
+          />
           <Roster key={`r${selected.id}`} schoolClass={selected} planner={planner} run={run} />
           <Seating key={`s${selected.id}`} schoolClass={selected} planner={planner} run={run} />
         </>
@@ -95,16 +103,26 @@ export default function ClassesScreen({ planner, run }: { planner: Planner; run:
   );
 }
 
-function ClassDetails({ schoolClass, run }: { schoolClass: SchoolClass; run: Run }) {
+function ClassDetails({
+  schoolClass,
+  planner,
+  run,
+}: {
+  schoolClass: SchoolClass;
+  planner: Planner;
+  run: Run;
+}) {
   const t = useTranslate();
   const [draft, setDraft] = useStoredDraft(schoolClass);
+  /**
+   * The class's hours, derived from the master timetable rather than stored here.
+   * M3 made that grid the single register of the teacher's week, so this list is
+   * read-only and points at the Πρόγραμμα screen — which is what keeps the same
+   * lesson from being typed twice.
+   */
+  const hours = hoursOfClass(planner, schoolClass.id);
 
   const patch = (p: Partial<SchoolClass>) => setDraft((d) => ({ ...d, ...p }));
-  const patchSlot = (index: number, p: Partial<ClassSlot>) =>
-    setDraft((d) => ({
-      ...d,
-      slots: d.slots.map((s, i) => (i === index ? { ...s, ...p } : s)),
-    }));
 
   return (
     <Panel headingId="classes.details">
@@ -130,74 +148,22 @@ function ClassDetails({ schoolClass, run }: { schoolClass: SchoolClass; run: Run
 
       <h3>{t("classes.slots")}</h3>
       <p className="intro">{t("classes.slotsIntro")}</p>
-      {draft.slots.length === 0 ? (
+      {hours.length === 0 ? (
         <p className="muted">{t("classes.noSlots")}</p>
       ) : (
-        <ul className="rows">
-          {draft.slots.map((slot, index) => (
-            <li key={index} className="row">
-              <SelectField<Weekday>
-                labelId="classes.slotDay"
-                value={slot.weekday as Weekday}
-                onChange={(weekday) => patchSlot(index, { weekday })}
-                options={WEEKDAYS}
-                optionLabelId={weekdayLabel}
-              />
-              <TextField
-                labelId="classes.slotPeriod"
-                value={slot.period_label}
-                onChange={(period_label) => patchSlot(index, { period_label })}
-              />
-              <TextField
-                labelId="common.from"
-                type="time"
-                value={slot.start_time}
-                onChange={(start_time) => patchSlot(index, { start_time })}
-              />
-              <TextField
-                labelId="common.to"
-                type="time"
-                value={slot.end_time}
-                onChange={(end_time) => patchSlot(index, { end_time })}
-              />
-              <TextField
-                labelId="classes.room"
-                value={slot.room}
-                onChange={(room) => patchSlot(index, { room })}
-              />
-              <Button
-                labelId="classes.removeSlot"
-                variant="danger"
-                onClick={() =>
-                  setDraft((d) => ({ ...d, slots: d.slots.filter((_, i) => i !== index) }))
-                }
-              />
+        <ul className="hours">
+          {hours.map((hour) => (
+            <li key={`${hour.period.id}:${hour.weekday}`}>
+              <strong>{t(weekdayLabel(hour.weekday))}</strong>{" "}
+              {hour.period.name.trim() || t("common.none")}
+              <span className="muted"> {formatHourTimes(hour.period)}</span>
+              {hour.room && <span className="muted"> · {hour.room}</span>}
             </li>
           ))}
         </ul>
       )}
 
       <div className="actions">
-        <Button
-          labelId="classes.addSlot"
-          onClick={() =>
-            setDraft((d) => ({
-              ...d,
-              slots: [
-                ...d.slots,
-                {
-                  id: 0,
-                  class_id: d.id,
-                  weekday: 1,
-                  period_label: "",
-                  start_time: "",
-                  end_time: "",
-                  room: d.room,
-                },
-              ],
-            }))
-          }
-        />
         <Button
           labelId="common.save"
           variant="primary"

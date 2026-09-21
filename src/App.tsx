@@ -1,29 +1,57 @@
 /**
- * The app shell: the three M1 sections, the storage panel M0 left behind, and
- * the block-and-reload guard that now stands in front of real teacher data
- * rather than a scratch note.
+ * The app shell: the app's sections, the storage panel M0 left behind, and the
+ * block-and-reload guard that now stands in front of real teacher data rather
+ * than a scratch note.
+ *
+ * **This is where the calendar is read, and the only place.** `todayIso()` is
+ * called here and the resulting day is passed down as a prop to every screen
+ * that needs it, so no component reaches for `new Date()` on its own. That is
+ * what makes the Today view testable on a chosen date — see M3's second
+ * acceptance criterion — and it is why `App` takes an optional `today` override.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, isAppError, type Status } from "./api";
 import { Button } from "./components/Fields";
+import { todayIso } from "./domain/dates";
 import type { Planner } from "./domain/types";
 import { DEFAULT_LOCALE, translatorFor, type StringId } from "./i18n";
 import { LocaleContext, useTranslate } from "./i18n/useTranslate";
+import AgendaScreen from "./screens/AgendaScreen";
 import ClassesScreen from "./screens/ClassesScreen";
 import GradesScreen from "./screens/GradesScreen";
+import PlanScreen, { type PlanFocus } from "./screens/PlanScreen";
 import StudentsScreen from "./screens/StudentsScreen";
+import TimetableScreen from "./screens/TimetableScreen";
+import TodayScreen from "./screens/TodayScreen";
 import YearScreen from "./screens/YearScreen";
 import type { Run } from "./screens/types";
 
-type Section = "year" | "classes" | "students" | "grades";
+type Section =
+  | "year"
+  | "classes"
+  | "students"
+  | "grades"
+  | "timetable"
+  | "agenda"
+  | "plan"
+  | "today";
 const SECTIONS: { key: Section; labelId: StringId }[] = [
   { key: "year", labelId: "nav.year" },
   { key: "classes", labelId: "nav.classes" },
   { key: "students", labelId: "nav.students" },
   { key: "grades", labelId: "nav.grades" },
+  { key: "timetable", labelId: "nav.timetable" },
+  { key: "plan", labelId: "nav.plan" },
+  { key: "agenda", labelId: "nav.agenda" },
+  // Last, as the source product puts "ΣΗΜΕΡΙΝΟ ΜΑΘΗΜΑ" at the right of its nav.
+  { key: "today", labelId: "nav.today" },
 ];
 
-export default function App() {
+/**
+ * @param today Overrides the day the app thinks it is. Tests pin it; the app
+ *   itself leaves it out and the shell reads the local calendar.
+ */
+export default function App({ today }: { today?: string } = {}) {
   // The app ships Greek-only through M8; M9 turns this into state behind a
   // toggle. Every string already resolves through the context, so that change
   // is here and nowhere else.
@@ -31,16 +59,30 @@ export default function App() {
   const value = useMemo(() => ({ locale, t: translatorFor(locale) }), [locale]);
   return (
     <LocaleContext.Provider value={value}>
-      <Shell />
+      <Shell fixedToday={today} />
     </LocaleContext.Provider>
   );
 }
 
-function Shell() {
+function Shell({ fixedToday }: { fixedToday?: string }) {
   const t = useTranslate();
   const [planner, setPlanner] = useState<Planner | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [section, setSection] = useState<Section>("year");
+  /**
+   * Today, read from the local calendar once and then kept current. A session
+   * left open overnight rolls over rather than showing yesterday, and the
+   * interval sets the same string on an ordinary day, so it costs no re-render.
+   */
+  const [liveToday, setLiveToday] = useState(todayIso);
+  useEffect(() => {
+    if (fixedToday !== undefined) return;
+    const timer = setInterval(() => setLiveToday(todayIso()), 60_000);
+    return () => clearInterval(timer);
+  }, [fixedToday]);
+  const today = fixedToday ?? liveToday;
+  /** Set when the Today view asks for a particular class's week to be opened. */
+  const [planFocus, setPlanFocus] = useState<PlanFocus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   /**
@@ -163,6 +205,23 @@ function Shell() {
           {section === "classes" && <ClassesScreen planner={planner} run={run} />}
           {section === "students" && <StudentsScreen planner={planner} run={run} />}
           {section === "grades" && <GradesScreen planner={planner} run={run} />}
+          {section === "timetable" && <TimetableScreen planner={planner} run={run} />}
+          {section === "plan" && (
+            <PlanScreen planner={planner} run={run} today={today} focus={planFocus} />
+          )}
+          {section === "agenda" && (
+            <AgendaScreen planner={planner} run={run} today={today} />
+          )}
+          {section === "today" && (
+            <TodayScreen
+              planner={planner}
+              today={today}
+              onOpenPlan={(focus) => {
+                setPlanFocus(focus);
+                setSection("plan");
+              }}
+            />
+          )}
         </fieldset>
       )}
 

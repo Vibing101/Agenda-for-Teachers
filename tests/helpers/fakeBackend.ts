@@ -15,6 +15,7 @@
  * end.
  */
 import type {
+  AgendaNote,
   AnnualGoal,
   ClassGrading,
   Enrollment,
@@ -24,11 +25,14 @@ import type {
   GradingPeriod,
   Holiday,
   ImportantDate,
+  LessonPlan,
   Planner,
   SchoolClass,
   SchoolYear,
   Seat,
   Student,
+  TimetableCell,
+  TimetablePeriod,
 } from "../../src/domain/types";
 import { GOAL_AREAS } from "../../src/i18n/vocabularies";
 
@@ -61,6 +65,10 @@ export function emptyPlanner(): Planner {
     grade_columns: [],
     grade_values: [],
     grade_rows: [],
+    timetable_periods: [],
+    timetable_cells: [],
+    lesson_plans: [],
+    agenda_notes: [],
   };
 }
 
@@ -96,7 +104,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           app_folder: "/Drive/Ατζέντα",
           db_path: "/Drive/Ατζέντα/data/planner.sqlite",
           db_exists: true,
-          schema_version: 2,
+          schema_version: 4,
           backup_count: 2,
           last_backup: "2026-09-19T07:30:00+03:00",
           disk_changed: diskChanged,
@@ -148,7 +156,6 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
         case "save_class": {
           const c = { ...(args.class as SchoolClass) };
           if (c.id === 0) c.id = nextId++;
-          c.slots = c.slots.map((s) => ({ ...s, class_id: c.id }));
           planner.classes = upsert(planner.classes, c, (x) => x.id);
           break;
         }
@@ -156,6 +163,12 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           planner.classes = planner.classes.filter((c) => c.id !== args.id);
           planner.enrollments = planner.enrollments.filter((e) => e.class_id !== args.id);
           planner.seats = planner.seats.filter((s) => s.class_id !== args.id);
+          planner.lesson_plans = planner.lesson_plans.filter((p) => p.class_id !== args.id);
+          // As the schema's ON DELETE SET NULL does: the hour stays in the
+          // teacher's week, with the link to the class emptied.
+          planner.timetable_cells = planner.timetable_cells.map((cell) =>
+            cell.class_id === args.id ? { ...cell, class_id: null } : cell,
+          );
           break;
         case "save_student": {
           const s = { ...(args.student as Student) };
@@ -243,6 +256,58 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
             (r) => `${r.class_id}:${r.student_id}`,
           );
           break;
+        case "save_timetable_period": {
+          const p = { ...(args.period as TimetablePeriod) };
+          if (p.id === 0) {
+            p.id = nextId++;
+            p.position = planner.timetable_periods.length;
+          }
+          planner.timetable_periods = upsert(planner.timetable_periods, p, (x) => x.id);
+          break;
+        }
+        case "delete_timetable_period":
+          planner.timetable_periods = planner.timetable_periods.filter((p) => p.id !== args.id);
+          // As the schema's cascade does.
+          planner.timetable_cells = planner.timetable_cells.filter(
+            (c) => c.period_id !== args.id,
+          );
+          break;
+        case "save_timetable_cell": {
+          const cell = args.cell as TimetableCell;
+          // An emptied cell is deleted rather than stored blank, exactly as the
+          // storage layer does, so "free hour" is an absent row everywhere.
+          const empty =
+            cell.class_id === null &&
+            cell.subject.trim() === "" &&
+            cell.room.trim() === "" &&
+            cell.duty.trim() === "" &&
+            cell.notes.trim() === "";
+          planner.timetable_cells = planner.timetable_cells.filter(
+            (c) => !(c.period_id === cell.period_id && c.weekday === cell.weekday),
+          );
+          if (!empty) planner.timetable_cells = [...planner.timetable_cells, cell];
+          break;
+        }
+        case "save_lesson_plan": {
+          const plan = args.plan as LessonPlan;
+          planner.lesson_plans = planner.lesson_plans.filter(
+            (p) => !(p.class_id === plan.class_id && p.week_monday === plan.week_monday),
+          );
+          if (plan.notes.trim() !== "" || plan.assessment.trim() !== "") {
+            planner.lesson_plans = [...planner.lesson_plans, plan];
+          }
+          break;
+        }
+        case "save_agenda_note": {
+          const note = args.note as AgendaNote;
+          planner.agenda_notes = planner.agenda_notes.filter(
+            (n) => !(n.scope === note.scope && n.date === note.date),
+          );
+          if (note.body.trim() !== "") {
+            planner.agenda_notes = [...planner.agenda_notes, note];
+          }
+          break;
+        }
         case "export_pdf":
           // The real export opens a hidden window and drives the platform's
           // print pipeline; there is no webview here, so the fake only records

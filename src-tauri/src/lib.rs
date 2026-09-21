@@ -2,7 +2,9 @@
 //!
 //! M0 laid the foundation: packaging, file I/O, backups and the
 //! changed-on-disk guard, all proven from inside a cloud-synced folder.
-//! M1 puts the first real data behind it — school year, classes, students.
+//! M1 puts the first real data behind it — school year, classes, students; M2
+//! the gradebook; M3 the teacher's master timetable, her weekly lesson plans
+//! and her agenda notes.
 //!
 //! Two rules shape the command layer:
 //!
@@ -279,6 +281,41 @@ fn set_grade_value(state: tauri::State<'_, AppState>, value: GradeValue) -> AppR
 #[tauri::command]
 fn save_grade_row(state: tauri::State<'_, AppState>, row: GradeRow) -> AppResult<Planner> {
     mutate(&state, |tx| store::save_grade_row(tx, &row))
+}
+
+// ---------------------------------------- M3: timetable, plans and agenda ---
+
+#[tauri::command]
+fn save_timetable_period(
+    state: tauri::State<'_, AppState>,
+    period: TimetablePeriod,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_timetable_period(tx, &period).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_timetable_period(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_timetable_period(tx, id))
+}
+
+#[tauri::command]
+fn save_timetable_cell(
+    state: tauri::State<'_, AppState>,
+    cell: TimetableCell,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_timetable_cell(tx, &cell))
+}
+
+#[tauri::command]
+fn save_lesson_plan(state: tauri::State<'_, AppState>, plan: LessonPlan) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_lesson_plan(tx, &plan))
+}
+
+#[tauri::command]
+fn save_agenda_note(state: tauri::State<'_, AppState>, note: AgendaNote) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_agenda_note(tx, &note))
 }
 
 // ------------------------------------------------------------ PDF export ---
@@ -586,6 +623,11 @@ pub fn run() {
             delete_grade_column,
             set_grade_value,
             save_grade_row,
+            save_timetable_period,
+            delete_timetable_period,
+            save_timetable_cell,
+            save_lesson_plan,
+            save_agenda_note,
             export_pdf,
             print_job,
             print_ready,

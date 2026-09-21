@@ -259,3 +259,137 @@ table.summary tr.total-row td {
 
 li.conduct-row { align-items: flex-start; }
 li.conduct-row > strong { min-width: 12rem; padding-top: 6px; }
+
+/* --- M3: the master timetable, the agenda and the weekly plan --------- */
+
+.timetable-scroll { overflow-x: auto; margin-top: 12px; }
+
+table.timetable { border-collapse: collapse; min-width: 100%; table-layout: fixed; }
+table.timetable th {
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+/* The Ώρα column: narrow, and the same width on every row. */
+table.timetable th[scope="row"] { width: 7rem; border-right: 1px solid var(--line); }
+table.timetable .hour-name { font-size: 0.95rem; color: var(--fg); }
+table.timetable td {
+  padding: 4px;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  vertical-align: top;
+  min-width: 9rem;
+}
+
+.cell-summary {
+  display: block;
+  width: 100%;
+  min-height: 3.4rem;
+  text-align: left;
+  padding: 6px 8px;
+  font: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.cell-summary:hover { border-color: var(--line); }
+.cell.open .cell-summary { border-color: var(--accent); }
+.cell-summary .block { display: block; font-size: 0.85rem; }
+.duty { color: var(--accent); font-size: 0.85rem; }
+
+.cell-editor {
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.cell-editor .field { margin-top: 6px; }
+.cell-editor .field:first-child { margin-top: 0; }
+.cell-editor label > span { display: block; font-size: 0.8rem; color: var(--muted); }
+.cell-editor select, .cell-editor input { width: 100%; }
+
+.agenda-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+.agenda-bar .actions { margin-top: 0; }
+.agenda-heading { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; }
+.agenda-heading h3 { margin: 0; }
+
+.week-strip { list-style: none; display: grid; gap: 8px; padding: 0; margin: 12px 0 0; }
+@media (min-width: 900px) {
+  .week-strip { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
+.week-strip > li { border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.week-strip > li.is-today { border-color: var(--accent); }
+.week-strip button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.week-strip .field { margin-top: 6px; }
+.week-strip .field label { font-size: 0.75rem; }
+.week-strip textarea { width: 100%; font-size: 0.85rem; }
+
+table.month-grid { width: 100%; border-collapse: collapse; margin-top: 12px; table-layout: fixed; }
+table.month-grid th {
+  text-align: left;
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line);
+}
+table.month-grid td {
+  border: 1px solid var(--line);
+  height: 4.2rem;
+  vertical-align: top;
+  padding: 0;
+}
+table.month-grid td.empty { background: color-mix(in srgb, var(--line) 25%, transparent); border: 0; }
+table.month-grid td.is-today { border-color: var(--accent); border-width: 2px; }
+table.month-grid button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+.day-number { font-weight: 600; }
+
+/* A note marker, on the week strip and in the month grid. Text rather than a
+   dot, so it is readable by a screen reader and legible when printed. */
+.marker {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.7rem;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+ul.hours { list-style: none; padding: 0; margin: 12px 0 0; }
+ul.hours > li { padding: 6px 0; border-top: 1px solid var(--line); }
+ul.hours > li:first-child { border-top: 0; }
+ul.hours .block { display: block; }
+
+p.entered { white-space: pre-wrap; margin: 8px 0 0; }

@@ -37,7 +37,7 @@ describe("the classes screen", () => {
     expect(screen.getByText("Δεν έχει καταχωριστεί ακόμη τμήμα.")).toBeInTheDocument();
   });
 
-  it("creates a class and saves its details and timetable slot", async () => {
+  it("creates a class and saves its details", async () => {
     const backend = renderScreen(ClassesScreen, emptyPlanner(), invoke);
     const user = userEvent.setup();
 
@@ -46,18 +46,61 @@ describe("the classes screen", () => {
 
     await user.type(screen.getByLabelText("Όνομα τμήματος"), "Α1");
     await user.type(screen.getByLabelText("Μάθημα"), "Μαθηματικά");
-    await user.click(screen.getByRole("button", { name: "Προσθήκη ώρας" }));
-    await user.selectOptions(await screen.findByLabelText("Ημέρα"), "Τρίτη");
-    await user.type(screen.getByLabelText("Ώρα"), "3η");
     await user.click(panel("Όνομα τμήματος").getByRole("button", { name: "Αποθήκευση" }));
 
     await waitFor(() => {
       const saved = backend.planner.classes[0];
       expect(saved.name).toBe("Α1");
       expect(saved.subject).toBe("Μαθηματικά");
-      expect(saved.slots).toHaveLength(1);
-      expect(saved.slots[0]).toMatchObject({ weekday: 2, period_label: "3η" });
     });
+  });
+
+  /**
+   * M3 moved the teacher's week into one master register, so the card shows the
+   * class's hours read-only and points at the Πρόγραμμα screen. This is the half
+   * of the old "creates a class and saves its timetable slot" test that still
+   * belongs here; the editing half lives in `TimetableScreen.test.tsx`.
+   */
+  it("shows the class's hours read-only, derived from the master timetable", async () => {
+    const planner = emptyPlanner();
+    planner.classes = [
+      {
+        id: 1,
+        name: "Α1",
+        subject: "Μαθηματικά",
+        room: "203",
+        responsible: "",
+        notes: "",
+        position: 0,
+        seating_rows: 5,
+        seating_cols: 6,
+        seating_notes: "",
+      },
+    ];
+    planner.timetable_periods = [
+      { id: 10, position: 0, name: "3η", start_time: "10:15", end_time: "11:00" },
+    ];
+    planner.timetable_cells = [
+      {
+        period_id: 10,
+        weekday: 2,
+        class_id: 1,
+        subject: "",
+        room: "",
+        duty: "",
+        notes: "",
+      },
+    ];
+    renderScreen(ClassesScreen, planner, invoke);
+
+    const hours = panel("Όνομα τμήματος");
+    expect(hours.getByText("Τρίτη")).toBeInTheDocument();
+    expect(hours.getByText(/3η/)).toBeInTheDocument();
+    expect(hours.getByText(/10:15 – 11:00/)).toBeInTheDocument();
+    // The class's own room, looked up rather than copied into the cell.
+    expect(hours.getByText(/203/)).toBeInTheDocument();
+    // And no editor: the hours are not editable from the card any more.
+    expect(screen.queryByRole("button", { name: "Προσθήκη ώρας" })).not.toBeInTheDocument();
   });
 
   /**

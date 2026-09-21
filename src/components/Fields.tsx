@@ -72,21 +72,25 @@ export function TextField({
  */
 export function DeferredTextField({
   labelId,
+  labelParams,
   value,
   onCommit,
+  type = "text",
 }: {
   labelId: StringId;
+  labelParams?: Params;
   value: string;
   onCommit: (value: string) => void;
+  type?: "text" | "time" | "date";
 }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   return (
-    <Field labelId={labelId}>
+    <Field labelId={labelId} labelParams={labelParams}>
       {(id) => (
         <input
           id={id}
-          type="text"
+          type={type}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => {
@@ -100,14 +104,15 @@ export function DeferredTextField({
 
 interface TextAreaProps {
   labelId: StringId;
+  labelParams?: Params;
   value: string;
   onChange: (value: string) => void;
   rows?: number;
 }
 
-export function TextArea({ labelId, value, onChange, rows = 3 }: TextAreaProps) {
+export function TextArea({ labelId, labelParams, value, onChange, rows = 3 }: TextAreaProps) {
   return (
-    <Field labelId={labelId}>
+    <Field labelId={labelId} labelParams={labelParams}>
       {(id) => (
         <textarea id={id} rows={rows} value={value} onChange={(e) => onChange(e.target.value)} />
       )}

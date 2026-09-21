@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  AgendaNote,
   AnnualGoal,
   ClassGrading,
   Enrollment,
@@ -9,11 +10,14 @@ import type {
   GradingPeriod,
   Holiday,
   ImportantDate,
+  LessonPlan,
   Planner,
   SchoolClass,
   SchoolYear,
   Seat,
   Student,
+  TimetableCell,
+  TimetablePeriod,
 } from "./domain/types";
 
 export interface Status {
@@ -83,6 +87,16 @@ export const api = {
   deleteGradeColumn: (id: number) => invoke<Planner>("delete_grade_column", { id }),
   setGradeValue: (value: GradeValue) => invoke<Planner>("set_grade_value", { value }),
   saveGradeRow: (row: GradeRow) => invoke<Planner>("save_grade_row", { row }),
+
+  saveTimetablePeriod: (period: TimetablePeriod) =>
+    invoke<Planner>("save_timetable_period", { period }),
+  deleteTimetablePeriod: (id: number) => invoke<Planner>("delete_timetable_period", { id }),
+  /** An emptied cell is deleted rather than stored blank, backend-side. */
+  saveTimetableCell: (cell: TimetableCell) => invoke<Planner>("save_timetable_cell", { cell }),
+
+  /** Keyed by `(class, Monday)`, so this is an upsert with no id to hand back. */
+  saveLessonPlan: (plan: LessonPlan) => invoke<Planner>("save_lesson_plan", { plan }),
+  saveAgendaNote: (note: AgendaNote) => invoke<Planner>("save_agenda_note", { note }),
 
   /**
    * Writes one document into `exports/` as a real PDF and resolves with its

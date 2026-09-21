@@ -78,20 +78,14 @@ pub const GOAL_AREAS: [&str; 6] = [
     "wellbeing",
 ];
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ClassSlot {
-    #[serde(default)]
-    pub id: i64,
-    #[serde(default)]
-    pub class_id: i64,
-    /// 1 = Monday … 6 = Saturday, matching the source timetable's grid.
-    pub weekday: i64,
-    pub period_label: String,
-    pub start_time: String,
-    pub end_time: String,
-    pub room: String,
-}
-
+/// A class.
+///
+/// **M1's `slots` field is gone, and deliberately so** (M3). A class's hours are
+/// now derived from the master timetable's cells that link to it, rather than
+/// being a second register that could disagree with it — see [`TimetableCell`]
+/// for the reasoning and `migrate_to_4` for where the old rows went. Nothing
+/// writes a class's hours through this struct any more, which is why the field
+/// was removed rather than left in place and quietly ignored.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Class {
     #[serde(default)]
@@ -106,8 +100,6 @@ pub struct Class {
     pub seating_rows: i64,
     pub seating_cols: i64,
     pub seating_notes: String,
-    #[serde(default)]
-    pub slots: Vec<ClassSlot>,
 }
 
 /// Every field on the source product's student card, plus the multi-class
@@ -186,6 +178,10 @@ pub struct Planner {
     pub grade_columns: Vec<GradeColumn>,
     pub grade_values: Vec<GradeValue>,
     pub grade_rows: Vec<GradeRow>,
+    pub timetable_periods: Vec<TimetablePeriod>,
+    pub timetable_cells: Vec<TimetableCell>,
+    pub lesson_plans: Vec<LessonPlan>,
+    pub agenda_notes: Vec<AgendaNote>,
 }
 
 // ------------------------------------------------------------- M2: grades ---
@@ -228,7 +224,8 @@ impl ClassGrading {
 
 /// One assessment column on a class's gradebook.
 ///
-/// `weight` is the one nullable field in the whole schema, and deliberately so:
+/// `weight` is one of only two nullable fields in the schema (M3's
+/// `timetable_cell.class_id` is the other), and deliberately so:
 /// `None` means "the teacher has not decided this column's weight yet" and
 /// `Some(0.0)` means "she decided it is worth nothing". They behave differently
 /// in the average — blank drops the column out, zero keeps it in and can
@@ -273,3 +270,95 @@ pub struct GradeRow {
     pub observations: String,
     pub overall_result: String,
 }
+
+// -------------------------------------------- M3: timetable and planning ---
+
+/// One named hour of the teacher's week — a row of the master timetable.
+///
+/// This is the source page's `Ώρα` column: the teacher names her hours once
+/// ("1η", "2η", a break, an afternoon slot) with the clock times they run at,
+/// and every weekday shares that row. Hours belong to the teacher rather than
+/// to a class, which is the whole reason the master timetable exists as its own
+/// register — see [`TimetableCell`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TimetablePeriod {
+    #[serde(default)]
+    pub id: i64,
+    #[serde(default)]
+    pub position: i64,
+    pub name: String,
+    pub start_time: String,
+    pub end_time: String,
+}
+
+/// One cell of the master timetable: what the teacher is doing in hour
+/// `period_id` on `weekday`.
+///
+/// **This is the single register of the teacher's week, and M3 makes it the
+/// authority.** M1 shipped a per-class timetable (`class_slot`) that covered
+/// the same ground from the other direction; `migrate_to_4` folds those rows
+/// into this table and drops it. Two things in the spec force the direction:
+/// a cover or a duty has no class at all and so cannot live in a per-class
+/// table, and the spec describes the link to a class as *optional* and as
+/// something that "fills subject/room" — i.e. the cell is the record and the
+/// class is a pointer. A class's own hours are then derived from the cells that
+/// point at it, so nothing is typed twice and the Today view — which the spec
+/// says reads "from the master timetable" — has one register to read and cannot
+/// list the same class twice.
+///
+/// `class_id` is nullable and `ON DELETE SET NULL`: deleting a class empties
+/// the link but keeps the hour, because the hour is still in the teacher's
+/// week. `subject` and `room` are overrides — empty means "take it from the
+/// linked class" — so a class that meets in the lab on Thursdays says so in
+/// that one cell without a second class record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TimetableCell {
+    pub period_id: i64,
+    /// 1 = Monday … 6 = Saturday, matching the source timetable's grid.
+    pub weekday: i64,
+    /// The optional link to a class. `None` for a cover, a duty or a free hour.
+    pub class_id: Option<i64>,
+    pub subject: String,
+    pub room: String,
+    /// "Αναπληρώσεις και άλλα καθήκοντα" — the cover or duty in this hour.
+    pub duty: String,
+    pub notes: String,
+}
+
+/// The weekly lesson plan for one class.
+///
+/// **Keyed by `week_monday`, an actual date**, never a week index — the spec's
+/// hard-won rule and M3's first acceptance criterion. The teacher may correct
+/// the school year's start date in November; that re-derives what *number* this
+/// week is called and touches no row here, because no row here knows a number.
+///
+/// `(class_id, week_monday)` is the whole key, so there is no id to assign and
+/// nothing for a "new plan" button to select — which is why the create-then-edit
+/// data-loss shape that bit M1 cannot occur here. M6's week-by-class progress
+/// matrix reads exactly these rows.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LessonPlan {
+    pub class_id: i64,
+    /// The Monday of the week this plan is for, `YYYY-MM-DD`.
+    pub week_monday: String,
+    pub notes: String,
+    /// The one optional assessment for the week, as the spec describes it.
+    pub assessment: String,
+}
+
+/// A day, week or month agenda note, keyed by an actual date.
+///
+/// `scope` is a stable code (`day` | `week` | `month`) and `date` is the
+/// canonical date for that scope: the day itself, the **Monday** of the week, or
+/// the **first** of the month. Normalising before the write is the frontend's
+/// job (`domain/agenda.ts`), so every note for a week lands on one row however
+/// the teacher navigated to it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgendaNote {
+    /// `day` | `week` | `month`
+    pub scope: String,
+    pub date: String,
+    pub body: String,
+}
+
+pub const AGENDA_SCOPES: [&str; 3] = ["day", "week", "month"];

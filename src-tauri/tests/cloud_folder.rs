@@ -6,9 +6,10 @@
 //!
 //! It covers the gate's persistence round-trip (write, quit, relaunch, the data
 //! is intact) and M0's change-detection criterion, now carrying real M1 and M2
-//! data: a school year, two classes, a student enrolled in both, and that
-//! class's gradebook — columns with and without a weight, marks of more than
-//! one type, the pass threshold and a conduct rating.
+//! data: a school year, two classes, a student enrolled in both, that class's
+//! gradebook — columns with and without a weight, marks of more than one type,
+//! the pass threshold and a conduct rating — and, from M3, the teacher's master
+//! timetable, a weekly lesson plan and all three scopes of agenda note.
 
 use teacher_planner_lib::model::*;
 use teacher_planner_lib::{backup, db, fingerprint::Fingerprint, paths, store};
@@ -50,15 +51,6 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
             seating_rows: 5,
             seating_cols: 6,
             seating_notes: String::new(),
-            slots: vec![ClassSlot {
-                id: 0,
-                class_id: 0,
-                weekday: 1,
-                period_label: "2η".into(),
-                start_time: "09:20".into(),
-                end_time: "10:05".into(),
-                room: "203".into(),
-            }],
         },
     )
     .unwrap();
@@ -75,7 +67,6 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
             seating_rows: 5,
             seating_cols: 6,
             seating_notes: String::new(),
-            slots: Vec::new(),
         },
     )
     .unwrap();
@@ -190,6 +181,83 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     )
     .unwrap();
 
+    // --- her week, her plan for it, and her notes (M3) ---
+    // The hour class Α1 used to carry as its own slot is now a row of the
+    // teacher's master timetable, with the class linked from one cell of it and
+    // a playground duty in another that belongs to no class at all.
+    let second_hour = store::save_timetable_period(
+        &conn,
+        &TimetablePeriod {
+            id: 0,
+            position: 0,
+            name: "2η".into(),
+            start_time: "09:20".into(),
+            end_time: "10:05".into(),
+        },
+    )
+    .unwrap();
+    store::save_timetable_cell(
+        &conn,
+        &TimetableCell {
+            period_id: second_hour,
+            weekday: 1,
+            class_id: Some(class_a),
+            subject: String::new(),
+            room: "203".into(),
+            duty: String::new(),
+            notes: String::new(),
+        },
+    )
+    .unwrap();
+    store::save_timetable_cell(
+        &conn,
+        &TimetableCell {
+            period_id: second_hour,
+            weekday: 5,
+            class_id: None,
+            subject: String::new(),
+            room: String::new(),
+            duty: "Εφημερία στο προαύλιο".into(),
+            notes: "Μαζί με τη Μ. Νικολάου".into(),
+        },
+    )
+    .unwrap();
+    // A plan keyed by the Monday of a week in November — the row the start-date
+    // change further down must not be able to touch.
+    store::save_lesson_plan(
+        &conn,
+        &LessonPlan {
+            class_id: class_a,
+            week_monday: "2026-11-02".into(),
+            notes: "Κεφάλαιο 4: εξισώσεις πρώτου βαθμού".into(),
+            assessment: "Ολιγόλεπτο διαγώνισμα την Πέμπτη".into(),
+        },
+    )
+    .unwrap();
+    for (scope, date, body) in [
+        ("day", "2026-11-05", "Συνάντηση με τη μητέρα στις 13:30"),
+        (
+            "week",
+            "2026-11-02",
+            "Εβδομάδα επανάληψης πριν το διαγώνισμα",
+        ),
+        (
+            "month",
+            "2026-11-01",
+            "Εστίαση του μήνα: ανάγνωση στο σπίτι",
+        ),
+    ] {
+        store::save_agenda_note(
+            &conn,
+            &AgendaNote {
+                scope: scope.into(),
+                date: date.into(),
+                body: body.into(),
+            },
+        )
+        .unwrap();
+    }
+
     let saved = store::load(&conn).unwrap();
     drop(conn); // the app quits
     let after_write = Fingerprint::of(&paths::db_path()).unwrap();
@@ -248,6 +316,49 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
         "Ικανοποιητική πορεία"
     );
 
+    // The week, the plan and the notes came back whole — including the duty
+    // cell with no class on it, which is the case a per-class timetable could
+    // not have held at all.
+    assert_eq!(reloaded.timetable_periods.len(), 1);
+    assert_eq!(reloaded.timetable_periods[0].name, "2η");
+    assert_eq!(reloaded.timetable_periods[0].start_time, "09:20");
+    assert_eq!(reloaded.timetable_cells.len(), 2);
+    let monday_cell = reloaded
+        .timetable_cells
+        .iter()
+        .find(|c| c.weekday == 1)
+        .unwrap();
+    assert_eq!(monday_cell.class_id, Some(class_a));
+    assert_eq!(monday_cell.room, "203");
+    let duty_cell = reloaded
+        .timetable_cells
+        .iter()
+        .find(|c| c.weekday == 5)
+        .unwrap();
+    assert_eq!(duty_cell.class_id, None);
+    assert_eq!(duty_cell.duty, "Εφημερία στο προαύλιο");
+
+    assert_eq!(reloaded.lesson_plans.len(), 1);
+    assert_eq!(reloaded.lesson_plans[0].week_monday, "2026-11-02");
+    assert_eq!(
+        reloaded.lesson_plans[0].notes,
+        "Κεφάλαιο 4: εξισώσεις πρώτου βαθμού"
+    );
+    assert_eq!(
+        reloaded.lesson_plans[0].assessment,
+        "Ολιγόλεπτο διαγώνισμα την Πέμπτη"
+    );
+    assert_eq!(reloaded.agenda_notes.len(), 3);
+    assert_eq!(
+        reloaded
+            .agenda_notes
+            .iter()
+            .find(|n| n.scope == "month")
+            .unwrap()
+            .body,
+        "Εστίαση του μήνα: ανάγνωση στο σπίτι"
+    );
+
     // --- the start date moves, and nothing else does ---
     store::save_school_year(
         &conn,
@@ -264,6 +375,16 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert_eq!(moved.grade_columns, reloaded.grade_columns);
     assert_eq!(moved.grade_values, reloaded.grade_values);
     assert_eq!(moved.grade_rows, reloaded.grade_rows);
+    // M3's first acceptance criterion, end to end against a real file: the
+    // week of 2 November is called a different week number now, and the plan
+    // entered against it has not moved, changed or disappeared.
+    assert_eq!(
+        moved.lesson_plans, reloaded.lesson_plans,
+        "a lesson plan is keyed by its actual Monday, not by a week index"
+    );
+    assert_eq!(moved.agenda_notes, reloaded.agenda_notes);
+    assert_eq!(moved.timetable_periods, reloaded.timetable_periods);
+    assert_eq!(moved.timetable_cells, reloaded.timetable_cells);
     drop(conn);
 
     // Opening and reading must not disturb the file, or every session would

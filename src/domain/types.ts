@@ -4,6 +4,9 @@
  * which is the definition these mirror.
  */
 import type { ClassGrading, GradeColumn, GradeRow, GradeValue } from "./grades";
+import type { AgendaNote } from "./agenda";
+import type { LessonPlan } from "./plans";
+import type { TimetableCell, TimetablePeriod } from "./timetable";
 import type {
   GoalArea,
   HolidaySource,
@@ -53,17 +56,6 @@ export interface AnnualGoal {
   review: string;
 }
 
-export interface ClassSlot {
-  id: number;
-  class_id: number;
-  /** 1 = Monday … 6 = Saturday. */
-  weekday: number;
-  period_label: string;
-  start_time: string;
-  end_time: string;
-  room: string;
-}
-
 export interface SchoolClass {
   id: number;
   name: string;
@@ -75,7 +67,6 @@ export interface SchoolClass {
   seating_rows: number;
   seating_cols: number;
   seating_notes: string;
-  slots: ClassSlot[];
 }
 
 export interface Student {
@@ -141,6 +132,10 @@ export interface Planner {
   grade_columns: GradeColumn[];
   grade_values: GradeValue[];
   grade_rows: GradeRow[];
+  timetable_periods: TimetablePeriod[];
+  timetable_cells: TimetableCell[];
+  lesson_plans: LessonPlan[];
+  agenda_notes: AgendaNote[];
 }
 
 /** A blank card, so "new student" and "loaded student" are the same shape. */
@@ -171,6 +166,17 @@ export function emptyStudent(): Student {
   };
 }
 
+/**
+ * The M3 records live beside the selectors that read them, in `timetable.ts`,
+ * `plans.ts` and `agenda.ts` — for the same reason M2's live in `grades.ts`:
+ * a `class_id` of `null` only makes sense next to the rule that reads it as a
+ * duty rather than as a lesson. Re-exported so a screen still has one place to
+ * import a planner's parts from.
+ */
+export type { TimetableCell, TimetablePeriod } from "./timetable";
+export type { LessonPlan } from "./plans";
+export type { AgendaNote } from "./agenda";
+
 export function emptyClass(): SchoolClass {
   return {
     id: 0,
@@ -184,6 +190,5 @@ export function emptyClass(): SchoolClass {
     seating_rows: 5,
     seating_cols: 6,
     seating_notes: "",
-    slots: [],
   };
 }

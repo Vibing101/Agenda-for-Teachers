@@ -56,6 +56,11 @@ export const CONDUCT_LEVELS = [
 
 /** Monday–Saturday, matching the source timetable grid. */
 export const WEEKDAYS = [1, 2, 3, 4, 5, 6] as const;
+/**
+ * The three scopes an agenda note can be written at. The code is what the
+ * database stores, and each scope keeps its own note for the same date.
+ */
+export const AGENDA_SCOPES = ["day", "week", "month"] as const;
 export const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 
 export type YearModel = (typeof YEAR_MODELS)[number];
@@ -68,6 +73,7 @@ export type PassFailGrade = (typeof PASS_FAIL_GRADES)[number];
 export type ConductLevel = (typeof CONDUCT_LEVELS)[number];
 export type GoalArea = (typeof GOAL_AREAS)[number];
 export type Weekday = (typeof WEEKDAYS)[number];
+export type AgendaScope = (typeof AGENDA_SCOPES)[number];
 export type Month = (typeof MONTHS)[number];
 
 /** The string id that labels one code of one vocabulary. */
@@ -85,4 +91,5 @@ export const passFailGradeLabel = (code: string) => vocabLabelId("passFailGrade"
 export const conductLabel = (code: string) => vocabLabelId("conduct", code);
 export const goalAreaLabel = (code: string) => vocabLabelId("goalArea", code);
 export const weekdayLabel = (day: number) => vocabLabelId("weekday", day);
+export const agendaScopeLabel = (code: string) => vocabLabelId("agendaScope", code);
 export const monthLabel = (month: number) => vocabLabelId("month", month);

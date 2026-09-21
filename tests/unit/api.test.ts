@@ -39,7 +39,6 @@ describe("api", () => {
       seating_rows: 5,
       seating_cols: 6,
       seating_notes: "",
-      slots: [],
     });
     expect(invoke).toHaveBeenCalledWith("save_class", { class: expect.objectContaining({ id: 3 }) });
   });
