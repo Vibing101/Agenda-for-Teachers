@@ -128,19 +128,30 @@ duplicate the teacher can tidy up. Two tests cover this, one per case.
 
 ## Open questions for the product owner
 
-**1. Is retiring the class card's slot editor the right call?** M3 makes the
-master timetable the single register and derives a class's hours from it, which
-removes `Class.slots` and the editor M1 shipped. The reasoning is in "The one
-design decision". It is the only answer that holds covers and duties, but it does
-take away something already signed off, so it should be a conscious call rather
-than mine alone.
+**1. Is retiring the class card's slot editor the right call? — ANSWERED
+2026-09-21: yes.** The product owner confirmed the retirement. The master
+timetable is the single register, a class's hours are derived from it, and the
+class card shows them read-only. Recorded in the spec's Resolved table.
 
-**2. Should the master timetable print to PDF in this milestone?** The spec's
-module-1 entry ends "notes, printable", but M3's delivery-scope line does not name
-PDF export, so it is not built here — the same call M2 made about progress-check
-periods. The pipeline exists and works on both OSes, and the timetable is a
-landscape A4 sheet much like the conduct sheet, so this is a small piece of work
-if it is wanted now.
+**2. Should the master timetable print to PDF? — ANSWERED 2026-09-21: no, and
+not later either.** The product owner's call is that **the timetable needs no PDF
+export at all** — plain text in the app, to copy and paste, is enough. Recorded in
+the spec's Resolved table as a **narrow exception for the timetable only**: grade
+sheets, conduct sheets, letters, the message bank, the print forms and the
+substitute folder all still produce real PDF files as the spec's "PDF output"
+section requires.
+
+Two small pieces of work follow and are **not built here**, because M3 was already
+merged when the decision was taken:
+
+- a **"copy as text"** affordance on the timetable, producing a plain-text grid
+  the teacher can paste into an email or a document;
+- **removing the on-screen note** `timetable.printLater`, which currently says PDF
+  export "has not been implemented yet at this stage" and is now misleading, since
+  it is not coming.
+
+Both are named in the M4 prompt as a carry-over so they land with a milestone's
+own CI run rather than costing one of their own.
 
 **3. Should the source page's two page-level boxes exist as well as the per-cell
 ones?** The source's timetable page has one "ΑΝΑΠΛΗΡΩΣΕΙΣ ΚΑΙ ΑΛΛΑ ΚΑΘΗΚΟΝΤΑ" box
