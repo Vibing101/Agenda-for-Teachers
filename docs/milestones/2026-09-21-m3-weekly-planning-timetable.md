@@ -2,7 +2,33 @@
 
 **Date:** 2026-09-21
 **Branch:** `m3-weekly-planning-timetable`
-**Signed off by:** <product owner, once reviewed>
+**Signed off by:** Product owner, 2026-09-21 — squash-merged to `main` as
+`333b7cc` and the branch deleted. **Note that the three steps under "What still
+needs a human" were _not_ performed before the merge:** nobody has double-clicked
+the build from Explorer, nobody has typed anything into the packaged app's four
+new screens, and the Google Drive online-only placeholder case is still not
+driven. All three remain outstanding against this milestone, alongside M2's own
+outstanding human pass.
+
+The merge deliberately carried `[skip ci]`: the only change between the green CI
+run ([35575180371](https://github.com/Vibing101/Agenda-for-Teachers/actions/runs/35575180371),
+both runners) and the merge commit was this release note's markdown, so `main`'s
+code tree is exactly what CI verified. Confirmed after merging — `main`'s tree
+hash `0f5c8449540fbccce0ae6499f90e1df742bca7cb` is identical to the branch tip's,
+so nothing was lost in the squash — and **the full gate was then re-run locally on
+`main`**: typecheck, eslint, 229 frontend tests, `cargo fmt --check`,
+`clippy -D warnings` and 67 Rust tests, all clean.
+
+The branch's six commits, collapsed by the squash, were:
+
+| Commit | Subject |
+|---|---|
+| `6bfa7b6` | Make the master timetable the single register of the teacher's week, and key lesson plans and agenda notes by actual date |
+| `4242ad8` | Commit an hour's clock times on blur rather than on every partial value typed |
+| `0827422` | Add M3's dated release note, recording every gate step including the ones an agent cannot perform |
+| `286ce4f` | Note that a sync client's eviction is asynchronous, so the placeholder check polls for it |
+| `792ad1a` | Record the green first-push CI run, confirming the billing problem is resolved |
+| `3b678ef` | Record the avoidable second CI run, and how to avoid it next time |
 
 Worked on **the dev Mac** (`uname -s` = `Darwin`, `VBoxManage list vms` lists
 `MilestoneTesting`), with the Windows half of the gate driven over SSH into the
