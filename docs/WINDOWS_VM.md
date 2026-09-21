@@ -357,6 +357,36 @@ it is the step nobody is allowed to quietly claim.
 
 That is most of what the borrowed machine did at M1, now repeatable on demand.
 
+### Three things that cost a round trip to rediscover (found at the M3 gate)
+
+- **Keep the Mac awake for the whole run.** macOS power management *pauses* the
+  VM — `VBoxManage showvminfo` reports `VMState="paused"` and "paused due to host
+  power management", SSH times out during banner exchange, and a check running at
+  that moment returns nonsense. At the M3 gate this caught a database
+  mid-migration and made it look torn when it was not. Run `caffeinate -dimsu`
+  on the Mac for the duration, and if SSH dies mid-run, check the VM's state
+  before believing any result around it.
+- **Never put Greek in an SSH command line.** The console code page mangles it,
+  so `schtasks`, paths and comparisons silently operate on the wrong string.
+  Write a `.ps1` file, `scp` it in, and run it with
+  `powershell -ExecutionPolicy Bypass -File`. Build Greek names inside the script
+  from code points (`[char]0x0391 + …`) rather than pasting literals.
+- **Greek in a local `grep` pattern can silently match nothing** under this
+  shell, which makes a process list look empty and a "clean quit" look done when
+  the app is still running. Match on ASCII (`OneDrive`, `GoogleDrive`,
+  `Contents/MacOS/teacher-planner`) and verify a quit by PID before trusting it.
+
+Two more, specific to what the checks measure:
+
+- **A sync client evicts asynchronously.** `attrib -P +U` marks a file unpinned
+  immediately but the bytes can still be on disk seconds later. Poll
+  `GetCompressedFileSizeW` until it reads 0 before claiming a file is genuinely
+  dehydrated.
+- **Do not test "is this table gone?" by scanning the database's bytes.** SQLite
+  leaves a dropped table's `CREATE TABLE` text in freed pages, so a raw scan
+  reports it as still present. Query `sqlite_master` — there is no `sqlite3` in
+  the guest, so copy the file back to the Mac and inspect it there.
+
 ### Still needs a human at the VM's screen
 
 - **A genuine Explorer double-click, and therefore SmartScreen.** Established at
