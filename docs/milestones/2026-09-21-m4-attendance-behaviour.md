@@ -2,7 +2,16 @@
 
 **Date:** 2026-09-21
 **Branch:** `m4-attendance-behaviour`
-**Signed off by:** Product owner, 2026-09-22 — squash-merged to `main`.
+**Signed off by:** Product owner, 2026-09-22 — squash-merged to `main` as
+`6e7e1ab` and the branch deleted. The merge carried `[skip ci]`: the only changes
+between the green CI run
+([35645188592](https://github.com/Vibing101/Agenda-for-Teachers/actions/runs/35645188592),
+both runners) and the merge commit were markdown, so `main`'s code tree is
+exactly what CI verified. Confirmed after merging — `main`'s tree hash
+`8696da504b2e6d5b4640487affe1446b3c83e237` is identical to the branch tip's, so
+nothing was lost in the squash — and **the full gate was then re-run locally on
+`main`**: typecheck, eslint, 319 frontend tests, `cargo fmt --check`,
+`clippy -D warnings` and 78 Rust tests, all clean.
 **Note that the three steps under "What still needs a human" were _not_ performed
 before the merge:** nobody has double-clicked the build from Explorer, nobody has
 typed anything into the packaged app's four new screens, and the Google Drive
