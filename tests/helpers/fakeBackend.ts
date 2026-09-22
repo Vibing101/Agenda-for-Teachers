@@ -15,8 +15,10 @@
  * end.
  */
 import type {
+  AbsenceEvent,
   AgendaNote,
   AnnualGoal,
+  AttendanceMark,
   ClassGrading,
   Enrollment,
   GradeColumn,
@@ -25,12 +27,15 @@ import type {
   GradingPeriod,
   Holiday,
   ImportantDate,
+  Incident,
   LessonPlan,
   Planner,
   SchoolClass,
   SchoolYear,
   Seat,
   Student,
+  SupportGoal,
+  SupportPlan,
   TimetableCell,
   TimetablePeriod,
 } from "../../src/domain/types";
@@ -69,6 +74,11 @@ export function emptyPlanner(): Planner {
     timetable_cells: [],
     lesson_plans: [],
     agenda_notes: [],
+    attendance_marks: [],
+    absence_events: [],
+    incidents: [],
+    support_plans: [],
+    support_goals: [],
   };
 }
 
@@ -104,7 +114,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           app_folder: "/Drive/Ατζέντα",
           db_path: "/Drive/Ατζέντα/data/planner.sqlite",
           db_exists: true,
-          schema_version: 4,
+          schema_version: 5,
           backup_count: 2,
           last_backup: "2026-09-19T07:30:00+03:00",
           disk_changed: diskChanged,
@@ -164,6 +174,16 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           planner.enrollments = planner.enrollments.filter((e) => e.class_id !== args.id);
           planner.seats = planner.seats.filter((s) => s.class_id !== args.id);
           planner.lesson_plans = planner.lesson_plans.filter((p) => p.class_id !== args.id);
+          // Attendance and absence events are per class and cascade with it.
+          planner.attendance_marks = planner.attendance_marks.filter(
+            (m) => m.class_id !== args.id,
+          );
+          planner.absence_events = planner.absence_events.filter((e) => e.class_id !== args.id);
+          // An incident belongs to the student, so it survives with its link
+          // emptied — the schema's ON DELETE SET NULL.
+          planner.incidents = planner.incidents.map((i) =>
+            i.class_id === args.id ? { ...i, class_id: null } : i,
+          );
           // As the schema's ON DELETE SET NULL does: the hour stays in the
           // teacher's week, with the link to the class emptied.
           planner.timetable_cells = planner.timetable_cells.map((cell) =>
@@ -177,11 +197,23 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           planner.students.sort((a, b) => a.full_name.localeCompare(b.full_name, "el"));
           break;
         }
-        case "delete_student":
+        case "delete_student": {
           planner.students = planner.students.filter((s) => s.id !== args.id);
           planner.enrollments = planner.enrollments.filter((e) => e.student_id !== args.id);
           planner.seats = planner.seats.filter((s) => s.student_id !== args.id);
+          // As the schema's cascades do, through her plans to their goals.
+          planner.attendance_marks = planner.attendance_marks.filter(
+            (m) => m.student_id !== args.id,
+          );
+          planner.absence_events = planner.absence_events.filter((e) => e.student_id !== args.id);
+          planner.incidents = planner.incidents.filter((i) => i.student_id !== args.id);
+          const goneplans = new Set(
+            planner.support_plans.filter((p) => p.student_id === args.id).map((p) => p.id),
+          );
+          planner.support_plans = planner.support_plans.filter((p) => p.student_id !== args.id);
+          planner.support_goals = planner.support_goals.filter((g) => !goneplans.has(g.plan_id));
           break;
+        }
         case "set_enrollment": {
           const e = { ...(args.enrollment as Enrollment) };
           if (e.roster_no <= 0) {
@@ -308,6 +340,75 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           }
           break;
         }
+        // ----------------------------- M4: attendance and behaviour ---
+        case "save_attendance_mark": {
+          const mark = args.mark as AttendanceMark;
+          // An emptied cell is deleted rather than stored blank, exactly as the
+          // storage layer does. Nothing here touches `absence_events` — the two
+          // registers are independent by the spec's own decision.
+          planner.attendance_marks = planner.attendance_marks.filter(
+            (m) =>
+              !(
+                m.class_id === mark.class_id &&
+                m.student_id === mark.student_id &&
+                m.date === mark.date
+              ),
+          );
+          if (mark.state.trim() !== "") {
+            planner.attendance_marks = [...planner.attendance_marks, mark];
+          }
+          break;
+        }
+        case "save_absence_event": {
+          // A blank event is KEPT, unlike an emptied grid cell: the teacher
+          // pressed a button to create it and is about to type into it.
+          const e = { ...(args.event as AbsenceEvent) };
+          if (e.id === 0) e.id = nextId++;
+          planner.absence_events = upsert(planner.absence_events, e, (x) => x.id);
+          break;
+        }
+        case "delete_absence_event":
+          planner.absence_events = planner.absence_events.filter((e) => e.id !== args.id);
+          break;
+        case "save_incident": {
+          const i = { ...(args.incident as Incident) };
+          if (i.id === 0) i.id = nextId++;
+          planner.incidents = upsert(planner.incidents, i, (x) => x.id);
+          break;
+        }
+        case "delete_incident":
+          planner.incidents = planner.incidents.filter((i) => i.id !== args.id);
+          break;
+        case "save_support_plan": {
+          const p = { ...(args.plan as SupportPlan) };
+          if (p.id === 0) {
+            p.id = nextId++;
+            p.position = planner.support_plans.filter(
+              (x) => x.student_id === p.student_id,
+            ).length;
+          }
+          planner.support_plans = upsert(planner.support_plans, p, (x) => x.id);
+          break;
+        }
+        case "delete_support_plan":
+          planner.support_plans = planner.support_plans.filter((p) => p.id !== args.id);
+          // As the schema's cascade does.
+          planner.support_goals = planner.support_goals.filter((g) => g.plan_id !== args.id);
+          break;
+        case "save_support_goal": {
+          // Writes a goal and only a goal: there is no path from here to its
+          // plan's teacher-written status, exactly as in the Rust layer.
+          const g = { ...(args.goal as SupportGoal) };
+          if (g.id === 0) {
+            g.id = nextId++;
+            g.position = planner.support_goals.filter((x) => x.plan_id === g.plan_id).length;
+          }
+          planner.support_goals = upsert(planner.support_goals, g, (x) => x.id);
+          break;
+        }
+        case "delete_support_goal":
+          planner.support_goals = planner.support_goals.filter((g) => g.id !== args.id);
+          break;
         case "export_pdf":
           // The real export opens a hidden window and drives the platform's
           // print pipeline; there is no webview here, so the fake only records

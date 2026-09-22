@@ -10,8 +10,17 @@ import { describe, expect, it } from "vitest";
 import { el } from "../../src/i18n/el";
 import { translate, translatorFor, type StringId } from "../../src/i18n";
 import {
+  ABSENCE_KINDS,
+  absenceKindLabel,
+  ATTENDANCE_STATES,
+  attendanceStateLabel,
+  attendanceSymbolLabel,
+  FOLLOW_UP_STATUSES,
+  followUpLabel,
   GOAL_AREAS,
   goalAreaLabel,
+  GOAL_PROGRESS,
+  goalProgressLabel,
   HOLIDAY_SOURCES,
   holidaySourceLabel,
   IMPORTANT_DATE_KINDS,
@@ -59,6 +68,14 @@ describe("the fixed reference vocabularies", () => {
     [GOAL_AREAS, goalAreaLabel as (c: never) => StringId],
     [WEEKDAYS, weekdayLabel as (c: never) => StringId],
     [MONTHS, monthLabel as (c: never) => StringId],
+    // M4's vocabularies. The attendance states are labelled twice — once by
+    // name and once by the source card's one-character symbol — and both have
+    // to be complete or the printed grid loses a column's meaning.
+    [ATTENDANCE_STATES, attendanceStateLabel as (c: never) => StringId],
+    [ATTENDANCE_STATES, attendanceSymbolLabel as (c: never) => StringId],
+    [ABSENCE_KINDS, absenceKindLabel as (c: never) => StringId],
+    [FOLLOW_UP_STATUSES, followUpLabel as (c: never) => StringId],
+    [GOAL_PROGRESS, goalProgressLabel as (c: never) => StringId],
   ];
 
   it("label every code through the translation table, with nothing missing", () => {
@@ -77,6 +94,25 @@ describe("the fixed reference vocabularies", () => {
 
   it("covers the six fixed annual-goal areas", () => {
     expect(GOAL_AREAS).toHaveLength(6);
+  });
+
+  /**
+   * The source print template's key is `· παρών, α απουσία, κ καθυστέρηση,
+   * u δικαιολογημένη`. The spec names four states. They line up one-for-one,
+   * and the symbols are labels — the database stores the code.
+   */
+  it("covers the four attendance states with the source card's own symbols", () => {
+    expect(ATTENDANCE_STATES).toEqual(["present", "absent", "late", "excused"]);
+    expect(ATTENDANCE_STATES.map((s) => el[attendanceSymbolLabel(s)])).toEqual([
+      "·",
+      "α",
+      "κ",
+      "u",
+    ]);
+  });
+
+  it("keeps the absence kinds to the two the source register has columns for", () => {
+    expect(ABSENCE_KINDS).toEqual(["absence", "late"]);
   });
 });
 

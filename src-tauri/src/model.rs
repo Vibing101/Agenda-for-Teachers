@@ -182,6 +182,11 @@ pub struct Planner {
     pub timetable_cells: Vec<TimetableCell>,
     pub lesson_plans: Vec<LessonPlan>,
     pub agenda_notes: Vec<AgendaNote>,
+    pub attendance_marks: Vec<AttendanceMark>,
+    pub absence_events: Vec<AbsenceEvent>,
+    pub incidents: Vec<Incident>,
+    pub support_plans: Vec<SupportPlan>,
+    pub support_goals: Vec<SupportGoal>,
 }
 
 // ------------------------------------------------------------- M2: grades ---
@@ -362,3 +367,163 @@ pub struct AgendaNote {
 }
 
 pub const AGENDA_SCOPES: [&str; 3] = ["day", "week", "month"];
+
+// ------------------------------------------- M4: attendance and behaviour ---
+
+/// One cell of the monthly attendance grid: what one student was on one day
+/// of one class.
+///
+/// **Keyed by `(class_id, student_id, date)` where `date` is an actual date.**
+/// There is deliberately no year column, no month column and no day-of-month
+/// index: the month grid is a *view* built from these rows by
+/// `domain/attendance.ts`, exactly as a week number is derived rather than
+/// stored. The source page is one card per month with day columns 1–31, and
+/// keying by the column it prints would be the same mistake the spec spent M1
+/// ruling out.
+///
+/// **This table is independent of [`AbsenceEvent`] and nothing derives one from
+/// the other.** The spec says so twice, and it is M4's first acceptance
+/// criterion: a teacher may mark a student present in the grid on a day she
+/// also logged a late arrival as an event, and both stand. There is no sync, no
+/// mirror and no count of one taken from the other.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttendanceMark {
+    pub class_id: i64,
+    pub student_id: i64,
+    /// `YYYY-MM-DD`, an actual date.
+    pub date: String,
+    /// `present` | `absent` | `late` | `excused` — the source page's four
+    /// symbols (`·`, `α`, `κ`, `u`) as stable codes.
+    pub state: String,
+}
+
+pub const ATTENDANCE_STATES: [&str; 4] = ["present", "absent", "late", "excused"];
+
+/// One line of the detailed absence register — the source's "μία γραμμή για
+/// κάθε απουσία ή καθυστέρηση".
+///
+/// It has a generated id and a "new record" button, unlike M3's keyed rows, so
+/// this is one of the four places M4 reintroduces the create-then-edit shape
+/// that cost M1 a data-loss bug. The screen edits these **in place, as a list
+/// of rows**, rather than through one editor bound to a selected record, which
+/// is what removes the shape rather than merely testing around it.
+///
+/// A blank row is **kept**, not deleted: the teacher pressed a button to make
+/// it and is about to type into it. That is the deliberate exception to the
+/// delete-when-empty rule M2 and M3 follow for their keyed cells.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AbsenceEvent {
+    #[serde(default)]
+    pub id: i64,
+    pub class_id: i64,
+    pub student_id: i64,
+    pub date: String,
+    /// `absence` | `late` — the source register's `Απ.` and `Καθ.` columns.
+    pub kind: String,
+    /// The clock time, as the source's `Ώρα` column.
+    pub clock_time: String,
+    /// Which teaching hour of the day, as the teacher names her hours.
+    pub teaching_hour: String,
+    pub reason: String,
+    /// The source's `Δικ.` column — justified independently of anything else.
+    pub justified: bool,
+    /// `` | `pending` | `informed` | `resolved`, from the source page's
+    /// "ΓΟΝΕΙΣ ΕΝΗΜΕΡΩΘΗΚΑΝ · ΕΝΕΡΓΕΙΕΣ" box. Empty means she has not said.
+    pub follow_up: String,
+    /// The source page's "ΠΡΟΣΟΧΗ · ΣΥΧΝΕΣ ΑΠΟΥΣΙΕΣ" note, per event rather
+    /// than per page — the spec lists it among the event's own fields.
+    pub frequent_note: String,
+}
+
+pub const ABSENCE_KINDS: [&str; 2] = ["absence", "late"];
+pub const FOLLOW_UP_STATUSES: [&str; 3] = ["pending", "informed", "resolved"];
+
+/// One dated behaviour/incident entry.
+///
+/// **It hangs off the student, not the class**, which is what the spec means by
+/// "cross-class (follows the student)": the same entry is visible from every
+/// class the student is enrolled in, and stays with her if she leaves one.
+/// `class_id` is an optional note of *where it happened* — the source
+/// register's `Τάξη` column — and is `ON DELETE SET NULL`, so deleting a class
+/// never deletes a record of something that happened.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Incident {
+    #[serde(default)]
+    pub id: i64,
+    pub student_id: i64,
+    /// Where it happened. `None` when it belonged to no class in particular.
+    pub class_id: Option<i64>,
+    pub date: String,
+    /// The source register's "Τι συνέβη".
+    pub what_happened: String,
+    /// The source register's "Ενέργεια που έγινε".
+    pub action_taken: String,
+    /// The source register's "Γονείς ενημερώθηκαν".
+    pub parents_informed: bool,
+}
+
+/// One support plan for one student — the spec's `SupportPlan`, 0..n per
+/// student.
+///
+/// **`status` is written by the teacher and never computed.** Nothing in this
+/// app derives it, and in particular no change to a plan's goals touches it —
+/// that is M4's second acceptance criterion, and the reason `status` lives on
+/// this row while progress ratings live on [`SupportGoal`] rows in a separate
+/// table. The two cannot be written by the same statement.
+///
+/// This is *not* the ΕΠΕ box M1 put on the student card. That box
+/// (`Student.sen_status`, `sen_plan`, `sen_accommodations`) is the source
+/// product's own single-box summary and stays exactly where it was; a
+/// `SupportPlan` is the spec's richer, repeatable record. The cross-class
+/// overview merges both — see `domain/support.ts`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SupportPlan {
+    #[serde(default)]
+    pub id: i64,
+    pub student_id: i64,
+    #[serde(default)]
+    pub position: i64,
+    pub start_date: String,
+    pub monitoring_frequency: String,
+    /// The spec's "strengths & needs", kept as two fields — see the release
+    /// note. Splitting loses nothing; merging would.
+    pub strengths: String,
+    pub needs: String,
+    pub accommodations: String,
+    /// Parent and specialist collaboration notes.
+    pub collaboration: String,
+    /// Teacher-written. Never computed, never touched by a goal.
+    pub status: String,
+    /// The next review date, which the cross-class overview shows beside the
+    /// status. Named in the spec's overview line rather than its field list.
+    pub next_review: String,
+}
+
+/// One goal inside a support plan, with its own progress rating and monitoring
+/// date, as the spec's `SupportPlan` entry asks for.
+///
+/// Writing one of these **never** touches its plan's `status`: they are
+/// separate tables, separate commands and separate statements. M4's second
+/// acceptance criterion is held by that construction, not by care.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SupportGoal {
+    #[serde(default)]
+    pub id: i64,
+    pub plan_id: i64,
+    #[serde(default)]
+    pub position: i64,
+    pub goal: String,
+    /// `` | `not_started` | `in_progress` | `partly_met` | `met` |
+    /// `needs_review`. A rating is a scale, unlike the plan's written status.
+    pub progress: String,
+    /// The date this goal was last looked at.
+    pub monitored_on: String,
+}
+
+pub const GOAL_PROGRESS: [&str; 5] = [
+    "not_started",
+    "in_progress",
+    "partly_met",
+    "met",
+    "needs_review",
+];

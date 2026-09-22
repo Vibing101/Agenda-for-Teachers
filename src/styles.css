@@ -393,3 +393,103 @@ ul.hours > li:first-child { border-top: 0; }
 ul.hours .block { display: block; }
 
 p.entered { white-space: pre-wrap; margin: 8px 0 0; }
+
+/* --- M4: attendance, behaviour and support ---------------------------- */
+
+/* The second row of tabs, for a section that has sub-pages. M4 adds four
+   surfaces and no top-level tabs; this is where they go. It sits tighter and
+   quieter than the main row so the hierarchy reads at a glance. */
+nav.subtabs {
+  margin-top: -20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.9rem;
+}
+nav.subtabs .tab { padding: 6px 10px; }
+
+/* The source card's symbol key: `·` παρών, `α` απουσία, … */
+.symbol-key { margin-right: 14px; white-space: nowrap; }
+.symbol-key strong {
+  display: inline-block;
+  min-width: 1.2em;
+  text-align: center;
+  color: var(--fg);
+}
+
+/* The monthly grid: a roster down the side, days 1–31 across the top. Narrow
+   day columns, because 31 of them plus four totals have to fit. */
+table.attendance { border-collapse: collapse; min-width: 100%; }
+table.attendance th {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 4px 3px;
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+table.attendance th[scope="row"] {
+  text-align: left;
+  white-space: nowrap;
+  padding-right: 10px;
+  border-right: 1px solid var(--line);
+  color: var(--fg);
+  font-size: 0.85rem;
+}
+table.attendance td { padding: 1px; border-bottom: 1px solid var(--line); text-align: center; }
+table.attendance td.total,
+table.attendance th.total {
+  border-left: 1px solid var(--line);
+  min-width: 1.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.attendance-cell {
+  width: 1.9rem;
+  padding: 3px 0;
+  text-align: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  /* The browser's own arrow would not fit in a 31-column grid. */
+  appearance: none;
+}
+.attendance-cell:hover { border-color: var(--line); }
+.attendance-cell:focus-visible { border-color: var(--accent); }
+
+/* The month stepper, matching the agenda's ‹ › navigation. */
+.stepper { display: flex; align-items: center; gap: 10px; }
+.stepper button {
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font: inherit;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.stepper button:hover { border-color: var(--accent); }
+
+/* A register line: many short fields that wrap rather than squeeze. */
+.row.wrap { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 0; }
+.row.wrap > .field { flex: 1 1 130px; min-width: 0; }
+.row.wrap label > span { display: block; font-size: 0.8rem; color: var(--muted); }
+.row.wrap select, .row.wrap input { width: 100%; }
+
+/* The cross-class support overview. */
+table.overview { border-collapse: collapse; min-width: 100%; }
+table.overview th {
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+table.overview th[scope="row"] { color: var(--fg); font-size: 0.95rem; white-space: nowrap; }
+table.overview td {
+  padding: 8px 10px 8px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  font-size: 0.9rem;
+}
+table.overview ul.plain { list-style: none; padding: 0; margin: 0; }

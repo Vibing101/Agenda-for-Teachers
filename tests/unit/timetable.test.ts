@@ -9,6 +9,7 @@ import {
   hoursToday,
   periodsOf,
   resolveHour,
+  timetableAsText,
 } from "../../src/domain/timetable";
 import type { Planner, SchoolClass, TimetableCell } from "../../src/domain/types";
 import { emptyPlanner } from "../helpers/fakeBackend";
@@ -185,5 +186,60 @@ describe("the master timetable", () => {
     );
     expect(formatHourTimes({ id: 1, position: 0, name: "1η", start_time: "08:30", end_time: "" })).toBe("08:30");
     expect(formatHourTimes({ id: 1, position: 0, name: "1η", start_time: "", end_time: "" })).toBe("");
+  });
+});
+
+/**
+ * The "copy as text" affordance — M3's carry-over.
+ *
+ * The product owner ruled on 2026-09-21 that the timetable needs **no PDF at
+ * all** and that plain text to copy and paste is enough. This is that text.
+ */
+describe("the timetable as plain text", () => {
+  const weekdayName = (day: number) =>
+    ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"][day - 1];
+
+  it("is empty when there are no hours to copy", () => {
+    expect(timetableAsText(emptyPlanner(), weekdayName, "Ώρα")).toBe("");
+  });
+
+  it("is a heading row and one row per hour, Δευτέρα–Σάββατο", () => {
+    const lines = timetableAsText(weekPlanner(), weekdayName, "Ώρα").split("\n");
+    expect(lines).toHaveLength(4); // the header plus three hours
+    expect(lines[0]).toMatch(/^Ώρα/);
+    for (const day of ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"]) {
+      expect(lines[0]).toContain(day);
+    }
+    // No Sunday: the source's timetable page is six days.
+    expect(lines[0]).not.toContain("Κυριακή");
+    expect(lines[1]).toMatch(/^1η 08:30 – 09:15/);
+  });
+
+  it("names the hour, the class, the subject and the room in each filled cell", () => {
+    const text = timetableAsText(weekPlanner(), weekdayName, "Ώρα");
+    // Monday's first hour is Α1, whose subject and room are looked up live.
+    expect(text).toContain("Α1 · Μαθηματικά · 203");
+    // Wednesday's third hour overrides the room, so the override wins.
+    expect(text).toContain("Β2 · Φυσική · 204");
+  });
+
+  it("carries a duty that belongs to no class", () => {
+    expect(timetableAsText(weekPlanner(), weekdayName, "Ώρα")).toContain(
+      "Εφημερία στο προαύλιο",
+    );
+  });
+
+  it("pads the columns so the grid still lines up when it is pasted", () => {
+    const lines = timetableAsText(weekPlanner(), weekdayName, "Ώρα").split("\n");
+    // The first column is as wide as its widest entry — "1η 08:30 – 09:15" —
+    // and every row's second column therefore starts at the same index.
+    // Monday's entry sits directly under the Δευτέρα heading …
+    expect(lines[1].indexOf("Α1 · Μαθηματικά · 203")).toBe(lines[0].indexOf("Δευτέρα"));
+    // … and Wednesday's under Τετάρτη, three columns further along.
+    expect(lines[1].indexOf("Β2 · Φυσική · Εργαστήριο")).toBe(lines[0].indexOf("Τετάρτη"));
+    // The first column is the hour, padded to its widest entry.
+    const first = lines[0].indexOf("Δευτέρα");
+    expect(lines[0].slice(0, first).trimEnd()).toBe("Ώρα");
+    expect(lines[1].slice(0, first).trimEnd()).toBe("1η 08:30 – 09:15");
   });
 });

@@ -19,7 +19,7 @@ use crate::model::GOAL_AREAS;
 use rusqlite::{params, Connection};
 use std::path::Path;
 
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 pub fn open_at(db_path: &Path) -> AppResult<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -62,6 +62,11 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     if current < 4 {
         migrate_to_4(conn)?;
         conn.pragma_update(None, "user_version", 4)?;
+        current = 4;
+    }
+    if current < 5 {
+        migrate_to_5(conn)?;
+        conn.pragma_update(None, "user_version", 5)?;
     }
     Ok(())
 }
@@ -360,6 +365,109 @@ fn migrate_to_4(conn: &Connection) -> AppResult<()> {
 
     carry_class_slots_into_the_timetable(conn)?;
     conn.execute_batch("DROP TABLE IF EXISTS class_slot;")?;
+    Ok(())
+}
+
+/// M4 — attendance, absence events, behaviour incidents and support plans.
+///
+/// Four things are worth reading twice:
+///
+/// * **`attendance_mark` is keyed by an actual date, not by a month and a day
+///   column.** The source page is one printed card per month with columns 1–31,
+///   and keying the table that way — `(class, year, month)` with 31 columns, or
+///   a day-of-month index — is the obvious shortcut and the same mistake the
+///   spec spent M1 ruling out. A cell is `(class, student, date)`; the month
+///   grid is a *view* `domain/attendance.ts` builds with M3's `monthGrid()`.
+/// * **`attendance_mark` and `absence_event` are independent, and nothing here
+///   joins them.** The spec says so twice and it is M4's first acceptance
+///   criterion: no trigger, no view, no shared key, no count of one taken from
+///   the other. The same student on the same date can carry a `present` mark
+///   and a logged late arrival, and both stand.
+/// * **`support_plan.status` and `support_goal.progress` are in different
+///   tables**, so no statement that writes a goal can reach a plan's status.
+///   That is M4's second acceptance criterion, held by construction.
+/// * **Three of the four new record tables carry a generated id**, which
+///   reintroduces the create-then-edit shape that cost M1 a data-loss bug.
+///   Storage cannot defend against that — the screens do, by editing rows in
+///   place rather than through an editor bound to a selection, and the one
+///   place that genuinely needs a selection selects the row the id came back
+///   on. See `SupportScreen` and its tests.
+///
+/// Note the deliberate departure from the delete-when-empty rule M2's grade
+/// cells and M3's timetable cells follow: an emptied **`attendance_mark` is
+/// deleted**, because an unmarked day is the absence of a row, but a blank
+/// absence event, incident, plan or goal is **kept**, because the teacher
+/// pressed a button to create it and is about to type into it. Deleting those
+/// on save would make a new record vanish the instant it appeared.
+fn migrate_to_5(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "BEGIN;
+
+         CREATE TABLE attendance_mark (
+             class_id   INTEGER NOT NULL REFERENCES class(id)   ON DELETE CASCADE,
+             student_id INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+             date       TEXT NOT NULL,
+             state      TEXT NOT NULL
+                        CHECK (state IN ('present', 'absent', 'late', 'excused')),
+             PRIMARY KEY (class_id, student_id, date)
+         );
+         CREATE INDEX attendance_mark_by_date ON attendance_mark(date);
+         CREATE INDEX attendance_mark_by_student ON attendance_mark(student_id);
+
+         CREATE TABLE absence_event (
+             id            INTEGER PRIMARY KEY,
+             class_id      INTEGER NOT NULL REFERENCES class(id)   ON DELETE CASCADE,
+             student_id    INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+             date          TEXT NOT NULL DEFAULT '',
+             kind          TEXT NOT NULL DEFAULT 'absence',
+             clock_time    TEXT NOT NULL DEFAULT '',
+             teaching_hour TEXT NOT NULL DEFAULT '',
+             reason        TEXT NOT NULL DEFAULT '',
+             justified     INTEGER NOT NULL DEFAULT 0,
+             follow_up     TEXT NOT NULL DEFAULT '',
+             frequent_note TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX absence_event_by_class ON absence_event(class_id);
+         CREATE INDEX absence_event_by_student ON absence_event(student_id);
+
+         CREATE TABLE incident (
+             id               INTEGER PRIMARY KEY,
+             student_id       INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+             class_id         INTEGER REFERENCES class(id) ON DELETE SET NULL,
+             date             TEXT NOT NULL DEFAULT '',
+             what_happened    TEXT NOT NULL DEFAULT '',
+             action_taken     TEXT NOT NULL DEFAULT '',
+             parents_informed INTEGER NOT NULL DEFAULT 0
+         );
+         CREATE INDEX incident_by_student ON incident(student_id);
+
+         CREATE TABLE support_plan (
+             id                   INTEGER PRIMARY KEY,
+             student_id           INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+             position             INTEGER NOT NULL DEFAULT 0,
+             start_date           TEXT NOT NULL DEFAULT '',
+             monitoring_frequency TEXT NOT NULL DEFAULT '',
+             strengths            TEXT NOT NULL DEFAULT '',
+             needs                TEXT NOT NULL DEFAULT '',
+             accommodations       TEXT NOT NULL DEFAULT '',
+             collaboration        TEXT NOT NULL DEFAULT '',
+             status               TEXT NOT NULL DEFAULT '',
+             next_review          TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX support_plan_by_student ON support_plan(student_id);
+
+         CREATE TABLE support_goal (
+             id           INTEGER PRIMARY KEY,
+             plan_id      INTEGER NOT NULL REFERENCES support_plan(id) ON DELETE CASCADE,
+             position     INTEGER NOT NULL DEFAULT 0,
+             goal         TEXT NOT NULL DEFAULT '',
+             progress     TEXT NOT NULL DEFAULT '',
+             monitored_on TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX support_goal_by_plan ON support_goal(plan_id);
+
+         COMMIT;",
+    )?;
     Ok(())
 }
 
@@ -700,5 +808,74 @@ mod tests {
 
         assert!(!dir.path().join("planner.sqlite-wal").exists());
         assert!(!dir.path().join("planner.sqlite-shm").exists());
+    }
+
+    /// A data file as the signed-off M3 build left it climbs to `user_version
+    /// = 5` with every M3 record still in place and the five new tables
+    /// present. M4 adds tables and touches none of the existing ones, so this
+    /// is the whole of what the step has to prove.
+    #[test]
+    fn an_m3_file_climbs_to_5_without_losing_anything() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+
+        let conn = Connection::open(&path).unwrap();
+        migrate_to_1(&conn).unwrap();
+        migrate_to_2(&conn).unwrap();
+        migrate_to_3(&conn).unwrap();
+        migrate_to_4(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 4).unwrap();
+        conn.execute_batch(
+            "INSERT INTO class (id, name, subject) VALUES (1, 'Α1', 'Μαθηματικά');
+             INSERT INTO student (id, full_name) VALUES (1, 'Ελένη Παπαδοπούλου');
+             INSERT INTO enrollment (class_id, student_id, roster_no) VALUES (1, 1, 1);
+             INSERT INTO timetable_period (id, position, name) VALUES (1, 0, '1η');
+             INSERT INTO timetable_cell (period_id, weekday, class_id) VALUES (1, 1, 1);
+             INSERT INTO lesson_plan (class_id, week_monday, notes)
+             VALUES (1, '2026-11-02', 'Κεφάλαιο 4');
+             INSERT INTO agenda_note (scope, date, body)
+             VALUES ('week', '2026-11-02', 'Εβδομάδα επανάληψης');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let conn = open_at(&path).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        assert_eq!(version, 5);
+
+        let planner = store::load(&conn).unwrap();
+        // Everything M3 wrote is still there, untouched.
+        assert_eq!(planner.classes.len(), 1);
+        assert_eq!(planner.students.len(), 1);
+        assert_eq!(planner.timetable_cells.len(), 1);
+        assert_eq!(planner.lesson_plans[0].notes, "Κεφάλαιο 4");
+        assert_eq!(planner.agenda_notes[0].body, "Εβδομάδα επανάληψης");
+        // And the M4 tables exist and are empty, rather than being invented
+        // from anything that was already on the file.
+        assert!(planner.attendance_marks.is_empty());
+        assert!(planner.absence_events.is_empty());
+        assert!(planner.incidents.is_empty());
+        assert!(planner.support_plans.is_empty());
+        assert!(planner.support_goals.is_empty());
+
+        for table in [
+            "attendance_mark",
+            "absence_event",
+            "incident",
+            "support_plan",
+            "support_goal",
+        ] {
+            let present: i64 = conn
+                .query_row(
+                    "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                    [table],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(present, 1, "{table} should exist at user_version 5");
+        }
     }
 }

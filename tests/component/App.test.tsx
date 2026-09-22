@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -45,7 +45,7 @@ describe("the app shell", () => {
     mount();
     expect(await screen.findByText("/Drive/Ατζέντα/data/planner.sqlite")).toBeInTheDocument();
     // M3's forward migration: `user_version = 4`.
-    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
   });
 
   it("reaches the four M3 sections", async () => {
@@ -140,5 +140,132 @@ describe("the app shell", () => {
 
     await user.click(screen.getByRole("button", { name: "Δημιουργία αντιγράφου τώρα" }));
     expect(await screen.findByText(/planner-2026-09-19-0730\.sqlite/)).toBeInTheDocument();
+  });
+
+  /**
+   * **M4 adds four surfaces and no top-level tabs.** The spec files them under
+   * two sections the app already has, and the source product reaches each from
+   * its module's own index page, so they are sub-tabs inside those sections.
+   * This pins the arrangement so a later agent does not quietly add four more
+   * things to the top row.
+   */
+  it("keeps eight top-level sections after M4", async () => {
+    mount();
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+    const top = screen.getAllByRole("navigation")[0];
+    expect(within(top).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Έτος",
+      "Τάξεις",
+      "Μαθητές",
+      "Βαθμοί",
+      "Πρόγραμμα",
+      "Πλάνο",
+      "Ατζέντα",
+      "Σημερινό",
+    ]);
+  });
+
+  it("files attendance under Βαθμοί, as the spec and the source product do", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+
+    await user.click(screen.getByRole("button", { name: "Βαθμοί" }));
+    // It opens on the gradebook, not on the new sub-page.
+    expect(await screen.findByRole("heading", { name: "Μητρώο βαθμών" })).toBeInTheDocument();
+
+    const sub = screen.getAllByRole("navigation")[1];
+    expect(within(sub).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Βαθμολόγιο",
+      "Απουσίες",
+    ]);
+
+    await user.click(within(sub).getByRole("button", { name: "Απουσίες" }));
+    expect(await screen.findByRole("heading", { name: "Απουσίες του μήνα" })).toBeInTheDocument();
+    // The register panel needs a class to exist; this planner has none, so it
+    // asks for one. What that panel does with a class is AttendanceScreen's
+    // own test file — this one is about where the surface is filed.
+    expect(screen.getByText(/Δεν υπάρχει ακόμη τμήμα/)).toBeInTheDocument();
+  });
+
+  it("files the incident log and support plans under Μαθητές", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+
+    await user.click(screen.getByRole("button", { name: "Μαθητές" }));
+    expect(await screen.findByRole("heading", { name: "Ευρετήριο μαθητών" })).toBeInTheDocument();
+
+    const sub = () => screen.getAllByRole("navigation")[1];
+    expect(within(sub()).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Καρτέλες",
+      "Περιστατικά",
+      "Στήριξη",
+    ]);
+
+    await user.click(within(sub()).getByRole("button", { name: "Περιστατικά" }));
+    expect(
+      await screen.findByRole("heading", { name: "Διαγωγή και περιστατικά" }),
+    ).toBeInTheDocument();
+
+    await user.click(within(sub()).getByRole("button", { name: "Στήριξη" }));
+    expect(await screen.findByRole("heading", { name: "Πλάνα στήριξης" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Στήριξη και προσαρμογές" }),
+    ).toBeInTheDocument();
+  });
+
+  it("returns a section to its first sub-page when it is left and re-entered", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+
+    await user.click(screen.getByRole("button", { name: "Μαθητές" }));
+    await user.click(
+      within(screen.getAllByRole("navigation")[1]).getByRole("button", { name: "Στήριξη" }),
+    );
+    await screen.findByRole("heading", { name: "Πλάνα στήριξης" });
+
+    await user.click(screen.getByRole("button", { name: "Έτος" }));
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+    // A section with no sub-pages shows no second row at all.
+    expect(screen.getAllByRole("navigation")).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "Μαθητές" }));
+    expect(await screen.findByRole("heading", { name: "Ευρετήριο μαθητών" })).toBeInTheDocument();
+  });
+
+  it("passes today down to the attendance grid rather than letting it read the clock", async () => {
+    const backend = createFakeBackend(emptyPlanner());
+    invoke.mockImplementation((command: string, args?: Record<string, unknown>) => {
+      try {
+        return Promise.resolve(backend.handle(command, args));
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    });
+    backend.planner.classes = [
+      {
+        id: 1,
+        name: "Α1",
+        subject: "",
+        room: "",
+        responsible: "",
+        notes: "",
+        position: 0,
+        seating_rows: 5,
+        seating_cols: 6,
+        seating_notes: "",
+      },
+    ];
+    render(<App today="2027-03-04" />);
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+
+    await user.click(screen.getByRole("button", { name: "Βαθμοί" }));
+    await user.click(
+      within(screen.getAllByRole("navigation")[1]).getByRole("button", { name: "Απουσίες" }),
+    );
+    expect(await screen.findByText(/Μάρτιος 2027/)).toBeInTheDocument();
   });
 });

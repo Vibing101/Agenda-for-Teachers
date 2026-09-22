@@ -9,7 +9,9 @@
 //! data: a school year, two classes, a student enrolled in both, that class's
 //! gradebook — columns with and without a weight, marks of more than one type,
 //! the pass threshold and a conduct rating — and, from M3, the teacher's master
-//! timetable, a weekly lesson plan and all three scopes of agenda note.
+//! timetable, a weekly lesson plan and all three scopes of agenda note. M4 adds
+//! its own: an attendance mark and an absence event **on the same student and
+//! the same date**, a behaviour incident, and a support plan with goals.
 
 use teacher_planner_lib::model::*;
 use teacher_planner_lib::{backup, db, fingerprint::Fingerprint, paths, store};
@@ -258,6 +260,80 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
         .unwrap();
     }
 
+    // --- her attendance, an incident and a support plan (M4) ---
+    // The mark and the event are for the SAME student on the SAME date, and
+    // they disagree: the grid says she was there, the register logs a late
+    // arrival. M4's first acceptance criterion is that both survive intact.
+    store::save_attendance_mark(
+        &conn,
+        &AttendanceMark {
+            class_id: class_a,
+            student_id: student,
+            date: "2026-11-05".into(),
+            state: "present".into(),
+        },
+    )
+    .unwrap();
+    store::save_absence_event(
+        &conn,
+        &AbsenceEvent {
+            id: 0,
+            class_id: class_a,
+            student_id: student,
+            date: "2026-11-05".into(),
+            kind: "late".into(),
+            clock_time: "08:35".into(),
+            teaching_hour: "1η".into(),
+            reason: "Καθυστέρηση λεωφορείου".into(),
+            justified: true,
+            follow_up: "informed".into(),
+            frequent_note: "Τρίτη φορά αυτόν τον μήνα".into(),
+        },
+    )
+    .unwrap();
+    store::save_incident(
+        &conn,
+        &Incident {
+            id: 0,
+            student_id: student,
+            class_id: Some(class_a),
+            date: "2026-11-06".into(),
+            what_happened: "Διαφωνία στο διάλειμμα".into(),
+            action_taken: "Συζήτηση με τους δύο μαθητές".into(),
+            parents_informed: true,
+        },
+    )
+    .unwrap();
+    let plan_id = store::save_support_plan(
+        &conn,
+        &SupportPlan {
+            id: 0,
+            student_id: student,
+            position: 0,
+            start_date: "2026-10-01".into(),
+            monitoring_frequency: "Κάθε δεύτερη εβδομάδα".into(),
+            strengths: "Ισχυρή προφορική έκφραση".into(),
+            needs: "Δυσκολία στην αποκωδικοποίηση".into(),
+            accommodations: "Επιπλέον χρόνος στις γραπτές εργασίες".into(),
+            collaboration: "Συνεργασία με τη λογοθεραπεύτρια".into(),
+            status: "Σε εφαρμογή — αναθεώρηση τον Ιανουάριο".into(),
+            next_review: "2027-01-15".into(),
+        },
+    )
+    .unwrap();
+    store::save_support_goal(
+        &conn,
+        &SupportGoal {
+            id: 0,
+            plan_id,
+            position: 0,
+            goal: "Ανάγνωση κειμένου 80 λέξεων χωρίς βοήθεια".into(),
+            progress: "in_progress".into(),
+            monitored_on: "2026-11-20".into(),
+        },
+    )
+    .unwrap();
+
     let saved = store::load(&conn).unwrap();
     drop(conn); // the app quits
     let after_write = Fingerprint::of(&paths::db_path()).unwrap();
@@ -349,6 +425,55 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
         "Ολιγόλεπτο διαγώνισμα την Πέμπτη"
     );
     assert_eq!(reloaded.agenda_notes.len(), 3);
+
+    // M4, read back from the file after a full quit and relaunch.
+    //
+    // The pair that matters: the grid still says `present` on 05.11 and the
+    // register still logs a late arrival on 05.11, for the same student. The
+    // two registers are independent and nothing derives one from the other, so
+    // both have to be here, unchanged and disagreeing.
+    assert_eq!(reloaded.attendance_marks.len(), 1);
+    assert_eq!(reloaded.attendance_marks[0].date, "2026-11-05");
+    assert_eq!(reloaded.attendance_marks[0].state, "present");
+    assert_eq!(reloaded.absence_events.len(), 1);
+    let event = &reloaded.absence_events[0];
+    assert_eq!(event.date, "2026-11-05");
+    assert_eq!(event.kind, "late");
+    assert_eq!(event.clock_time, "08:35");
+    assert_eq!(event.teaching_hour, "1η");
+    assert_eq!(event.reason, "Καθυστέρηση λεωφορείου");
+    assert!(event.justified);
+    assert_eq!(event.follow_up, "informed");
+    assert_eq!(event.frequent_note, "Τρίτη φορά αυτόν τον μήνα");
+    assert_eq!(
+        event.student_id, reloaded.attendance_marks[0].student_id,
+        "the disagreement is about one student, which is the whole point"
+    );
+
+    assert_eq!(reloaded.incidents.len(), 1);
+    assert_eq!(
+        reloaded.incidents[0].what_happened,
+        "Διαφωνία στο διάλειμμα"
+    );
+    assert_eq!(
+        reloaded.incidents[0].action_taken,
+        "Συζήτηση με τους δύο μαθητές"
+    );
+    assert!(reloaded.incidents[0].parents_informed);
+
+    assert_eq!(reloaded.support_plans.len(), 1);
+    let plan = &reloaded.support_plans[0];
+    assert_eq!(plan.start_date, "2026-10-01");
+    assert_eq!(plan.monitoring_frequency, "Κάθε δεύτερη εβδομάδα");
+    assert_eq!(plan.strengths, "Ισχυρή προφορική έκφραση");
+    assert_eq!(plan.needs, "Δυσκολία στην αποκωδικοποίηση");
+    assert_eq!(plan.accommodations, "Επιπλέον χρόνος στις γραπτές εργασίες");
+    assert_eq!(plan.collaboration, "Συνεργασία με τη λογοθεραπεύτρια");
+    assert_eq!(plan.status, "Σε εφαρμογή — αναθεώρηση τον Ιανουάριο");
+    assert_eq!(plan.next_review, "2027-01-15");
+    assert_eq!(reloaded.support_goals.len(), 1);
+    assert_eq!(reloaded.support_goals[0].progress, "in_progress");
+    assert_eq!(reloaded.support_goals[0].monitored_on, "2026-11-20");
     assert_eq!(
         reloaded
             .agenda_notes
@@ -385,6 +510,16 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert_eq!(moved.agenda_notes, reloaded.agenda_notes);
     assert_eq!(moved.timetable_periods, reloaded.timetable_periods);
     assert_eq!(moved.timetable_cells, reloaded.timetable_cells);
+    // M4's records are keyed by actual dates too — a mark by its day, an event
+    // and an incident by theirs — so moving the school year leaves them alone.
+    assert_eq!(
+        moved.attendance_marks, reloaded.attendance_marks,
+        "an attendance mark is keyed by its actual date, not by a month index"
+    );
+    assert_eq!(moved.absence_events, reloaded.absence_events);
+    assert_eq!(moved.incidents, reloaded.incidents);
+    assert_eq!(moved.support_plans, reloaded.support_plans);
+    assert_eq!(moved.support_goals, reloaded.support_goals);
     drop(conn);
 
     // Opening and reading must not disturb the file, or every session would

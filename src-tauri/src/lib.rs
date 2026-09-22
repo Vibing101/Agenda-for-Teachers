@@ -4,7 +4,8 @@
 //! changed-on-disk guard, all proven from inside a cloud-synced folder.
 //! M1 puts the first real data behind it — school year, classes, students; M2
 //! the gradebook; M3 the teacher's master timetable, her weekly lesson plans
-//! and her agenda notes.
+//! and her agenda notes; M4 attendance, absence events, behaviour incidents
+//! and support plans.
 //!
 //! Two rules shape the command layer:
 //!
@@ -318,6 +319,75 @@ fn save_agenda_note(state: tauri::State<'_, AppState>, note: AgendaNote) -> AppR
     mutate(&state, |tx| store::save_agenda_note(tx, &note))
 }
 
+// ------------------------------- M4: attendance, behaviour and support ---
+
+/// One cell of the monthly attendance grid.
+///
+/// Reaches `attendance_mark` and nothing else — in particular it never touches
+/// the absence-event register, which is independent of it by the spec's own
+/// repeated decision and by M4's first acceptance criterion.
+#[tauri::command]
+fn save_attendance_mark(
+    state: tauri::State<'_, AppState>,
+    mark: AttendanceMark,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_attendance_mark(tx, &mark))
+}
+
+/// One line of the detailed absence register.
+///
+/// Reaches `absence_event` and nothing else — same reason as above, from the
+/// other side.
+#[tauri::command]
+fn save_absence_event(
+    state: tauri::State<'_, AppState>,
+    event: AbsenceEvent,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_absence_event(tx, &event).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_absence_event(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_absence_event(tx, id))
+}
+
+#[tauri::command]
+fn save_incident(state: tauri::State<'_, AppState>, incident: Incident) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_incident(tx, &incident).map(|_| ()))
+}
+
+#[tauri::command]
+fn delete_incident(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_incident(tx, id))
+}
+
+#[tauri::command]
+fn save_support_plan(state: tauri::State<'_, AppState>, plan: SupportPlan) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_support_plan(tx, &plan).map(|_| ()))
+}
+
+#[tauri::command]
+fn delete_support_plan(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_support_plan(tx, id))
+}
+
+/// One goal inside a plan.
+///
+/// Note what this cannot do: `store::save_support_goal` names only
+/// `support_goal`, so a goal edit has no path to its plan's teacher-written
+/// status. That is M4's second acceptance criterion.
+#[tauri::command]
+fn save_support_goal(state: tauri::State<'_, AppState>, goal: SupportGoal) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_support_goal(tx, &goal).map(|_| ()))
+}
+
+#[tauri::command]
+fn delete_support_goal(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_support_goal(tx, id))
+}
+
 // ------------------------------------------------------------ PDF export ---
 
 /// Writes one document to `exports/` as a real PDF and returns its path.
@@ -628,6 +698,15 @@ pub fn run() {
             save_timetable_cell,
             save_lesson_plan,
             save_agenda_note,
+            save_attendance_mark,
+            save_absence_event,
+            delete_absence_event,
+            save_incident,
+            delete_incident,
+            save_support_plan,
+            delete_support_plan,
+            save_support_goal,
+            delete_support_goal,
             export_pdf,
             print_job,
             print_ready,

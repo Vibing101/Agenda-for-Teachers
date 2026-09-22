@@ -54,6 +54,46 @@ export const CONDUCT_LEVELS = [
   "needs_intervention",
 ] as const;
 
+/**
+ * The four states one cell of the monthly attendance grid can hold.
+ *
+ * These are the source print template's own four symbols — `·` παρών,
+ * `α` απουσία, `κ` καθυστέρηση, `u` δικαιολογημένη — as stable codes, and they
+ * line up one-for-one with the four states the spec names. A cell holds exactly
+ * one of them, as the printed card does; "excused" is therefore an excused
+ * *absence*, not a flag on top of one. The flag reading lives where the spec
+ * actually puts it: `AbsenceEvent.justified`, on the detailed register.
+ *
+ * An unmarked day is **not** a fifth code — it is the absence of a row.
+ */
+export const ATTENDANCE_STATES = ["present", "absent", "late", "excused"] as const;
+/**
+ * The two kinds of line the source's absence register has columns for —
+ * `Απ.` and `Καθ.`. Nothing else is invented; see the release note.
+ */
+export const ABSENCE_KINDS = ["absence", "late"] as const;
+/**
+ * How far the parent follow-up on an absence has got. The empty string is a
+ * fourth state meaning "she has not said", and is what a new event starts at.
+ */
+export const FOLLOW_UP_STATUSES = ["pending", "informed", "resolved"] as const;
+/**
+ * A support goal's progress rating.
+ *
+ * A **fixed vocabulary**, unlike the plan's `status`, which the spec calls out
+ * as "written by the teacher, never computed". The spec uses both words in one
+ * sentence, and a *rating* reads as a scale where a *status* reads as a
+ * sentence — so the two are modelled differently on purpose. Empty means not
+ * yet rated, as an unrated conduct level does.
+ */
+export const GOAL_PROGRESS = [
+  "not_started",
+  "in_progress",
+  "partly_met",
+  "met",
+  "needs_review",
+] as const;
+
 /** Monday–Saturday, matching the source timetable grid. */
 export const WEEKDAYS = [1, 2, 3, 4, 5, 6] as const;
 /**
@@ -71,6 +111,10 @@ export type GradeColumnKind = (typeof GRADE_COLUMN_KINDS)[number];
 export type DescriptiveGrade = (typeof DESCRIPTIVE_GRADES)[number];
 export type PassFailGrade = (typeof PASS_FAIL_GRADES)[number];
 export type ConductLevel = (typeof CONDUCT_LEVELS)[number];
+export type AttendanceState = (typeof ATTENDANCE_STATES)[number];
+export type AbsenceKind = (typeof ABSENCE_KINDS)[number];
+export type FollowUpStatus = (typeof FOLLOW_UP_STATUSES)[number];
+export type GoalProgress = (typeof GOAL_PROGRESS)[number];
 export type GoalArea = (typeof GOAL_AREAS)[number];
 export type Weekday = (typeof WEEKDAYS)[number];
 export type AgendaScope = (typeof AGENDA_SCOPES)[number];
@@ -93,3 +137,9 @@ export const goalAreaLabel = (code: string) => vocabLabelId("goalArea", code);
 export const weekdayLabel = (day: number) => vocabLabelId("weekday", day);
 export const agendaScopeLabel = (code: string) => vocabLabelId("agendaScope", code);
 export const monthLabel = (month: number) => vocabLabelId("month", month);
+export const attendanceStateLabel = (code: string) => vocabLabelId("attendanceState", code);
+/** The one-character symbol the source's printed card uses for a state. */
+export const attendanceSymbolLabel = (code: string) => vocabLabelId("attendanceSymbol", code);
+export const absenceKindLabel = (code: string) => vocabLabelId("absenceKind", code);
+export const followUpLabel = (code: string) => vocabLabelId("followUp", code);
+export const goalProgressLabel = (code: string) => vocabLabelId("goalProgress", code);

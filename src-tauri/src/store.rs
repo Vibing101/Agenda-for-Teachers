@@ -32,6 +32,11 @@ pub fn load(conn: &Connection) -> AppResult<Planner> {
         timetable_cells: timetable_cells(conn)?,
         lesson_plans: lesson_plans(conn)?,
         agenda_notes: agenda_notes(conn)?,
+        attendance_marks: attendance_marks(conn)?,
+        absence_events: absence_events(conn)?,
+        incidents: incidents(conn)?,
+        support_plans: support_plans(conn)?,
+        support_goals: support_goals(conn)?,
     })
 }
 
@@ -390,6 +395,121 @@ fn agenda_notes(conn: &Connection) -> AppResult<Vec<AgendaNote>> {
                 scope: r.get(0)?,
                 date: r.get(1)?,
                 body: r.get(2)?,
+            })
+        },
+    )
+}
+
+// ------------------------------- reading M4 attendance and behaviour ---
+
+/// Every marked cell of the monthly attendance grid.
+///
+/// Ordered by date so the grid builds in calendar order. An **unmarked day has
+/// no row at all**, which is what makes "she has not said" different from
+/// "present".
+fn attendance_marks(conn: &Connection) -> AppResult<Vec<AttendanceMark>> {
+    collect(
+        conn,
+        "SELECT class_id, student_id, date, state
+           FROM attendance_mark ORDER BY class_id, date, student_id",
+        |r| {
+            Ok(AttendanceMark {
+                class_id: r.get(0)?,
+                student_id: r.get(1)?,
+                date: r.get(2)?,
+                state: r.get(3)?,
+            })
+        },
+    )
+}
+
+/// Every line of the detailed absence register.
+///
+/// Read from its own table with no join to `attendance_mark`, deliberately:
+/// the two are independent and nothing derives one from the other.
+fn absence_events(conn: &Connection) -> AppResult<Vec<AbsenceEvent>> {
+    collect(
+        conn,
+        "SELECT id, class_id, student_id, date, kind, clock_time, teaching_hour,
+                reason, justified, follow_up, frequent_note
+           FROM absence_event ORDER BY class_id, date, id",
+        |r| {
+            Ok(AbsenceEvent {
+                id: r.get(0)?,
+                class_id: r.get(1)?,
+                student_id: r.get(2)?,
+                date: r.get(3)?,
+                kind: r.get(4)?,
+                clock_time: r.get(5)?,
+                teaching_hour: r.get(6)?,
+                reason: r.get(7)?,
+                justified: r.get(8)?,
+                follow_up: r.get(9)?,
+                frequent_note: r.get(10)?,
+            })
+        },
+    )
+}
+
+/// Every behaviour/incident entry, newest-relevant ordering left to the UI.
+fn incidents(conn: &Connection) -> AppResult<Vec<Incident>> {
+    collect(
+        conn,
+        "SELECT id, student_id, class_id, date, what_happened, action_taken, parents_informed
+           FROM incident ORDER BY date, id",
+        |r| {
+            Ok(Incident {
+                id: r.get(0)?,
+                student_id: r.get(1)?,
+                // NULL stays None: an incident that belonged to no class in
+                // particular is not an incident in class zero.
+                class_id: r.get(2)?,
+                date: r.get(3)?,
+                what_happened: r.get(4)?,
+                action_taken: r.get(5)?,
+                parents_informed: r.get(6)?,
+            })
+        },
+    )
+}
+
+fn support_plans(conn: &Connection) -> AppResult<Vec<SupportPlan>> {
+    collect(
+        conn,
+        "SELECT id, student_id, position, start_date, monitoring_frequency, strengths,
+                needs, accommodations, collaboration, status, next_review
+           FROM support_plan ORDER BY student_id, position, id",
+        |r| {
+            Ok(SupportPlan {
+                id: r.get(0)?,
+                student_id: r.get(1)?,
+                position: r.get(2)?,
+                start_date: r.get(3)?,
+                monitoring_frequency: r.get(4)?,
+                strengths: r.get(5)?,
+                needs: r.get(6)?,
+                accommodations: r.get(7)?,
+                collaboration: r.get(8)?,
+                status: r.get(9)?,
+                next_review: r.get(10)?,
+            })
+        },
+    )
+}
+
+fn support_goals(conn: &Connection) -> AppResult<Vec<SupportGoal>> {
+    collect(
+        conn,
+        "SELECT id, plan_id, position, goal, progress, monitored_on
+           FROM support_goal ORDER BY plan_id, position, id",
+        |r| {
+            Ok(SupportGoal {
+                id: r.get(0)?,
+                plan_id: r.get(1)?,
+                position: r.get(2)?,
+                goal: r.get(3)?,
+                progress: r.get(4)?,
+                monitored_on: r.get(5)?,
             })
         },
     )
@@ -916,6 +1036,233 @@ pub fn save_agenda_note(conn: &Connection, n: &AgendaNote) -> AppResult<()> {
          ON CONFLICT (scope, date) DO UPDATE SET body = excluded.body",
         params![n.scope, n.date, n.body],
     )?;
+    Ok(())
+}
+
+// ------------------------------- writing M4 attendance and behaviour ---
+
+/// Writes one cell of the monthly attendance grid.
+///
+/// Clearing a cell **deletes** its row rather than storing an empty state, the
+/// same rule as a cleared grade cell and an emptied timetable cell: a day the
+/// teacher has not marked is the absence of a row at every layer. It is also
+/// why an unmarked day can never read back as "present".
+///
+/// **Nothing here touches `absence_event`.** The two registers are independent
+/// by the spec's own repeated decision, so marking a day in the grid writes one
+/// row in one table and reaches nothing else.
+pub fn save_attendance_mark(conn: &Connection, m: &AttendanceMark) -> AppResult<()> {
+    if m.state.trim().is_empty() {
+        conn.execute(
+            "DELETE FROM attendance_mark WHERE class_id = ?1 AND student_id = ?2 AND date = ?3",
+            params![m.class_id, m.student_id, m.date],
+        )?;
+        return Ok(());
+    }
+    conn.execute(
+        "INSERT INTO attendance_mark (class_id, student_id, date, state)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (class_id, student_id, date) DO UPDATE SET state = excluded.state",
+        params![m.class_id, m.student_id, m.date, m.state],
+    )?;
+    Ok(())
+}
+
+/// Inserts or updates one line of the detailed absence register.
+///
+/// A blank row is **kept**, unlike an emptied attendance cell: the teacher
+/// pressed "new absence" and is about to fill it in, so deleting it on save
+/// would make it vanish as she typed. Removing one is an explicit delete.
+///
+/// **Nothing here touches `attendance_mark`**, for the same reason as above.
+pub fn save_absence_event(conn: &Connection, e: &AbsenceEvent) -> AppResult<i64> {
+    if e.id == 0 {
+        conn.execute(
+            "INSERT INTO absence_event (class_id, student_id, date, kind, clock_time,
+                                        teaching_hour, reason, justified, follow_up, frequent_note)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                e.class_id,
+                e.student_id,
+                e.date,
+                e.kind,
+                e.clock_time,
+                e.teaching_hour,
+                e.reason,
+                e.justified,
+                e.follow_up,
+                e.frequent_note
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE absence_event
+                SET class_id = ?2, student_id = ?3, date = ?4, kind = ?5, clock_time = ?6,
+                    teaching_hour = ?7, reason = ?8, justified = ?9, follow_up = ?10,
+                    frequent_note = ?11
+              WHERE id = ?1",
+            params![
+                e.id,
+                e.class_id,
+                e.student_id,
+                e.date,
+                e.kind,
+                e.clock_time,
+                e.teaching_hour,
+                e.reason,
+                e.justified,
+                e.follow_up,
+                e.frequent_note
+            ],
+        )?;
+        Ok(e.id)
+    }
+}
+
+pub fn delete_absence_event(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM absence_event WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one behaviour/incident entry.
+///
+/// The entry belongs to the **student**, so it follows her across every class
+/// she is enrolled in. `class_id` is an optional note of where it happened and
+/// may be `NULL`.
+pub fn save_incident(conn: &Connection, i: &Incident) -> AppResult<i64> {
+    if i.id == 0 {
+        conn.execute(
+            "INSERT INTO incident (student_id, class_id, date, what_happened,
+                                   action_taken, parents_informed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                i.student_id,
+                i.class_id,
+                i.date,
+                i.what_happened,
+                i.action_taken,
+                i.parents_informed
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE incident
+                SET student_id = ?2, class_id = ?3, date = ?4, what_happened = ?5,
+                    action_taken = ?6, parents_informed = ?7
+              WHERE id = ?1",
+            params![
+                i.id,
+                i.student_id,
+                i.class_id,
+                i.date,
+                i.what_happened,
+                i.action_taken,
+                i.parents_informed
+            ],
+        )?;
+        Ok(i.id)
+    }
+}
+
+pub fn delete_incident(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM incident WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one support plan.
+///
+/// A new plan goes on the end of that student's own list. **`status` is written
+/// through exactly as it arrives and is never derived from anything** — and
+/// note that this statement cannot reach `support_goal` at all, which is why
+/// editing a goal can never overwrite a plan's status.
+pub fn save_support_plan(conn: &Connection, p: &SupportPlan) -> AppResult<i64> {
+    if p.id == 0 {
+        let next: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM support_plan WHERE student_id = ?1",
+            [p.student_id],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO support_plan (student_id, position, start_date, monitoring_frequency,
+                                       strengths, needs, accommodations, collaboration,
+                                       status, next_review)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                p.student_id,
+                next,
+                p.start_date,
+                p.monitoring_frequency,
+                p.strengths,
+                p.needs,
+                p.accommodations,
+                p.collaboration,
+                p.status,
+                p.next_review
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE support_plan
+                SET start_date = ?2, monitoring_frequency = ?3, strengths = ?4, needs = ?5,
+                    accommodations = ?6, collaboration = ?7, status = ?8, next_review = ?9,
+                    position = ?10
+              WHERE id = ?1",
+            params![
+                p.id,
+                p.start_date,
+                p.monitoring_frequency,
+                p.strengths,
+                p.needs,
+                p.accommodations,
+                p.collaboration,
+                p.status,
+                p.next_review,
+                p.position
+            ],
+        )?;
+        Ok(p.id)
+    }
+}
+
+/// Deletes a plan and, by cascade, its goals.
+pub fn delete_support_plan(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM support_plan WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one goal inside a plan.
+///
+/// **This statement names only `support_goal`.** A plan's teacher-written
+/// status is in another table and cannot be reached from here — M4's second
+/// acceptance criterion, held by construction rather than by care.
+pub fn save_support_goal(conn: &Connection, g: &SupportGoal) -> AppResult<i64> {
+    if g.id == 0 {
+        let next: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM support_goal WHERE plan_id = ?1",
+            [g.plan_id],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO support_goal (plan_id, position, goal, progress, monitored_on)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![g.plan_id, next, g.goal, g.progress, g.monitored_on],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE support_goal SET goal = ?2, progress = ?3, monitored_on = ?4, position = ?5
+              WHERE id = ?1",
+            params![g.id, g.goal, g.progress, g.monitored_on, g.position],
+        )?;
+        Ok(g.id)
+    }
+}
+
+pub fn delete_support_goal(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM support_goal WHERE id = ?1", [id])?;
     Ok(())
 }
 
@@ -2103,5 +2450,530 @@ mod tests {
             .collect();
         assert_eq!(for_a, vec!["Πρώτο", "Δεύτερο", "Τρίτο"]);
         assert_eq!(columns.iter().filter(|c| c.class_id == b).count(), 1);
+    }
+
+    // ------------------------- M4: attendance, behaviour and support ---
+
+    /// A class with one student on its roster, which every M4 test needs.
+    fn class_with_student(conn: &Connection) -> (i64, i64) {
+        let class_id = save_class(conn, &tests_support::sample_class()).unwrap();
+        let student_id = save_student(conn, &tests_support::sample_student()).unwrap();
+        set_enrollment(
+            conn,
+            &Enrollment {
+                class_id,
+                student_id,
+                roster_no: 1,
+                support: false,
+                note: String::new(),
+            },
+        )
+        .unwrap();
+        (class_id, student_id)
+    }
+
+    fn an_event(class_id: i64, student_id: i64) -> AbsenceEvent {
+        AbsenceEvent {
+            id: 0,
+            class_id,
+            student_id,
+            date: "2026-11-05".into(),
+            kind: "late".into(),
+            clock_time: "08:35".into(),
+            teaching_hour: "1η".into(),
+            reason: "Καθυστέρηση λεωφορείου".into(),
+            justified: true,
+            follow_up: "informed".into(),
+            frequent_note: "Τρίτη φορά αυτόν τον μήνα".into(),
+        }
+    }
+
+    /// **M4's first acceptance criterion, at the storage layer.**
+    ///
+    /// The monthly grid and the detailed register are independent: the same
+    /// student on the same date is marked `present` in one and logged as a late
+    /// arrival in the other, and neither write disturbs the other. Nothing in
+    /// the app derives one from the other, so this is what "both stand" means
+    /// on disk.
+    #[test]
+    fn the_attendance_grid_and_the_absence_log_hold_different_data_for_one_student_and_date() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let (class_id, student_id) = class_with_student(&conn);
+        let date = "2026-11-05";
+
+        // The grid says she was there.
+        save_attendance_mark(
+            &conn,
+            &AttendanceMark {
+                class_id,
+                student_id,
+                date: date.into(),
+                state: "present".into(),
+            },
+        )
+        .unwrap();
+        // The register says she arrived late, justified, parents informed.
+        save_absence_event(&conn, &an_event(class_id, student_id)).unwrap();
+
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.attendance_marks.len(), 1);
+        assert_eq!(planner.attendance_marks[0].state, "present");
+        assert_eq!(planner.absence_events.len(), 1);
+        assert_eq!(planner.absence_events[0].kind, "late");
+        assert_eq!(planner.absence_events[0].date, date);
+
+        // Changing the grid cell leaves the event byte-for-byte alone …
+        let event_before = planner.absence_events[0].clone();
+        save_attendance_mark(
+            &conn,
+            &AttendanceMark {
+                class_id,
+                student_id,
+                date: date.into(),
+                state: "absent".into(),
+            },
+        )
+        .unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.absence_events, vec![event_before.clone()]);
+        assert_eq!(planner.attendance_marks[0].state, "absent");
+
+        // … and editing the event leaves the grid cell alone.
+        save_absence_event(
+            &conn,
+            &AbsenceEvent {
+                reason: "Ιατρικό ραντεβού".into(),
+                ..event_before.clone()
+            },
+        )
+        .unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.attendance_marks[0].state, "absent");
+        assert_eq!(planner.absence_events[0].reason, "Ιατρικό ραντεβού");
+
+        // Deleting the event does not remove the mark, and clearing the mark
+        // does not remove an event. Neither is derived from the other.
+        delete_absence_event(&conn, event_before.id).unwrap();
+        let planner = load(&conn).unwrap();
+        assert!(planner.absence_events.is_empty());
+        assert_eq!(planner.attendance_marks.len(), 1, "the grid cell survives");
+
+        save_absence_event(&conn, &an_event(class_id, student_id)).unwrap();
+        save_attendance_mark(
+            &conn,
+            &AttendanceMark {
+                class_id,
+                student_id,
+                date: date.into(),
+                state: String::new(),
+            },
+        )
+        .unwrap();
+        let planner = load(&conn).unwrap();
+        assert!(
+            planner.attendance_marks.is_empty(),
+            "an emptied cell is deleted"
+        );
+        assert_eq!(planner.absence_events.len(), 1, "the event survives");
+    }
+
+    /// The schema itself carries no month, no year and no day-of-month column,
+    /// so the month grid cannot be anything but a view over actual dates. This
+    /// is the same check M1 and M3 make for week numbers, at the table M4 was
+    /// most likely to key by the column it prints.
+    #[test]
+    fn no_attendance_column_is_a_month_a_year_or_a_day_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let columns: Vec<String> = collect(
+            &conn,
+            "SELECT name FROM pragma_table_info('attendance_mark')",
+            |r| r.get(0),
+        )
+        .unwrap();
+        assert_eq!(columns, vec!["class_id", "student_id", "date", "state"]);
+    }
+
+    /// The other half of the date rule: moving the school year's start date
+    /// leaves every M4 record exactly where it was, because none of them knows
+    /// a week or a month number.
+    #[test]
+    fn moving_the_school_year_start_date_leaves_every_m4_record_where_it_was() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let (class_id, student_id) = class_with_student(&conn);
+
+        save_attendance_mark(
+            &conn,
+            &AttendanceMark {
+                class_id,
+                student_id,
+                date: "2026-11-05".into(),
+                state: "absent".into(),
+            },
+        )
+        .unwrap();
+        save_absence_event(&conn, &an_event(class_id, student_id)).unwrap();
+        save_incident(
+            &conn,
+            &Incident {
+                id: 0,
+                student_id,
+                class_id: Some(class_id),
+                date: "2026-11-05".into(),
+                what_happened: "Διαφωνία στο διάλειμμα".into(),
+                action_taken: "Συζήτηση με τους δύο μαθητές".into(),
+                parents_informed: true,
+            },
+        )
+        .unwrap();
+        let plan_id = save_support_plan(&conn, &a_plan(student_id)).unwrap();
+        save_support_goal(&conn, &a_goal(plan_id)).unwrap();
+
+        let before = load(&conn).unwrap();
+        save_school_year(
+            &conn,
+            &SchoolYear {
+                year_model: "feb_dec".into(),
+                start_date: "2026-09-07".into(),
+            },
+        )
+        .unwrap();
+        let after = load(&conn).unwrap();
+
+        assert_eq!(before.attendance_marks, after.attendance_marks);
+        assert_eq!(before.absence_events, after.absence_events);
+        assert_eq!(before.incidents, after.incidents);
+        assert_eq!(before.support_plans, after.support_plans);
+        assert_eq!(before.support_goals, after.support_goals);
+    }
+
+    fn a_plan(student_id: i64) -> SupportPlan {
+        SupportPlan {
+            id: 0,
+            student_id,
+            position: 0,
+            start_date: "2026-10-01".into(),
+            monitoring_frequency: "Κάθε δεύτερη εβδομάδα".into(),
+            strengths: "Ισχυρή προφορική έκφραση".into(),
+            needs: "Δυσκολία στην αποκωδικοποίηση".into(),
+            accommodations: "Επιπλέον χρόνος, μεγαλύτερη γραμματοσειρά".into(),
+            collaboration: "Συνεργασία με τη λογοθεραπεύτρια".into(),
+            status: "Σε εφαρμογή — αναθεώρηση τον Ιανουάριο".into(),
+            next_review: "2027-01-15".into(),
+        }
+    }
+
+    fn a_goal(plan_id: i64) -> SupportGoal {
+        SupportGoal {
+            id: 0,
+            plan_id,
+            position: 0,
+            goal: "Ανάγνωση κειμένου 80 λέξεων χωρίς βοήθεια".into(),
+            progress: "in_progress".into(),
+            monitored_on: "2026-11-20".into(),
+        }
+    }
+
+    /// **M4's second acceptance criterion, at the storage layer.**
+    ///
+    /// A plan's `status` is teacher-written and never computed. Writing a goal —
+    /// adding one, rating one, dating one, deleting one — cannot reach it,
+    /// because `save_support_goal` names only `support_goal`.
+    #[test]
+    fn a_plans_status_is_never_touched_by_writing_its_goals() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let (_class_id, student_id) = class_with_student(&conn);
+        let plan_id = save_support_plan(&conn, &a_plan(student_id)).unwrap();
+        let written = load(&conn).unwrap().support_plans[0].clone();
+        assert_eq!(written.status, "Σε εφαρμογή — αναθεώρηση τον Ιανουάριο");
+
+        // Add a goal.
+        let goal_id = save_support_goal(&conn, &a_goal(plan_id)).unwrap();
+        assert_eq!(load(&conn).unwrap().support_plans, vec![written.clone()]);
+
+        // Rate it as fully met — the rating a naive implementation would be
+        // tempted to roll up into the plan's status.
+        save_support_goal(
+            &conn,
+            &SupportGoal {
+                id: goal_id,
+                progress: "met".into(),
+                ..a_goal(plan_id)
+            },
+        )
+        .unwrap();
+        assert_eq!(load(&conn).unwrap().support_plans, vec![written.clone()]);
+
+        // Add a second goal and delete the first.
+        save_support_goal(&conn, &a_goal(plan_id)).unwrap();
+        delete_support_goal(&conn, goal_id).unwrap();
+        let after = load(&conn).unwrap();
+        assert_eq!(after.support_plans, vec![written.clone()]);
+        assert_eq!(after.support_goals.len(), 1);
+
+        // And with every goal gone, the status still says what she typed.
+        delete_support_goal(&conn, after.support_goals[0].id).unwrap();
+        let after = load(&conn).unwrap();
+        assert!(after.support_goals.is_empty());
+        assert_eq!(after.support_plans, vec![written]);
+    }
+
+    /// Every M4 field survives a save and a reload, the same round-trip M1's
+    /// third criterion asks of the student card.
+    #[test]
+    fn every_m4_field_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+        let conn = crate::db::open_at(&path).unwrap();
+        let (class_id, student_id) = class_with_student(&conn);
+
+        save_absence_event(&conn, &an_event(class_id, student_id)).unwrap();
+        let incident = Incident {
+            id: 0,
+            student_id,
+            class_id: None,
+            date: "2026-12-01".into(),
+            what_happened: "Άρνηση συμμετοχής στην ομαδική εργασία".into(),
+            action_taken: "Αλλαγή ομάδας και σύντομη συζήτηση".into(),
+            parents_informed: false,
+        };
+        save_incident(&conn, &incident).unwrap();
+        let plan_id = save_support_plan(&conn, &a_plan(student_id)).unwrap();
+        save_support_goal(&conn, &a_goal(plan_id)).unwrap();
+        drop(conn);
+
+        // Reopened from disk, as a relaunch would.
+        let conn = crate::db::open_at(&path).unwrap();
+        let planner = load(&conn).unwrap();
+
+        let e = &planner.absence_events[0];
+        assert_eq!(e.date, "2026-11-05");
+        assert_eq!(e.kind, "late");
+        assert_eq!(e.clock_time, "08:35");
+        assert_eq!(e.teaching_hour, "1η");
+        assert_eq!(e.reason, "Καθυστέρηση λεωφορείου");
+        assert!(e.justified);
+        assert_eq!(e.follow_up, "informed");
+        assert_eq!(e.frequent_note, "Τρίτη φορά αυτόν τον μήνα");
+
+        let i = &planner.incidents[0];
+        assert_eq!(i.class_id, None, "an incident need not belong to a class");
+        assert_eq!(i.what_happened, "Άρνηση συμμετοχής στην ομαδική εργασία");
+        assert_eq!(i.action_taken, "Αλλαγή ομάδας και σύντομη συζήτηση");
+        assert!(!i.parents_informed);
+
+        let p = &planner.support_plans[0];
+        assert_eq!(p.start_date, "2026-10-01");
+        assert_eq!(p.monitoring_frequency, "Κάθε δεύτερη εβδομάδα");
+        assert_eq!(p.strengths, "Ισχυρή προφορική έκφραση");
+        assert_eq!(p.needs, "Δυσκολία στην αποκωδικοποίηση");
+        assert_eq!(
+            p.accommodations,
+            "Επιπλέον χρόνος, μεγαλύτερη γραμματοσειρά"
+        );
+        assert_eq!(p.collaboration, "Συνεργασία με τη λογοθεραπεύτρια");
+        assert_eq!(p.status, "Σε εφαρμογή — αναθεώρηση τον Ιανουάριο");
+        assert_eq!(p.next_review, "2027-01-15");
+
+        let g = &planner.support_goals[0];
+        assert_eq!(g.goal, "Ανάγνωση κειμένου 80 λέξεων χωρίς βοήθεια");
+        assert_eq!(g.progress, "in_progress");
+        assert_eq!(g.monitored_on, "2026-11-20");
+    }
+
+    /// A blank absence event, incident, plan and goal are all **kept**, unlike
+    /// an emptied attendance cell. The teacher pressed a button to create them
+    /// and is about to type into them; deleting them on save would make a new
+    /// record vanish the instant it appeared.
+    #[test]
+    fn a_blank_new_record_is_kept_even_though_an_emptied_grid_cell_is_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let (class_id, student_id) = class_with_student(&conn);
+
+        save_absence_event(
+            &conn,
+            &AbsenceEvent {
+                id: 0,
+                class_id,
+                student_id,
+                date: String::new(),
+                kind: "absence".into(),
+                clock_time: String::new(),
+                teaching_hour: String::new(),
+                reason: String::new(),
+                justified: false,
+                follow_up: String::new(),
+                frequent_note: String::new(),
+            },
+        )
+        .unwrap();
+        save_incident(
+            &conn,
+            &Incident {
+                id: 0,
+                student_id,
+                class_id: None,
+                date: String::new(),
+                what_happened: String::new(),
+                action_taken: String::new(),
+                parents_informed: false,
+            },
+        )
+        .unwrap();
+        let plan_id = save_support_plan(
+            &conn,
+            &SupportPlan {
+                id: 0,
+                student_id,
+                position: 0,
+                start_date: String::new(),
+                monitoring_frequency: String::new(),
+                strengths: String::new(),
+                needs: String::new(),
+                accommodations: String::new(),
+                collaboration: String::new(),
+                status: String::new(),
+                next_review: String::new(),
+            },
+        )
+        .unwrap();
+        save_support_goal(
+            &conn,
+            &SupportGoal {
+                id: 0,
+                plan_id,
+                position: 0,
+                goal: String::new(),
+                progress: String::new(),
+                monitored_on: String::new(),
+            },
+        )
+        .unwrap();
+
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.absence_events.len(), 1);
+        assert_eq!(planner.incidents.len(), 1);
+        assert_eq!(planner.support_plans.len(), 1);
+        assert_eq!(planner.support_goals.len(), 1);
+    }
+
+    /// Deleting a class empties an incident's optional class link but keeps the
+    /// incident, because the incident belongs to the student and something did
+    /// happen. Its absence events and attendance marks, which are per class,
+    /// go with the class.
+    #[test]
+    fn deleting_a_class_keeps_the_incident_and_empties_its_link() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let (class_id, student_id) = class_with_student(&conn);
+        save_attendance_mark(
+            &conn,
+            &AttendanceMark {
+                class_id,
+                student_id,
+                date: "2026-11-05".into(),
+                state: "absent".into(),
+            },
+        )
+        .unwrap();
+        save_absence_event(&conn, &an_event(class_id, student_id)).unwrap();
+        save_incident(
+            &conn,
+            &Incident {
+                id: 0,
+                student_id,
+                class_id: Some(class_id),
+                date: "2026-11-05".into(),
+                what_happened: "Διαφωνία στο διάλειμμα".into(),
+                action_taken: "Συζήτηση".into(),
+                parents_informed: true,
+            },
+        )
+        .unwrap();
+
+        delete_class(&conn, class_id).unwrap();
+        let planner = load(&conn).unwrap();
+        assert!(planner.attendance_marks.is_empty());
+        assert!(planner.absence_events.is_empty());
+        assert_eq!(planner.incidents.len(), 1, "the incident still happened");
+        assert_eq!(planner.incidents[0].class_id, None);
+        assert_eq!(planner.incidents[0].what_happened, "Διαφωνία στο διάλειμμα");
+    }
+
+    /// Deleting a student takes her support plans and their goals with her, so
+    /// nothing is left pointing at a student who is not there.
+    #[test]
+    fn deleting_a_student_cascades_through_her_plans_to_their_goals() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let (_class_id, student_id) = class_with_student(&conn);
+        let plan_id = save_support_plan(&conn, &a_plan(student_id)).unwrap();
+        save_support_goal(&conn, &a_goal(plan_id)).unwrap();
+
+        delete_student(&conn, student_id).unwrap();
+        let planner = load(&conn).unwrap();
+        assert!(planner.support_plans.is_empty());
+        assert!(planner.support_goals.is_empty());
+        assert!(planner.incidents.is_empty());
+    }
+
+    /// The file refuses an attendance state it does not know, so a typo cannot
+    /// be read back as a fifth kind of day.
+    #[test]
+    fn the_file_refuses_an_attendance_state_it_does_not_know() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let (class_id, student_id) = class_with_student(&conn);
+        let bad = conn.execute(
+            "INSERT INTO attendance_mark (class_id, student_id, date, state)
+             VALUES (?1, ?2, '2026-11-05', 'maybe')",
+            params![class_id, student_id],
+        );
+        assert!(bad.is_err());
+    }
+
+    /// Several plans per student, each with their own goals, and a new plan
+    /// lands on the end of that student's list rather than on another's.
+    #[test]
+    fn a_student_can_hold_several_plans_each_with_their_own_goals() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let (_class_id, student_id) = class_with_student(&conn);
+
+        let first = save_support_plan(&conn, &a_plan(student_id)).unwrap();
+        let second = save_support_plan(
+            &conn,
+            &SupportPlan {
+                status: "Ολοκληρώθηκε".into(),
+                ..a_plan(student_id)
+            },
+        )
+        .unwrap();
+        save_support_goal(&conn, &a_goal(first)).unwrap();
+        save_support_goal(&conn, &a_goal(second)).unwrap();
+        save_support_goal(&conn, &a_goal(second)).unwrap();
+
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.support_plans.len(), 2);
+        assert_eq!(planner.support_plans[0].position, 0);
+        assert_eq!(planner.support_plans[1].position, 1);
+        assert_eq!(
+            planner
+                .support_goals
+                .iter()
+                .filter(|g| g.plan_id == second)
+                .count(),
+            2
+        );
+        // Deleting the second plan takes only its own goals.
+        delete_support_plan(&conn, second).unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.support_plans.len(), 1);
+        assert_eq!(planner.support_goals.len(), 1);
+        assert_eq!(planner.support_goals[0].plan_id, first);
     }
 }

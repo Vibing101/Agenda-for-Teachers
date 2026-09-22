@@ -272,8 +272,76 @@ describe("the master timetable", () => {
     expect(backend.planner.timetable_periods).toHaveLength(3);
   });
 
-  it("says plainly that printing the timetable is not built yet", () => {
+});
+
+/**
+ * M3's two carry-over items, landed in M4 because the product owner's decision
+ * arrived after M3 merged.
+ *
+ * The ruling: the timetable needs **no PDF export at all** — plain text in the
+ * app, to copy and paste, is enough.
+ */
+/** jsdom exposes `navigator.clipboard` as a getter, so it is defined, not set. */
+function stubClipboard(writeText: ReturnType<typeof vi.fn>) {
+  Object.defineProperty(navigator, "clipboard", {
+    value: { writeText },
+    configurable: true,
+  });
+  return writeText;
+}
+
+describe("copying the timetable as text", () => {
+  beforeEach(() => {
+    invoke.mockReset();
+  });
+
+  it("no longer claims PDF export is coming", () => {
     renderScreen(TimetableScreen, weekPlanner(), invoke);
-    expect(screen.getByText(/Η εκτύπωση του προγράμματος σε PDF/)).toBeInTheDocument();
+    // M3's note said export "δεν έχει υλοποιηθεί ακόμη", which is now
+    // misleading: it is not coming. The string is gone with it.
+    expect(screen.queryByText(/δεν έχει υλοποιηθεί ακόμη/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/PDF/)).not.toBeInTheDocument();
+  });
+
+  it("offers the copy button only once there is a grid to copy", () => {
+    renderScreen(TimetableScreen, emptyPlanner(), invoke);
+    expect(screen.queryByRole("button", { name: "Αντιγραφή ως κείμενο" })).not.toBeInTheDocument();
+  });
+
+  it("writes the plain-text grid to the clipboard and says it did", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+
+    renderScreen(TimetableScreen, weekPlanner(), invoke);
+    await user.click(screen.getByRole("button", { name: "Αντιγραφή ως κείμενο" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const text = writeText.mock.calls[0][0] as string;
+    expect(text).toContain("Δευτέρα");
+    expect(text).toContain("Α1 · Μαθηματικά · 203");
+    expect(text).toContain("Εφημερία στο προαύλιο");
+    expect(await screen.findByText(/αντιγράφηκε ως απλό κείμενο/)).toBeInTheDocument();
+  });
+
+  it("says so plainly when the webview refuses the clipboard", async () => {
+    const user = userEvent.setup();
+    stubClipboard(vi.fn().mockRejectedValue(new Error("denied")));
+
+    renderScreen(TimetableScreen, weekPlanner(), invoke);
+    await user.click(screen.getByRole("button", { name: "Αντιγραφή ως κείμενο" }));
+
+    expect(await screen.findByText(/δεν ήταν δυνατή/)).toBeInTheDocument();
+  });
+
+  it("copies without writing anything to storage", async () => {
+    const user = userEvent.setup();
+    stubClipboard(vi.fn().mockResolvedValue(undefined));
+
+    const backend = renderScreen(TimetableScreen, weekPlanner(), invoke);
+    await user.click(screen.getByRole("button", { name: "Αντιγραφή ως κείμενο" }));
+
+    await waitFor(() => expect(screen.getByText(/αντιγράφηκε/)).toBeInTheDocument());
+    expect(backend.calls).toHaveLength(0);
   });
 });

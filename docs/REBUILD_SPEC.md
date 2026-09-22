@@ -239,6 +239,16 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
 
 **M4 — Attendance & behavior.** Monthly attendance grid, detailed absence events, incident log, support plans + cross-class overview.
 
+**M4.5 — Printing attendance, behaviour and support.** Real PDF exports for the
+three M4 surfaces the spec promises as printable: the behaviour/incident log, the
+detailed absence register, and the cross-class support overview. No new data, no
+new fields, no schema change — these are print views over records M4 already
+stores, built on the app-owned pagination M2 established. Whether the *filled*
+monthly attendance grid becomes a fourth sheet is M4.5's to decide and record;
+the *blank* grid is separately one of M7's 11 print forms. **Inserted 2026-09-22**
+by the product owner, answering the question M4 raised; it was not in the original
+sequence.
+
 **M5 — Parents & staff.** Communication log, parent-appointment grid, staff/council meetings, letters (7) and message bank (150) with bilingual content and PDF generation.
 
 **M6 — Annual planning & the rest of teaching.** Annual plans/units, week-by-class progress matrix, exams, lesson reflections, trips, textbooks, materials.
@@ -290,6 +300,15 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
 | Who decides where a printed sheet breaks | **The app, not the rendering engine** (M2). The print window measures the rendered rows and places them into A4 blocks, repeating the sheet header and the column headers and never splitting a row. Forced by the above. It gives both platforms the same page structure and the same A4 sheet; it does not make the break points identical, because row heights come from each platform's own text measurement — at the M2 gate a 45-row roster was five pages on macOS and six on Windows, differing only in whether the closing note shared the last page |
 | Where the teacher's week is registered | **One register: the master timetable** (M3). M1's per-class `class_slot` rows are folded into it by `migrate_to_4` and the table is dropped; a class's hours are *derived* from the cells that link to it and are read-only on the class card. Forced by three things in this spec: a cover or duty belongs to no class and so cannot live in a per-class table, the link to a Class is described as *optional* and as something that "fills subject/room" (so the cell is the record and the class a pointer), and the Today view reads "from the master timetable", which is only unambiguous if there is one. It means a lesson is typed once and the Today view cannot list the same class twice. **Raised by the M3 agent as a deliberate retirement of a surface M1 shipped, and confirmed by the product owner on 2026-09-21** |
 | Whether the master timetable exports a PDF | **No — not now and not later. Plain text in the app, to copy and paste, is enough.** Decided by the product owner 2026-09-21, answering the question M3 raised. This is a **narrow exception to the "PDF output" section above, for the timetable only**: grade sheets, conduct sheets, letters, the message bank, print forms and the substitute folder all still produce real PDF files as that section requires. The practical consequence is a small piece of work M3 did not build — a "copy as text" affordance on the timetable, and the removal of M3's on-screen note saying PDF export is not implemented "yet", which is now misleading |
+| Where M4's four surfaces live in the navigation | **Sub-pages inside the two sections that already hold their modules, not new top-level tabs** (M4). Βαθμοί gains *Βαθμολόγιο / Απουσίες*; Μαθητές gains *Καρτέλες / Περιστατικά / Στήριξη*. The app stays at eight top-level tabs | The spec files the attendance grid and the absence register under module 4 and the incident log and support plans under module 2, and the source product reaches each from its module's own index page ("Απουσίες ανά τμήμα" from ΒΑΘΜΟΙ, "Συμπεριφορά και περιστατικά" από ΜΑΘΗΤΕΣ). Four more top-level tabs would have made twelve and would have contradicted both |
+| How the monthly attendance grid is keyed | **`(class_id, student_id, date)` where `date` is an actual date** (M4). There is no month column, no year column and no day-of-month index anywhere; the month grid is a *view* built by `domain/attendance.ts` from M3's `monthGrid()` | The source prints one card per month with columns 1–31, and keying the table by the column it prints is the same mistake the spec spent M1 ruling out. A test asserts `attendance_mark` has exactly four columns |
+| A support goal's progress rating | **A fixed vocabulary** — `not_started`, `in_progress`, `partly_met`, `met`, `needs_review`, plus empty for "not rated yet" (M4) | The spec uses two different words in one sentence: each goal has a *progress rating*, while the plan's *status* is "written by the teacher, never computed". A rating reads as a scale where a status reads as a sentence, so the two are modelled differently. The plan's status stays free text, matching M1's annual-goal status. **Flagged at M4 — this was genuinely open** |
+| What a "card-level support flag" is in the cross-class overview | **Both of M1's flags, merged and shown separately** (M4): `Student.sen_status` (one per student, from the card's ΕΠΕ box) and `Enrollment.support` with its per-class note (which can differ between a student's classes) | They mean different things and the overview needs both — the source page's own columns are Μαθητής / Τάξη / Είδος στήριξης / Προσαρμογές–Στήριξη / Αξιολόγηση / Πλάνο, which is that same merge. A student appears in the overview if *any* of three signals fires: a card category, a class's tick, or a plan |
+| Whether a blank new record is deleted on save | **No — a blank absence event, incident, support plan or goal is kept** (M4). This is a deliberate departure from the delete-when-empty rule M2's grade cells and M3's timetable cells and plans follow, which M4's `attendance_mark` still follows | Those are keyed cells with no create button: an emptied one is genuinely "nothing here". These four have a "new record" button, so the teacher pressed something to make the row and is about to type into it — deleting it on save would make a new record vanish as it appeared. Removing one is an explicit delete |
+| Whether a behaviour incident names a class | **Optionally, as `ON DELETE SET NULL`** (M4). The entry belongs to the *student* and follows her across classes; the class is a note of where it happened | The spec's data model lists four fields and no class, but the source register has a `Τάξη` column, and "filterable" is only meaningful with one. Deleting a class empties the link and keeps the entry, because something still happened |
+| `SupportPlan`'s "strengths & needs" | **Two fields, `strengths` and `needs`** (M4) | The spec names them as one phrase. Splitting loses nothing and merging would, and two boxes is what the teacher actually fills in. `next_review` is also a column, because the spec's overview line names "every plan's status and next review date" although its field list does not |
+| The timetable's "copy as text" and the removal of its PDF note | **Both done in M4**, as the carry-over from the product owner's 2026-09-21 ruling | M3 was already merged when the decision landed. `timetable.printLater` and the note rendering it are gone; `timetableAsText()` produces a column-aligned plain-text grid |
+| Whether M4's surfaces produce PDFs, and when | **Yes — and as their own milestone, `M4.5`, inserted between M4 and M5** (product owner, 2026-09-22). The incident log, the detailed absence register and the cross-class support overview each get a real PDF export. M4 merged without them, as its own scope line required | The spec promised these three in two places — module 2 calls the incident log and the support overview "both printable", and the "PDF output" section names "absence logs" and "support plans" — while M4's delivery-scope line named no PDF. M4 shipped its scope line exactly, per the M2/M3 precedent, and raised the conflict rather than silently resolving it. **The roadmap did not have an M4.5; this creates one**, rather than retrofitting M4 or enlarging M5, so the work gets its own gate and its own release note. **Whether the filled monthly attendance grid is a fourth sheet is left for M4.5 to settle and record**, because it is genuinely unclear: the "PDF output" section's "absence logs" could mean either register, and the *blank* attendance grid is already one of M7's 11 print forms |
 
 ### Open — flag back rather than silently decide
 
@@ -312,6 +331,46 @@ Sequenced so each milestone is a real, launchable, testable build — not a code
   string on the student card; every other label is Greek. It is a common Greek
   loanword, so this may well be deliberate — but it is currently an implicit
   choice rather than a recorded one. Raised at M1 (2026-09-20).
+
+- **Does anything in M4 produce a PDF?** M4 ships **none**, because its
+  delivery-scope line names no PDF export and the precedent is that a milestone
+  ships its scope line exactly (M2 built PDFs because its line said so; M3 did
+  not because its line did not). But this one is a real conflict rather than
+  silence: the spec's module-2 entry says the incident log and the support
+  overview are "both printable", and its "PDF output" section names "absence
+  logs" and "support plans" among the surfaces that produce a real PDF file.
+  **So three of M4's four surfaces are promised a PDF somewhere in this
+  document and have not got one.** The product owner's 2026-09-21 ruling that
+  the *timetable* needs no PDF is explicitly narrow and does not extend here.
+  M4 deliberately left no on-screen note about it — that is the mistake M3 made
+  with `timetable.printLater` — so nothing misleading is shown; the surfaces
+  simply have no export button. **Recommendation: give the incident log, the
+  absence register and the support overview real PDF exports, either as a small
+  piece of work of their own or folded into M5, which is already building print
+  surfaces.** The app's pagination is its own since M2, so each is a document
+  definition rather than new machinery. Raised at M4 (2026-09-21).
+
+- **Should the absence register offer more kinds than `absence` and
+  `late`?** The spec says an absence event has a "kind" without enumerating
+  one. The source register has exactly two tick columns, `Απ.` and `Καθ.`, so
+  M4 ships those two rather than inventing a third. Early departure
+  (πρόωρη αποχώρηση) is the obvious candidate and is a real thing teachers log,
+  but adding it would be the app inventing a category the source does not have.
+  One entry in `ABSENCE_KINDS` and one string change it. Raised at M4
+  (2026-09-21).
+
+- **Is the monthly grid's "δικαιολογημένη" a fourth state or a flag on an
+  absence?** The source card's key is `· παρών, α απουσία, κ καθυστέρηση,
+  u δικαιολογημένη` — four symbols, one per cell — and the spec names four
+  states (present / absent / late / excused). M4 ships them as four mutually
+  exclusive codes, matching both readings of the page, so "excused" means "an
+  excused absence". The alternative reading is two dimensions (absent, plus a
+  justified flag), which would let a *late* arrival be justified too. M4 did
+  not take it because the spec asks for four states and because the flag
+  reading already exists exactly where the spec puts it —
+  `AbsenceEvent.justified`, on the detailed register, which is independent of
+  the grid. Raised at M4 (2026-09-21) as a deliberate reading rather than an
+  oversight.
 
 - **Where should the per-class pass threshold ("Βάση") live?** M2 gives it, the
   scale's upper bound and the printed sheet's period caption their own
@@ -483,6 +542,12 @@ Each milestone's generic gate (above) still applies; these are what's specific t
 - The monthly attendance grid and the detailed absence-event log can hold different, non-derived data for the same student/date without either overwriting the other.
 - A support plan's status field is never overwritten by changes to its goals (status stays teacher-written).
 - The cross-class support overview correctly reflects a plan change made in a single class.
+
+**M4.5 — Printing attendance, behaviour and support**
+- The incident log, the absence register and the support overview each generate a real PDF file in `exports/` that opens and renders Greek correctly (not just Latin).
+- Each printed sheet carries the same records the screen shows for the same filter/selection — nothing is recomputed for print, and a sheet never disagrees with the screen it was printed from.
+- A support plan's teacher-written status appears on the printed overview exactly as typed, and printing computes nothing from a plan's goals.
+- The printed absence register and the printed attendance grid, if both are produced, remain independent of each other — neither derives a figure from the other.
 
 **M5 — Parents & staff**
 - All 7 letters and a sample across all 15 message-bank categories generate a correctly-formatted, Greek-rendering PDF with every placeholder filled and none left as `[BRACKETS]`.

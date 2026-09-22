@@ -17,10 +17,13 @@ import type { Planner } from "./domain/types";
 import { DEFAULT_LOCALE, translatorFor, type StringId } from "./i18n";
 import { LocaleContext, useTranslate } from "./i18n/useTranslate";
 import AgendaScreen from "./screens/AgendaScreen";
+import AttendanceScreen from "./screens/AttendanceScreen";
+import BehaviourScreen from "./screens/BehaviourScreen";
 import ClassesScreen from "./screens/ClassesScreen";
 import GradesScreen from "./screens/GradesScreen";
 import PlanScreen, { type PlanFocus } from "./screens/PlanScreen";
 import StudentsScreen from "./screens/StudentsScreen";
+import SupportScreen from "./screens/SupportScreen";
 import TimetableScreen from "./screens/TimetableScreen";
 import TodayScreen from "./screens/TodayScreen";
 import YearScreen from "./screens/YearScreen";
@@ -35,17 +38,58 @@ type Section =
   | "agenda"
   | "plan"
   | "today";
-const SECTIONS: { key: Section; labelId: StringId }[] = [
+
+/**
+ * The sub-pages of a section, where a section has more than one.
+ *
+ * **M4 adds four surfaces and no top-level tabs.** The app already had eight,
+ * and the spec files M4's pieces under two modules it already has: the
+ * attendance grid and the absence register under module 4 (Βαθμοί), the
+ * incident log and the support plans under module 2 (Τάξεις & Μαθητές). The
+ * source product files them the same way and reaches each from its module's
+ * own index page — "Απουσίες ανά τμήμα" from ΒΑΘΜΟΙ, "Συμπεριφορά και
+ * περιστατικά" from ΜΑΘΗΤΕΣ. So this is that index: one row of sub-tabs inside
+ * the section the spec puts the surface in, rather than four more things
+ * competing for the top row.
+ */
+type Page =
+  | "gradebook"
+  | "attendance"
+  | "cards"
+  | "behaviour"
+  | "support";
+
+const SECTIONS: { key: Section; labelId: StringId; pages?: { key: Page; labelId: StringId }[] }[] = [
   { key: "year", labelId: "nav.year" },
   { key: "classes", labelId: "nav.classes" },
-  { key: "students", labelId: "nav.students" },
-  { key: "grades", labelId: "nav.grades" },
+  {
+    key: "students",
+    labelId: "nav.students",
+    pages: [
+      { key: "cards", labelId: "nav.cards" },
+      { key: "behaviour", labelId: "nav.behaviour" },
+      { key: "support", labelId: "nav.support" },
+    ],
+  },
+  {
+    key: "grades",
+    labelId: "nav.grades",
+    pages: [
+      { key: "gradebook", labelId: "nav.gradebook" },
+      { key: "attendance", labelId: "nav.attendance" },
+    ],
+  },
   { key: "timetable", labelId: "nav.timetable" },
   { key: "plan", labelId: "nav.plan" },
   { key: "agenda", labelId: "nav.agenda" },
   // Last, as the source product puts "ΣΗΜΕΡΙΝΟ ΜΑΘΗΜΑ" at the right of its nav.
   { key: "today", labelId: "nav.today" },
 ];
+
+/** The sub-page a section opens on: its first, or none if it has no sub-pages. */
+function firstPageOf(section: Section): Page | null {
+  return SECTIONS.find((s) => s.key === section)?.pages?.[0].key ?? null;
+}
 
 /**
  * @param today Overrides the day the app thinks it is. Tests pin it; the app
@@ -69,6 +113,9 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
   const [planner, setPlanner] = useState<Planner | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [section, setSection] = useState<Section>("year");
+  /** Which sub-page of `section` is showing, for the sections that have them. */
+  const [page, setPage] = useState<Page | null>(null);
+  const pages = SECTIONS.find((s) => s.key === section)?.pages;
   /**
    * Today, read from the local calendar once and then kept current. A session
    * left open overnight rolls over rather than showing yesterday, and the
@@ -176,12 +223,30 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
               type="button"
               className={s.key === section ? "tab selected" : "tab"}
               aria-current={s.key === section ? "page" : undefined}
-              onClick={() => setSection(s.key)}
+              onClick={() => {
+                setSection(s.key);
+                setPage(firstPageOf(s.key));
+              }}
             >
               {t(s.labelId)}
             </button>
           ))}
         </nav>
+        {pages && (
+          <nav className="subtabs" aria-label={t(SECTIONS.find((s) => s.key === section)!.labelId)}>
+            {pages.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                className={p.key === (page ?? pages[0].key) ? "tab selected" : "tab"}
+                aria-current={p.key === (page ?? pages[0].key) ? "page" : undefined}
+                onClick={() => setPage(p.key)}
+              >
+                {t(p.labelId)}
+              </button>
+            ))}
+          </nav>
+        )}
       </header>
 
       {blocked && (
@@ -203,8 +268,21 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
         <fieldset className="sections" disabled={blocked}>
           {section === "year" && <YearScreen planner={planner} run={run} />}
           {section === "classes" && <ClassesScreen planner={planner} run={run} />}
-          {section === "students" && <StudentsScreen planner={planner} run={run} />}
-          {section === "grades" && <GradesScreen planner={planner} run={run} />}
+          {section === "students" && (page ?? "cards") === "cards" && (
+            <StudentsScreen planner={planner} run={run} />
+          )}
+          {section === "students" && page === "behaviour" && (
+            <BehaviourScreen planner={planner} run={run} />
+          )}
+          {section === "students" && page === "support" && (
+            <SupportScreen planner={planner} run={run} />
+          )}
+          {section === "grades" && (page ?? "gradebook") === "gradebook" && (
+            <GradesScreen planner={planner} run={run} />
+          )}
+          {section === "grades" && page === "attendance" && (
+            <AttendanceScreen planner={planner} run={run} today={today} />
+          )}
           {section === "timetable" && <TimetableScreen planner={planner} run={run} />}
           {section === "plan" && (
             <PlanScreen planner={planner} run={run} today={today} focus={planFocus} />

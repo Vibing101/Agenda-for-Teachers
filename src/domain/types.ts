@@ -3,6 +3,9 @@
  * because they are the wire format, not a style choice — see `src-tauri/src/model.rs`,
  * which is the definition these mirror.
  */
+import type { AbsenceEvent, AttendanceMark } from "./attendance";
+import type { Incident } from "./behaviour";
+import type { SupportGoal, SupportPlan } from "./support";
 import type { ClassGrading, GradeColumn, GradeRow, GradeValue } from "./grades";
 import type { AgendaNote } from "./agenda";
 import type { LessonPlan } from "./plans";
@@ -136,6 +139,11 @@ export interface Planner {
   timetable_cells: TimetableCell[];
   lesson_plans: LessonPlan[];
   agenda_notes: AgendaNote[];
+  attendance_marks: AttendanceMark[];
+  absence_events: AbsenceEvent[];
+  incidents: Incident[];
+  support_plans: SupportPlan[];
+  support_goals: SupportGoal[];
 }
 
 /** A blank card, so "new student" and "loaded student" are the same shape. */
@@ -176,6 +184,18 @@ export function emptyStudent(): Student {
 export type { TimetableCell, TimetablePeriod } from "./timetable";
 export type { LessonPlan } from "./plans";
 export type { AgendaNote } from "./agenda";
+
+/**
+ * M4's records live beside their own selectors too — the attendance mark next
+ * to the rule that builds a month grid out of actual dates, the incident next
+ * to the rule that makes it follow the student rather than a class, and the
+ * support plan next to the overview that merges it with the card's own flags.
+ * Re-exported for the same reason as the others.
+ */
+export type { AbsenceEvent, AttendanceMark } from "./attendance";
+export type { Incident } from "./behaviour";
+export type { SupportGoal, SupportPlan } from "./support";
+export type { SenStatus } from "../i18n/vocabularies";
 
 export function emptyClass(): SchoolClass {
   return {

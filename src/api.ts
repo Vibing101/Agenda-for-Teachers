@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  AbsenceEvent,
   AgendaNote,
   AnnualGoal,
+  AttendanceMark,
   ClassGrading,
   Enrollment,
   GradeColumn,
@@ -10,12 +12,15 @@ import type {
   GradingPeriod,
   Holiday,
   ImportantDate,
+  Incident,
   LessonPlan,
   Planner,
   SchoolClass,
   SchoolYear,
   Seat,
   Student,
+  SupportGoal,
+  SupportPlan,
   TimetableCell,
   TimetablePeriod,
 } from "./domain/types";
@@ -97,6 +102,33 @@ export const api = {
   /** Keyed by `(class, Monday)`, so this is an upsert with no id to hand back. */
   saveLessonPlan: (plan: LessonPlan) => invoke<Planner>("save_lesson_plan", { plan }),
   saveAgendaNote: (note: AgendaNote) => invoke<Planner>("save_agenda_note", { note }),
+
+  /**
+   * One cell of the monthly attendance grid, keyed by an actual date. An
+   * emptied cell is deleted rather than stored blank, backend-side.
+   *
+   * **This reaches the grid and nothing else.** The absence-event log below is
+   * independent of it by the spec's own repeated decision, so there is
+   * deliberately no call here that writes both.
+   */
+  saveAttendanceMark: (mark: AttendanceMark) => invoke<Planner>("save_attendance_mark", { mark }),
+
+  /** One line of the detailed register. Independent of the grid above. */
+  saveAbsenceEvent: (event: AbsenceEvent) => invoke<Planner>("save_absence_event", { event }),
+  deleteAbsenceEvent: (id: number) => invoke<Planner>("delete_absence_event", { id }),
+
+  saveIncident: (incident: Incident) => invoke<Planner>("save_incident", { incident }),
+  deleteIncident: (id: number) => invoke<Planner>("delete_incident", { id }),
+
+  saveSupportPlan: (plan: SupportPlan) => invoke<Planner>("save_support_plan", { plan }),
+  deleteSupportPlan: (id: number) => invoke<Planner>("delete_support_plan", { id }),
+
+  /**
+   * One goal inside a plan. Note that there is no path from here to the plan's
+   * teacher-written status — different command, different table.
+   */
+  saveSupportGoal: (goal: SupportGoal) => invoke<Planner>("save_support_goal", { goal }),
+  deleteSupportGoal: (id: number) => invoke<Planner>("delete_support_goal", { id }),
 
   /**
    * Writes one document into `exports/` as a real PDF and resolves with its

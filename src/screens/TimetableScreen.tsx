@@ -15,6 +15,13 @@
  * when it loses focus rather than on every keystroke, for the same reason the
  * gradebook's cells do: each commit is a write to the data file and a
  * fingerprint re-check.
+ *
+ * **There is no PDF export here and there will not be one.** The product owner
+ * ruled on 2026-09-21 that the timetable needs none, and that plain text to
+ * copy and paste is enough — a narrow exception to the spec's "PDF output"
+ * section, for this surface only. M4 carries that out: "Αντιγραφή ως κείμενο"
+ * below, and the removal of M3's on-screen note that said PDF export was not
+ * implemented "yet".
  */
 import { useState } from "react";
 import { api } from "../api";
@@ -25,6 +32,7 @@ import {
   formatHourTimes,
   periodsOf,
   resolveHour,
+  timetableAsText,
   type TimetableCell,
   type TimetablePeriod,
 } from "../domain/timetable";
@@ -38,6 +46,20 @@ export default function TimetableScreen({ planner, run }: { planner: Planner; ru
   const periods = periodsOf(planner);
   /** Which cell is open for editing, as `periodId:weekday`. */
   const [openCell, setOpenCell] = useState<string | null>(null);
+  /** What the copy button last reported, so the teacher knows it worked. */
+  const [copied, setCopied] = useState<"done" | "failed" | null>(null);
+
+  async function copyAsText() {
+    const text = timetableAsText(planner, (day) => t(weekdayLabel(day)), t("timetable.hour"));
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied("done");
+    } catch {
+      // A webview can refuse the clipboard; say so rather than looking as if
+      // it worked. The grid is still on screen to select by hand.
+      setCopied("failed");
+    }
+  }
 
   return (
     <>
@@ -114,7 +136,15 @@ export default function TimetableScreen({ planner, run }: { planner: Planner; ru
               </tbody>
             </table>
           </div>
-          <p className="note">{t("timetable.printLater")}</p>
+          <p className="intro">{t("timetable.copyIntro")}</p>
+          <div className="actions">
+            <Button labelId="timetable.copy" onClick={copyAsText} />
+          </div>
+          {copied && (
+            <p className="message" role="status">
+              {t(copied === "done" ? "timetable.copied" : "timetable.copyFailed")}
+            </p>
+          )}
         </Panel>
       )}
     </>

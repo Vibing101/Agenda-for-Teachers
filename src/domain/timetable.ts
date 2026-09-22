@@ -176,3 +176,66 @@ export function formatHourTimes(period: TimetablePeriod): string {
   if (from && to) return `${from} – ${to}`;
   return from || to;
 }
+
+/**
+ * The whole timetable as a plain-text grid, for the "copy as text" button.
+ *
+ * **This is what the timetable has instead of a PDF export.** The product owner
+ * ruled on 2026-09-21 that the timetable needs no PDF at all and that plain
+ * text in the app, to copy and paste, is enough — a narrow exception to the
+ * spec's "PDF output" section, for this one surface. M3 was already merged when
+ * that landed, so it is built here.
+ *
+ * Columns are padded to a common width so the grid still lines up when it is
+ * pasted into an email or a document in a monospaced font, and degrades to
+ * something readable when it is not. Labels arrive from the caller rather than
+ * being looked up here, so this module stays free of the string table.
+ *
+ * @param weekdayName Renders a weekday number as the teacher reads it.
+ * @param hourHeading The heading over the first column ("Ώρα").
+ */
+export function timetableAsText(
+  planner: Planner,
+  weekdayName: (weekday: number) => string,
+  hourHeading: string,
+): string {
+  const periods = periodsOf(planner);
+  if (periods.length === 0) return "";
+
+  const weekdays = [1, 2, 3, 4, 5, 6];
+  const header = [hourHeading, ...weekdays.map(weekdayName)];
+
+  const rows = periods.map((period) => {
+    const times = formatHourTimes(period);
+    const name = period.name.trim();
+    const label = [name, times].filter(Boolean).join(" ");
+    const cells = weekdays.map((weekday) => {
+      const cell = cellAt(planner, period.id, weekday);
+      if (!cell) return "";
+      const hour = resolveHour(planner, period, cell);
+      // The class first, then what distinguishes the hour — the same order the
+      // grid on screen reads in.
+      return [
+        hour.schoolClass?.name.trim(),
+        hour.subject,
+        hour.room,
+        cell.duty.trim(),
+        cell.notes.trim(),
+      ]
+        .filter((part) => part)
+        .join(" · ");
+    });
+    return [label, ...cells];
+  });
+
+  const widths = header.map((_, column) =>
+    Math.max(header[column].length, ...rows.map((row) => row[column].length)),
+  );
+  const line = (cells: string[]) =>
+    cells
+      .map((cell, i) => cell.padEnd(widths[i]))
+      .join("  ")
+      .trimEnd();
+
+  return [line(header), ...rows.map(line)].join("\n");
+}
