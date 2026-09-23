@@ -21,19 +21,22 @@ const { emptyPlanner } = await import("../helpers/fakeBackend");
 const { supportPlanner, A1, ELENI, MARIA } = await import("../helpers/supportFixture");
 const { default: BehaviourScreen } = await import("../../src/screens/BehaviourScreen");
 
+/** The day the shell hands down. No screen reads the clock itself. */
+const TODAY = "2026-11-16";
+
 describe("the incident log", () => {
   beforeEach(() => {
     invoke.mockReset();
   });
 
   it("asks for a student before offering to record anything", () => {
-    renderScreen(BehaviourScreen, emptyPlanner(), invoke);
+    renderScreen(BehaviourScreen, emptyPlanner(), invoke, { today: TODAY });
     expect(screen.getByText(/Δεν υπάρχει ακόμη μαθητής/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Νέο περιστατικό" })).toBeDisabled();
   });
 
   it("lists every entry newest first, with the source register's own fields", () => {
-    renderScreen(BehaviourScreen, supportPlanner(), invoke);
+    renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
     expect(screen.getByText("3 περιστατικά")).toBeInTheDocument();
 
     const first = within(screen.getByRole("group", { name: "Περιστατικό 1" }));
@@ -46,7 +49,7 @@ describe("the incident log", () => {
   });
 
   it("keeps the class optional, as the source's Τάξη column is", () => {
-    renderScreen(BehaviourScreen, supportPlanner(), invoke);
+    renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
     // The 30.09 entry names no class.
     const third = within(screen.getByRole("group", { name: "Περιστατικό 3" }));
     expect(third.getByLabelText("Ημερομηνία")).toHaveValue("2026-09-30");
@@ -55,7 +58,7 @@ describe("the incident log", () => {
 
   it("follows the student: filtering by either of her classes finds her entries", async () => {
     const user = userEvent.setup();
-    renderScreen(BehaviourScreen, supportPlanner(), invoke);
+    renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
 
     // Ελένη is in Α1 and Β2. Her Α1-recorded entry and her class-less entry are
     // hers from both, so filtering by Β2 finds them even though neither names Β2.
@@ -69,7 +72,7 @@ describe("the incident log", () => {
 
   it("filters by student without changing what is stored", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(BehaviourScreen, supportPlanner(), invoke);
+    const backend = renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
     const before = structuredClone(backend.planner.incidents);
 
     await user.selectOptions(screen.getByLabelText("Φίλτρο μαθητή"), String(MARIA));
@@ -84,7 +87,7 @@ describe("the incident log", () => {
 
   it("says so when a filter matches nothing, rather than looking empty", async () => {
     const user = userEvent.setup();
-    renderScreen(BehaviourScreen, supportPlanner(), invoke);
+    renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
     // Κώστας has no incidents at all.
     await user.selectOptions(screen.getByLabelText("Φίλτρο μαθητή"), "24");
     await waitFor(() =>
@@ -95,7 +98,7 @@ describe("the incident log", () => {
   /** **The "new record" trap, from a planner that already holds records.** */
   it("leaves every existing entry byte-for-byte unchanged when a new one is added", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(BehaviourScreen, supportPlanner(), invoke);
+    const backend = renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
     const before = structuredClone(backend.planner.incidents);
     expect(before).toHaveLength(3);
 
@@ -113,7 +116,7 @@ describe("the incident log", () => {
 
   it("writes an edited entry to that entry only", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(BehaviourScreen, supportPlanner(), invoke);
+    const backend = renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
     const before = structuredClone(backend.planner.incidents);
 
     const first = within(screen.getByRole("group", { name: "Περιστατικό 1" }));
@@ -141,7 +144,7 @@ describe("the incident log", () => {
 
   it("ticks the parents-informed flag on the entry it belongs to", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(BehaviourScreen, supportPlanner(), invoke);
+    const backend = renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
 
     const second = within(screen.getByRole("group", { name: "Περιστατικό 2" }));
     await user.click(second.getByLabelText("Γονείς ενημερώθηκαν"));
@@ -154,12 +157,56 @@ describe("the incident log", () => {
 
   it("deletes one entry and leaves the rest", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(BehaviourScreen, supportPlanner(), invoke);
+    const backend = renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
 
     const first = within(screen.getByRole("group", { name: "Περιστατικό 1" }));
     await user.click(first.getByRole("button", { name: "Διαγραφή περιστατικού" }));
 
     await waitFor(() => expect(backend.planner.incidents).toHaveLength(2));
     expect(backend.planner.incidents.map((i) => i.id).sort()).toEqual([72, 73]);
+  });
+
+  /**
+   * The sheet is the screen's, not a second opinion about it.
+   *
+   * M4.5's second acceptance criterion is that a printed sheet carries the same
+   * records the screen shows for the same filter. The screen and the sheet read
+   * one selector, so this test is the check on the wiring rather than on the
+   * rule — it drives the real filter and reads what actually reached
+   * `export_pdf`.
+   */
+  it("exports exactly the entries the filter is showing, and names the filter", async () => {
+    const user = userEvent.setup();
+    renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
+
+    await user.selectOptions(screen.getByLabelText("Φίλτρο μαθητή"), String(ELENI));
+    await user.click(screen.getByRole("button", { name: "Εξαγωγή PDF περιστατικών" }));
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("export_pdf", expect.objectContaining({})),
+    );
+    const call = invoke.mock.calls.find(([command]) => command === "export_pdf")!;
+    const { html, fileName, landscape } = call[1] as Record<string, unknown>;
+
+    // Her two entries are on the sheet…
+    expect(html).toContain("Διαφωνία στο διάλειμμα");
+    expect(html).toContain("Καθυστερημένη εργασία");
+    // …and Μαρία's, which the filter hides, is not.
+    expect(html).not.toContain("Βοήθησε συμμαθήτρια");
+    // The header says what the register is a register of.
+    expect(html).toContain("Ελένη Παπαδοπούλου");
+    expect(fileName).toBe("Διαγωγή και περιστατικά — Όλα — 16.11.2026");
+    expect(landscape).toBe(true);
+  });
+
+  it("reports where the file was written", async () => {
+    const user = userEvent.setup();
+    renderScreen(BehaviourScreen, supportPlanner(), invoke, { today: TODAY });
+
+    await user.click(screen.getByRole("button", { name: "Εξαγωγή PDF περιστατικών" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("exports/Διαγωγή και περιστατικά"),
+    );
   });
 });

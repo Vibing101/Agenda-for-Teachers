@@ -86,6 +86,40 @@ export function incidentsOfClass(planner: Planner, classId: number): Incident[] 
   return allIncidents(planner).filter((i) => roster.has(i.student_id));
 }
 
+/**
+ * What the register is narrowed to. `0` means "all" on either axis, so a
+ * filter never hides a row it cannot name.
+ */
+export interface IncidentFilter {
+  studentId: number;
+  classId: number;
+}
+
+export const NO_INCIDENT_FILTER: IncidentFilter = { studentId: 0, classId: 0 };
+
+/**
+ * The entries a filtered register shows.
+ *
+ * **This is the one definition of "what is on screen", and the printed sheet
+ * reads it too.** M4.5's second acceptance criterion is that a printed sheet
+ * carries the same records the screen shows for the same filter; the way to
+ * hold that is to have one function decide, not two that agree today.
+ *
+ * Filtering by class matches the class's *roster*, not the entry's own class
+ * link — an incident logged in Α1 is still this student's incident when she is
+ * looked at from Β2, which is what "cross-class" means.
+ */
+export function filteredIncidents(planner: Planner, filter: IncidentFilter): Incident[] {
+  const roster = new Set(
+    planner.enrollments.filter((e) => e.class_id === filter.classId).map((e) => e.student_id),
+  );
+  return allIncidents(planner).filter((i) => {
+    if (filter.studentId && i.student_id !== filter.studentId) return false;
+    if (filter.classId && !roster.has(i.student_id)) return false;
+    return true;
+  });
+}
+
 /** The student an entry is about, or `null` if she has since been deleted. */
 export function studentOf(planner: Planner, incident: Incident): Student | null {
   return planner.students.find((s) => s.id === incident.student_id) ?? null;

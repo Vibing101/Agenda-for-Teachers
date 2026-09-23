@@ -30,6 +30,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import { ExportButton } from "../components/ExportButton";
 import {
   Button,
   DeferredTextField,
@@ -52,9 +53,19 @@ import {
 import type { Planner, Student } from "../domain/types";
 import { useTranslate } from "../i18n/useTranslate";
 import { GOAL_PROGRESS, goalProgressLabel, senStatusLabel } from "../i18n/vocabularies";
+import { supportOverviewHtml } from "../print/supportSheet";
 import type { Run } from "./types";
 
-export default function SupportScreen({ planner, run }: { planner: Planner; run: Run }) {
+export default function SupportScreen({
+  planner,
+  run,
+  today,
+}: {
+  planner: Planner;
+  run: Run;
+  /** The day the shell read from the calendar. Never read here directly. */
+  today: string;
+}) {
   const [studentId, setStudentId] = useState<number | null>(planner.students[0]?.id ?? null);
   useEffect(() => {
     if (planner.students.length === 0) setStudentId(null);
@@ -68,7 +79,7 @@ export default function SupportScreen({ planner, run }: { planner: Planner; run:
   return (
     <>
       <Plans planner={planner} run={run} student={student} onPickStudent={setStudentId} />
-      <Overview planner={planner} />
+      <Overview planner={planner} today={today} />
     </>
   );
 }
@@ -372,12 +383,22 @@ function GoalRow({ goal, index, run }: { goal: SupportGoal; index: number; run: 
  * Computed live, never stored, which is what makes a change made in one class
  * appear here at once.
  */
-function Overview({ planner }: { planner: Planner }) {
+function Overview({ planner, today }: { planner: Planner; today: string }) {
   const t = useTranslate();
   const rows = supportOverview(planner);
 
   return (
-    <Panel headingId="overview.heading" introId="overview.intro">
+    <Panel
+      headingId="overview.heading"
+      introId="overview.intro"
+      actions={
+        <ExportButton
+          labelId="overview.export"
+          fileName={t("overview.fileName", { date: formatDate(today) })}
+          html={() => supportOverviewHtml(t, planner, today)}
+        />
+      }
+    >
       {rows.length === 0 ? (
         <p className="muted">{t("overview.none")}</p>
       ) : (

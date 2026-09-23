@@ -19,53 +19,76 @@
  */
 import { useMemo, useState } from "react";
 import { api } from "../api";
+import { ExportButton } from "../components/ExportButton";
 import { Button, CheckboxField, DeferredTextField, Panel } from "../components/Fields";
 import {
   allIncidents,
   classOf,
   emptyIncident,
+  filteredIncidents,
   studentOf,
   type Incident,
 } from "../domain/behaviour";
+import { formatDate } from "../domain/dates";
 import type { Planner } from "../domain/types";
 import { useTranslate } from "../i18n/useTranslate";
+import { incidentSheetHtml } from "../print/behaviourSheet";
 import type { Run } from "./types";
 
-export default function BehaviourScreen({ planner, run }: { planner: Planner; run: Run }) {
+export default function BehaviourScreen({
+  planner,
+  run,
+  today,
+}: {
+  planner: Planner;
+  run: Run;
+  /** The day the shell read from the calendar. Never read here directly. */
+  today: string;
+}) {
   const t = useTranslate();
   /** 0 means "all", so a filter never hides a row it cannot name. */
   const [studentFilter, setStudentFilter] = useState(0);
   const [classFilter, setClassFilter] = useState(0);
 
-  const shown = useMemo(() => {
-    const roster = new Set(
-      planner.enrollments.filter((e) => e.class_id === classFilter).map((e) => e.student_id),
-    );
-    return allIncidents(planner).filter((i) => {
-      if (studentFilter && i.student_id !== studentFilter) return false;
-      // Filtering by class matches the class's *roster*, not the entry's own
-      // class link — an incident logged in Α1 is still this student's incident
-      // when she is looked at from Β2, which is what "cross-class" means.
-      if (classFilter && !roster.has(i.student_id)) return false;
-      return true;
-    });
-  }, [planner, studentFilter, classFilter]);
+  const filter = useMemo(
+    () => ({ studentId: studentFilter, classId: classFilter }),
+    [studentFilter, classFilter],
+  );
+  /**
+   * The rows on screen — and, through the same selector, the rows on the
+   * printed sheet. One definition, so the paper cannot disagree with the
+   * screen for the same filter.
+   */
+  const shown = useMemo(() => filteredIncidents(planner, filter), [planner, filter]);
 
   const all = allIncidents(planner);
+  const filterClass = planner.classes.find((c) => c.id === classFilter);
 
   return (
     <Panel
       headingId="behaviour.heading"
       introId="behaviour.intro"
       actions={
-        <Button
-          labelId="behaviour.new"
-          variant="primary"
-          disabled={planner.students.length === 0}
-          onClick={() =>
-            run(() => api.saveIncident(emptyIncident(studentFilter || planner.students[0].id)))
-          }
-        />
+        <>
+          <Button
+            labelId="behaviour.new"
+            variant="primary"
+            disabled={planner.students.length === 0}
+            onClick={() =>
+              run(() => api.saveIncident(emptyIncident(studentFilter || planner.students[0].id)))
+            }
+          />
+          {/* Prints exactly what the filter above is showing, and names that
+              filter on the sheet's own header. */}
+          <ExportButton
+            labelId="behaviour.export"
+            fileName={t("behaviour.fileName", {
+              scope: filterClass?.name.trim() || t("print.filterAll"),
+              date: formatDate(today),
+            })}
+            html={() => incidentSheetHtml(t, planner, filter, today)}
+          />
+        </>
       }
     >
       {planner.students.length === 0 ? (

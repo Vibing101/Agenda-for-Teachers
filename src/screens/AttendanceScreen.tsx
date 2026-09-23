@@ -23,6 +23,7 @@
  */
 import { useState } from "react";
 import { api } from "../api";
+import { ExportButton } from "../components/ExportButton";
 import { Button, CheckboxField, DeferredTextField, Panel, SelectField } from "../components/Fields";
 import {
   emptyEvent,
@@ -49,6 +50,7 @@ import {
   type AbsenceKind,
   type AttendanceState,
 } from "../i18n/vocabularies";
+import { absenceRegisterHtml, monthCardHtml } from "../print/attendanceSheets";
 import type { Run } from "./types";
 
 export default function AttendanceScreen({
@@ -83,10 +85,13 @@ export default function AttendanceScreen({
         run={run}
         schoolClass={schoolClass}
         month={month}
+        today={today}
         onPickClass={setClassId}
         onPickMonth={setMonth}
       />
-      {schoolClass && <Register planner={planner} run={run} schoolClass={schoolClass} />}
+      {schoolClass && (
+        <Register planner={planner} run={run} schoolClass={schoolClass} today={today} />
+      )}
     </>
   );
 }
@@ -125,6 +130,7 @@ function MonthGrid({
   run,
   schoolClass,
   month,
+  today,
   onPickClass,
   onPickMonth,
 }: {
@@ -132,6 +138,7 @@ function MonthGrid({
   run: Run;
   schoolClass: SchoolClass | null;
   month: string;
+  today: string;
   onPickClass: (id: number) => void;
   onPickMonth: (date: string) => void;
 }) {
@@ -140,7 +147,25 @@ function MonthGrid({
   const rows = schoolClass ? monthRows(planner, schoolClass.id, month) : [];
 
   return (
-    <Panel headingId="attendance.heading" introId="attendance.intro">
+    <Panel
+      headingId="attendance.heading"
+      introId="attendance.intro"
+      actions={
+        // The class and the month on show, printed as the source's own card.
+        // It carries no figure from the register below it, and says so.
+        schoolClass && (
+          <ExportButton
+            labelId="attendance.export"
+            fileName={t("attendance.fileName", {
+              class: schoolClass.name.trim() || t("common.unnamed"),
+              month: `${t(monthLabel(monthOf(month)))} ${month.slice(0, 4)}`,
+              date: formatDate(today),
+            })}
+            html={() => monthCardHtml(t, planner, schoolClass.id, month, today)}
+          />
+        )
+      }
+    >
       <div className="row">
         <ClassPicker planner={planner} selected={schoolClass} onPick={onPickClass} />
         <div className="field">
@@ -306,10 +331,12 @@ function Register({
   planner,
   run,
   schoolClass,
+  today,
 }: {
   planner: Planner;
   run: Run;
   schoolClass: SchoolClass;
+  today: string;
 }) {
   const t = useTranslate();
   const events = eventsOfClass(planner, schoolClass.id);
@@ -322,14 +349,26 @@ function Register({
       headingId="absences.heading"
       introId="absences.intro"
       actions={
-        <Button
-          labelId="absences.new"
-          variant="primary"
-          disabled={roster.length === 0}
-          onClick={() =>
-            run(() => api.saveAbsenceEvent(emptyEvent(schoolClass.id, roster[0]?.id ?? 0)))
-          }
-        />
+        <>
+          <Button
+            labelId="absences.new"
+            variant="primary"
+            disabled={roster.length === 0}
+            onClick={() =>
+              run(() => api.saveAbsenceEvent(emptyEvent(schoolClass.id, roster[0]?.id ?? 0)))
+            }
+          />
+          {/* The register's own sheet, over the register's own rows. Nothing on
+              it comes from the month card above. */}
+          <ExportButton
+            labelId="absences.export"
+            fileName={t("absences.fileName", {
+              class: schoolClass.name.trim() || t("common.unnamed"),
+              date: formatDate(today),
+            })}
+            html={() => absenceRegisterHtml(t, planner, schoolClass.id, today)}
+          />
+        </>
       }
     >
       {roster.length === 0 ? (

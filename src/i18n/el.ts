@@ -553,6 +553,52 @@ export const el = {
   "overview.merged":
     "Η επισκόπηση συνδυάζει το πεδίο ειδικών αναγκών της καρτέλας, τη σήμανση στήριξης κάθε τμήματος, και την κατάσταση και την επόμενη αξιολόγηση κάθε πλάνου.",
 
+  /* ---------------------------------------------- M4.5 printed registers --- */
+
+  "print.yes": "Ναι",
+  "print.filterAll": "Όλα",
+  "print.entry": "{student}, {date}: {text}",
+  "print.entryNoDate": "{student}: {text}",
+  "print.boxEmpty": "Συμπληρώνεται με το χέρι.",
+
+  "behaviour.export": "Εξαγωγή PDF περιστατικών",
+  "behaviour.fileName": "Διαγωγή και περιστατικά — {scope} — {date}",
+  "behaviour.printSubtitle":
+    "Σημαντικά περιστατικά και σημειώσεις · κατάλληλο για επίσημη τεκμηρίωση",
+  "behaviour.printFilterStudent": "ΜΑΘΗΤΗΣ",
+  "behaviour.printFilterClass": "ΤΑΞΗ",
+  "behaviour.printCount": "ΚΑΤΑΧΩΡΙΣΕΙΣ",
+  "behaviour.printExtraNotes": "ΠΡΟΣΘΕΤΕΣ ΣΗΜΕΙΩΣΕΙΣ",
+  "behaviour.printNote":
+    "Το φύλλο περιέχει ακριβώς τις καταχωρίσεις που δείχνει η οθόνη με το ίδιο φίλτρο.",
+
+  "absences.export": "Εξαγωγή PDF μητρώου",
+  "absences.fileName": "Απουσίες και καθυστερήσεις — {class} — {date}",
+  "absences.printSubtitle": "Μητρώο · μία γραμμή για κάθε απουσία ή καθυστέρηση",
+  "absences.printNo": "αρ.",
+  "absences.printJustified": "Δικ.",
+  "absences.printFrequent": "ΠΡΟΣΟΧΗ · ΣΥΧΝΕΣ ΑΠΟΥΣΙΕΣ",
+  "absences.printFollowUp": "ΓΟΝΕΙΣ ΕΝΗΜΕΡΩΘΗΚΑΝ · ΕΝΕΡΓΕΙΕΣ",
+  "absences.printNote":
+    "Το μητρώο είναι ανεξάρτητο από την καρτέλα του μήνα· κανένα νούμερο εδώ δεν προκύπτει από εκείνη.",
+
+  "attendance.export": "Εξαγωγή PDF καρτέλας μήνα",
+  "attendance.fileName": "Απουσίες του μήνα — {class} — {month} — {date}",
+  "attendance.printMonth": "ΜΗΝΑΣ",
+  "attendance.printNote":
+    "Η καρτέλα του μήνα είναι ανεξάρτητη από το μητρώο απουσιών· κανένα σύνολο εδώ δεν προκύπτει από εκείνο.",
+  "attendance.printSymbols": "Σύμβολα: {key}",
+
+  "overview.export": "Εξαγωγή PDF επισκόπησης",
+  "overview.fileName": "Στήριξη και προσαρμογές — {date}",
+  "overview.printSubtitle": "Μαθητές με προσαρμογές ή δικό τους πλάνο · ετήσια επισκόπηση",
+  "overview.printStudents": "ΜΑΘΗΤΕΣ",
+  "overview.printPlan": "Πλάνο",
+  "overview.printAssessment": "Αξιολόγηση",
+  "overview.printCollaboration": "ΣΥΝΕΡΓΑΣΙΑ ΚΑΙ ΣΥΜΒΟΥΛΕΥΤΙΚΗ",
+  "overview.printNote":
+    "Η κατάσταση κάθε πλάνου τυπώνεται όπως τη γράψατε· η εφαρμογή δεν την υπολογίζει από τους στόχους.",
+
   "timetable.copy": "Αντιγραφή ως κείμενο",
   "timetable.copied": "Το πρόγραμμα αντιγράφηκε ως απλό κείμενο.",
   "timetable.copyFailed": "Η αντιγραφή δεν ήταν δυνατή.",
@@ -571,6 +617,10 @@ export const el = {
 
   "vocab.absenceKind.absence": "Απουσία",
   "vocab.absenceKind.late": "Καθυστέρηση",
+
+  /* The abbreviations the source register heads its two tick columns with. */
+  "vocab.absenceKindShort.absence": "Απ.",
+  "vocab.absenceKindShort.late": "Καθ.",
 
   "vocab.followUp.pending": "Εκκρεμεί",
   "vocab.followUp.informed": "Ενημερώθηκαν",

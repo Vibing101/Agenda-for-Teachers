@@ -356,3 +356,84 @@ describe("the grid and the register do not touch each other", () => {
     expect(screen.getByText(/ανεξάρτητα μεταξύ τους/)).toBeInTheDocument();
   });
 });
+
+describe("the two printed attendance sheets", () => {
+  beforeEach(() => {
+    invoke.mockReset();
+  });
+
+  /**
+   * Both panels export, and neither sheet may carry a figure from the other —
+   * M4.5's fourth acceptance criterion, driven through the real screen.
+   *
+   * The pair the fixture is built around is the check: Ελένη is `present` in
+   * the card on 05.11 and carries a logged late arrival on 05.11 in the
+   * register. Each sheet prints its own record and says nothing about the
+   * other's.
+   */
+  it("exports the month card for the class and month on show", async () => {
+    const user = userEvent.setup();
+    renderScreen(AttendanceScreen, supportPlanner(), invoke, { today: IN_NOVEMBER });
+
+    await user.click(screen.getByRole("button", { name: "Εξαγωγή PDF καρτέλας μήνα" }));
+
+    await waitFor(() =>
+      expect(invoke.mock.calls.some(([command]) => command === "export_pdf")).toBe(true),
+    );
+    const { html, fileName } = invoke.mock.calls.find(
+      ([command]) => command === "export_pdf",
+    )![1] as Record<string, unknown>;
+
+    expect(fileName).toBe("Απουσίες του μήνα — Α1 — Νοέμβριος 2026 — 16.11.2026");
+    expect(html).toContain("Ελένη Παπαδοπούλου");
+    // Nothing from the register below it reaches the card.
+    expect(html).not.toContain("Καθυστέρηση λεωφορείου");
+    expect(html).not.toContain("Τρίτη φορά αυτόν τον μήνα");
+  });
+
+  it("exports the register for the class on show, month-independent", async () => {
+    const user = userEvent.setup();
+    renderScreen(AttendanceScreen, supportPlanner(), invoke, { today: IN_NOVEMBER });
+
+    await user.click(screen.getByRole("button", { name: "Εξαγωγή PDF μητρώου" }));
+
+    await waitFor(() =>
+      expect(invoke.mock.calls.some(([command]) => command === "export_pdf")).toBe(true),
+    );
+    const { html, fileName } = invoke.mock.calls.find(
+      ([command]) => command === "export_pdf",
+    )![1] as Record<string, unknown>;
+
+    expect(fileName).toBe("Απουσίες και καθυστερήσεις — Α1 — 16.11.2026");
+    expect(html).toContain("Καθυστέρηση λεωφορείου");
+    // The register is not scoped to the month the card above is showing.
+    expect(html).toContain("20.10.2026");
+    // The event's own per-event notes land in the source page's two boxes.
+    expect(html).toContain("ΠΡΟΣΟΧΗ · ΣΥΧΝΕΣ ΑΠΟΥΣΙΕΣ");
+    expect(html).toContain("Τρίτη φορά αυτόν τον μήνα");
+  });
+
+  it("keeps each sheet's version of the contested day", async () => {
+    const user = userEvent.setup();
+    renderScreen(AttendanceScreen, supportPlanner(), invoke, { today: IN_NOVEMBER });
+
+    await user.click(screen.getByRole("button", { name: "Εξαγωγή PDF καρτέλας μήνα" }));
+    await waitFor(() =>
+      expect(invoke.mock.calls.some(([command]) => command === "export_pdf")).toBe(true),
+    );
+    await user.click(screen.getByRole("button", { name: "Εξαγωγή PDF μητρώου" }));
+    await waitFor(() =>
+      expect(invoke.mock.calls.filter(([command]) => command === "export_pdf")).toHaveLength(2),
+    );
+
+    const [card, register] = invoke.mock.calls
+      .filter(([command]) => command === "export_pdf")
+      .map(([, args]) => (args as Record<string, unknown>).html as string);
+
+    // The card prints her as present on 05.11; the register prints the late
+    // arrival on 05.11. Both, at once, from one screen.
+    expect(card).not.toContain("08:35");
+    expect(register).toContain("08:35");
+    expect(register).toContain("05.11.2026");
+  });
+});

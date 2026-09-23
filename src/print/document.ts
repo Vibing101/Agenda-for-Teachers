@@ -29,6 +29,35 @@ export interface PrintCell {
   muted?: boolean;
   /** A wider column — a name or a comment rather than a mark. */
   wide?: boolean;
+  /**
+   * An explicit column width, as a CSS length or percentage.
+   *
+   * Set on a **header** cell: the table is laid out `fixed`, so the first row
+   * decides every column's width and the rest of the sheet follows. It is what
+   * makes a 31-day attendance grid fit across a landscape sheet instead of
+   * letting the engine give a one-character column the same room as a name.
+   */
+  width?: string;
+}
+
+/**
+ * A boxed area under the table, matching the source pages' own captioned
+ * boxes — "ΠΡΟΣΘΕΤΕΣ ΣΗΜΕΙΩΣΕΙΣ" on the incident register, "ΠΡΟΣΟΧΗ · ΣΥΧΝΕΣ
+ * ΑΠΟΥΣΙΕΣ" and "ΓΟΝΕΙΣ ΕΝΗΜΕΡΩΘΗΚΑΝ · ΕΝΕΡΓΕΙΕΣ" on the absence register,
+ * "ΣΥΝΕΡΓΑΣΙΑ ΚΑΙ ΣΥΜΒΟΥΛΕΥΤΙΚΗ" on the support overview.
+ *
+ * A box either **lists what is stored** — each line copied verbatim from a
+ * record's own field, never counted, summarised or inferred — or is left
+ * **blank**, as a ruled area the teacher writes in by hand. Blank is what a box
+ * gets when the app stores nothing that belongs in it: M4.5 adds no fields, so
+ * a box with no source stays a box on the paper rather than becoming one.
+ */
+export interface PrintBox {
+  caption: string;
+  /** One line per stored entry, already worded by the sheet that built it. */
+  lines: string[];
+  /** Printed as empty ruled space when there is nothing stored for it. */
+  emptyText?: string;
 }
 
 export interface PrintTable {
@@ -45,6 +74,18 @@ export interface PrintDocument {
   table: PrintTable;
   /** The small print under the table, if the source sheet has one. */
   note?: string;
+  /** The source page's own captioned boxes, under the table. */
+  boxes?: PrintBox[];
+  /**
+   * A tighter table, for a sheet with far more columns than words in them —
+   * the monthly attendance card, whose cells hold one character each and whose
+   * columns number up to 31 plus four totals.
+   *
+   * It is emitted into the per-document style block rather than as a class,
+   * because the paginator rebuilds each page's table from scratch and only the
+   * stylesheet survives that.
+   */
+  dense?: boolean;
   footer: string;
 }
 
@@ -90,7 +131,8 @@ function cell(c: PrintCell, tag: "td" | "th"): string {
     .filter(Boolean)
     .join(" ");
   const attr = classes ? ` class="${classes}"` : "";
-  return `<${tag}${attr}>${escapeHtml(c.text)}</${tag}>`;
+  const width = c.width ? ` style="width:${escapeHtml(c.width)}"` : "";
+  return `<${tag}${attr}${width}>${escapeHtml(c.text)}</${tag}>`;
 }
 
 /**
@@ -148,6 +190,9 @@ const STYLES = `
     text-align: left;
     vertical-align: top;
     overflow-wrap: anywhere;
+    /* A cell may stack several stored values, one per line — a student's two
+       plans, say — and a teacher's own multi-line note keeps its lines. */
+    white-space: pre-line;
   }
   thead th {
     background: #eee;
@@ -185,6 +230,34 @@ const STYLES = `
     font-size: 7.5pt;
     color: #444;
   }
+  /* The source pages' captioned boxes, under the table. They travel inside
+     <footer>, which is what the paginator carries to the last page (or on to a
+     page of its own when it will not fit) — so a box is never cut in half and
+     never silently dropped. */
+  .boxes {
+    display: flex;
+    gap: 4mm;
+    margin-top: 3mm;
+  }
+  .box {
+    flex: 1;
+    border: 0.4pt solid #666;
+    padding: 1.4mm 1.6mm;
+    min-height: 14mm;
+  }
+  .box .caption {
+    display: block;
+    font-size: 7pt;
+    letter-spacing: 0.08em;
+    color: #444;
+    margin-bottom: 1mm;
+  }
+  .box ul {
+    margin: 0;
+    padding-left: 4mm;
+    font-size: 7.5pt;
+  }
+  .box .empty { color: #999; font-size: 7.5pt; }
   .footer {
     margin-top: 2mm;
     font-size: 7pt;
@@ -221,15 +294,37 @@ export function renderPrintDocument(doc: PrintDocument, landscape = true): strin
   const geometry =
     `data-page-width="${width}" data-page-height="${height}" data-page-margin="${margin}"`;
 
+  const boxes = (doc.boxes ?? []).length
+    ? `<div class="boxes">` +
+      doc
+        .boxes!.map(
+          (b) =>
+            `<div class="box"><span class="caption">${escapeHtml(b.caption)}</span>` +
+            (b.lines.length
+              ? `<ul>${b.lines.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>`
+              : `<span class="empty">${escapeHtml(b.emptyText ?? "")}</span>`) +
+            `</div>`,
+        )
+        .join("") +
+      `</div>`
+    : "";
+
+  const dense = doc.dense
+    ? `
+  th, td { padding: 0.7mm 0.5mm; font-size: 7.5pt; }
+  thead th { font-size: 7pt; }`
+    : "";
+
   return [
     `<style>${STYLES}
-  .page { width: ${width}px; height: ${height}px; padding: ${margin}px; }
+  .page { width: ${width}px; height: ${height}px; padding: ${margin}px; }${dense}
 </style>`,
     `<div id="sheet" ${geometry}>`,
     `<header><h1>${escapeHtml(doc.title)}</h1>`,
     `<div class="meta">${meta}</div></header>`,
     `<table><thead>${head}${subHead}</thead><tbody>${body}</tbody></table>`,
     `<footer>`,
+    boxes,
     doc.note ? `<p class="note">${escapeHtml(doc.note)}</p>` : "",
     `<p class="footer">${escapeHtml(doc.footer)}</p>`,
     `</footer>`,

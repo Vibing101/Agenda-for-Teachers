@@ -106,6 +106,41 @@ and drive it over SSH. You can do the full gate there, produce a real installer,
 and run the file-level cloud-folder checks including the online-only placeholder
 case. `WINDOWS_VM.md` has the commands.
 
+### Before any manual pass: confirm the build in front of you is yours
+
+Found at the M4.5 gate, after it produced a false bug report and cost an hour.
+
+**A stale build with the same bundle identifier silently shadows the one under
+test.** Every build of this app declares `CFBundleIdentifier`
+`gr.atzenta.teacher-planner`. On macOS, double-clicking a copy while *another*
+copy is running activates the running one instead — so at M4.5 a double-click of
+the M4.5 build in a Drive folder opened the **M0** build from `/Applications`,
+showing `M0 — shell & persistence` and `Schema version 1`. The M4.5 binary was
+byte-identical to the branch build and entirely innocent.
+
+Removing that copy was not enough: LaunchServices had accumulated **30
+registrations for the one identifier** — every cloud test folder from M0 to
+M4.5, every mounted `.dmg`, every build output, and the copy in the Trash. 23 of
+them pointed at paths that no longer existed.
+
+So:
+
+- **Check the app's own `Schema version` line against the milestone's
+  `user_version` before typing anything into it.** It is the cheapest possible
+  proof that the window in front of you is the build under test.
+- **Delete the previous milestone's test copies, and empty the Trash** — a
+  trashed bundle is still registered.
+- If a double-click opens the wrong build:
+  `lsregister -dump | grep -c "Teacher Planner.app"` measures it, and
+  `lsregister -kill -r -domain local -domain system -domain user` rebuilds the
+  database — at the cost of resetting the machine's "Open With" defaults, so ask
+  first. `lsregister` lives in
+  `/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/`.
+- **No automated step could have caught this**, which is why it survived four
+  gates: every scripted launch uses `open -a <full path>` or the binary path,
+  both of which resolve the bundle themselves. Only a human double-click goes
+  through the identifier.
+
 **Two things you cannot do from anywhere, and must hand back:**
 
 - **A genuine Explorer double-click, and therefore SmartScreen.** `Start-Process`

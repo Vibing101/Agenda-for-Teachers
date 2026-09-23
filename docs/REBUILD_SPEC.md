@@ -309,6 +309,10 @@ sequence.
 | `SupportPlan`'s "strengths & needs" | **Two fields, `strengths` and `needs`** (M4) | The spec names them as one phrase. Splitting loses nothing and merging would, and two boxes is what the teacher actually fills in. `next_review` is also a column, because the spec's overview line names "every plan's status and next review date" although its field list does not |
 | The timetable's "copy as text" and the removal of its PDF note | **Both done in M4**, as the carry-over from the product owner's 2026-09-21 ruling | M3 was already merged when the decision landed. `timetable.printLater` and the note rendering it are gone; `timetableAsText()` produces a column-aligned plain-text grid |
 | Whether M4's surfaces produce PDFs, and when | **Yes — and as their own milestone, `M4.5`, inserted between M4 and M5** (product owner, 2026-09-22). The incident log, the detailed absence register and the cross-class support overview each get a real PDF export. M4 merged without them, as its own scope line required | The spec promised these three in two places — module 2 calls the incident log and the support overview "both printable", and the "PDF output" section names "absence logs" and "support plans" — while M4's delivery-scope line named no PDF. M4 shipped its scope line exactly, per the M2/M3 precedent, and raised the conflict rather than silently resolving it. **The roadmap did not have an M4.5; this creates one**, rather than retrofitting M4 or enlarging M5, so the work gets its own gate and its own release note. **Whether the filled monthly attendance grid is a fourth sheet is left for M4.5 to settle and record**, because it is genuinely unclear: the "PDF output" section's "absence logs" could mean either register, and the *blank* attendance grid is already one of M7's 11 print forms |
+| **Whether the filled monthly attendance grid is a fourth printed sheet** | **Yes — it prints** (M4.5). The *filled* month card for a real class is a print view over live M4 data and exports as its own landscape A4 PDF from the Απουσίες screen. **M7 still owns the blank fillable form** of the same page, which is a different artefact: a standalone, nameable, saveable, reopenable form with no class behind it | The question the product owner left to M4.5. Three things decided it: the "PDF output" section's "absence logs" reads naturally as both registers; the screen would otherwise have an export button on its lower half and none on its upper, for the one table in the app most worth having on paper; and the widest table this app draws is exactly the one a teacher wants to carry rather than scroll. It costs no new machinery — one more document definition on M2's pagination. The printed card and the printed register are held independent of each other by the same construction the screens use, and tested to be insensitive to each other's rows |
+| How a printed sheet knows which records to carry | **It reads the same selector the screen renders from** (M4.5). The incident log's filter moved out of the screen into `domain/behaviour.ts` as `filteredIncidents()`, which both the screen and the sheet call; the filter is printed in the sheet's own header | M4.5's second acceptance criterion is that a sheet never disagrees with the screen it was printed from. Two functions that agree today are not that; one function is. It is also the spec's own rule that selection logic lives in `src/domain/`, not in a screen |
+| Where a source page's captioned boxes get their content | **From stored per-record fields, verbatim and attributed — or left blank as ruled space** (M4.5). The absence register's *ΠΡΟΣΟΧΗ · ΣΥΧΝΕΣ ΑΠΟΥΣΙΕΣ* and *ΓΟΝΕΙΣ ΕΝΗΜΕΡΩΘΗΚΑΝ · ΕΝΕΡΓΕΙΕΣ* boxes list each event's own `frequent_note` and `follow_up`; the support overview's *ΣΥΝΕΡΓΑΣΙΑ ΚΑΙ ΣΥΜΒΟΥΛΕΥΤΙΚΗ* box lists each plan's own `collaboration`; the incident register's *ΠΡΟΣΘΕΤΕΣ ΣΗΜΕΙΩΣΕΙΣ* box prints **blank**, because nothing is stored for it and M4.5 adds no field | The source gives these fields a box at the foot of the page where M4 stores them per record, following the spec's own field lists. Listing them verbatim keeps the sheet a transcription rather than a summary — nothing is counted, and the app never decides for itself that an absence is "frequent". A box with no stored source stays a box on the paper, as it is on the source's own page. **Flagged at M4.5 — see Open** |
+| Where the export button lives | **One shared `src/components/ExportButton.tsx`, taking the day as a prop** (M4.5). M2's copy inside `GradesScreen` is gone, and `GradesScreen` now takes `today` from the shell like every other screen | M4.5 adds four more export buttons and copying M2's would have copied its defect four times. That button called `todayIso()` inside a component, which is the one thing M3's rule forbids and the reason `App.tsx`'s own doc comment — "this is where the calendar is read, and the only place" — was untrue between M3 and M4.5. It is now true |
 
 ### Open — flag back rather than silently decide
 
@@ -332,7 +336,12 @@ sequence.
   loanword, so this may well be deliberate — but it is currently an implicit
   choice rather than a recorded one. Raised at M1 (2026-09-20).
 
-- **Does anything in M4 produce a PDF?** M4 ships **none**, because its
+- **Does anything in M4 produce a PDF? — CLOSED.** Answered by the product
+  owner on 2026-09-22 (yes, as M4.5) and **delivered by M4.5 on 2026-09-22**:
+  the incident log, the absence register and the cross-class support overview
+  each export a real PDF, and the filled monthly attendance grid does too. The
+  original question is kept below because it is the reasoning M4.5 started from.
+  M4 shipped **none**, because its
   delivery-scope line names no PDF export and the precedent is that a milestone
   ships its scope line exactly (M2 built PDFs because its line said so; M3 did
   not because its line did not). But this one is a real conflict rather than
@@ -349,6 +358,36 @@ sequence.
   piece of work of their own or folded into M5, which is already building print
   surfaces.** The app's pagination is its own since M2, so each is a document
   definition rather than new machinery. Raised at M4 (2026-09-21).
+
+- **Should the absence register's two per-event fields print as page-level
+  boxes, or as two more columns?** The source page has eight columns and two
+  captioned boxes at its foot, *ΠΡΟΣΟΧΗ · ΣΥΧΝΕΣ ΑΠΟΥΣΙΕΣ* and *ΓΟΝΕΙΣ
+  ΕΝΗΜΕΡΩΘΗΚΑΝ · ΕΝΕΡΓΕΙΕΣ*, whose captions are exactly the names of two fields
+  M4 stores **per event** because the spec lists them among the event's own
+  fields. M4.5 prints them in the boxes, one attributed line per event, verbatim.
+  It reads well for a real register of a handful of lines. **It reads badly at
+  volume**: a stress fixture of 30 events produced a 30-line follow-up box
+  filling most of a page. The alternative is two more columns on an already
+  eight-column landscape sheet. Raised at M4.5 (2026-09-22); it is a change to
+  one document builder and no stored data either way.
+
+- **Should the incident register have a page-level notes field?** Its source
+  page carries a *ΠΡΟΣΘΕΤΕΣ ΣΗΜΕΙΩΣΕΙΣ* box, and nothing in the data model
+  corresponds to it. M4.5 prints it **blank**, as ruled space the teacher writes
+  in by hand, because filling it would have meant a stored field and M4.5's
+  scope line is explicitly "no new data, no new fields, no schema change". If it
+  should hold something typed in the app, that is one column and one migration,
+  and it belongs to whoever is told to add it. Raised at M4.5 (2026-09-22).
+
+- **The printed support overview has seven columns; the source page has six.**
+  The seventh is the screen's *Στήριξη ανά τμήμα*. M4 established that a
+  "card-level support flag" is two different things — `Student.sen_status` and
+  each class's `Enrollment.support` with its own note — and that the overview
+  needs both shown separately; folding them together for print would make the
+  paper disagree with the screen, which M4.5's own acceptance criterion forbids.
+  So the sheet carries the source's six columns plus that one. Raised at M4.5
+  (2026-09-22) as a deliberate departure from the source's column count rather
+  than an oversight.
 
 - **Should the absence register offer more kinds than `absence` and
   `late`?** The spec says an absence event has a "kind" without enumerating
@@ -400,6 +439,13 @@ sequence.
   the teacher clicking through SmartScreen.** Anything downloaded, emailed, or in
   some configurations delivered by a sync client arrives with that tag.
   **Verified on a real Windows machine on 2026-09-20**: a
+  **Confirmed a second time on 2026-09-22**, by the product owner, inside the
+  `MilestoneTesting` VM at the M4.5 gate: a `ZoneId=3`-tagged unsigned installer
+  was double-clicked from the desktop, SmartScreen appeared, and the app did not
+  start until it was clicked through. (The tag was applied deliberately first —
+  a locally-built installer carries no `Zone.Identifier` at all, so double-
+  clicking one proves nothing. That is worth knowing before anyone tries to
+  reproduce this.) The original observation:
   double-click of the MotW-tagged unsigned build shows "Windows protected your
   PC — Microsoft Defender SmartScreen prevented an unrecognised app from
   starting", `Publisher: Unknown publisher`, and the app does not start until
@@ -446,7 +492,25 @@ sequence.
   different mechanism from OneDrive's and that case is the leading suspect for
   what killed the previous attempt. The rest of what follows still stands.
 
-  **The full test against Google Drive on Windows was not run, and is ACCEPTED
+  **CLOSED on 2026-09-22, at the M4.5 gate.** The product owner drove the
+  **Google Drive online-only placeholder case by hand** in the `MilestoneTesting`
+  VM — through Drive's own right-click toggle, which is the only way it can be
+  driven, since `attrib -P +U` reaches OneDrive's `cldflt` mechanism and Drive
+  for Desktop's virtual drive does not implement it. The exe was set online-only
+  in `G:\My Drive\…` and **double-clicked**: it streamed down and the app
+  opened. The OneDrive folder was checked the same way for contrast, and the
+  agent's own instrumented OneDrive run at the same gate proved genuine
+  dehydration (0 bytes on disk against full logical size) before launch.
+
+  **So the leading suspect for what killed the previous attempt does not
+  reproduce on Google Drive either.** Both halves that were missing — a human
+  double-click from a Drive folder, and the placeholder case against Drive — are
+  now done. One qualification kept for accuracy: the Drive observation is a
+  human one, not instrumented, so nothing measured 0 bytes on disk at the moment
+  of that particular click.
+
+  The historical position, kept because it is what three gates were run under:
+  **the full test against Google Drive on Windows was not run, and was ACCEPTED
   by the product owner (2026-09-20) as a carried risk rather than a blocker** —
   the same call M0 took on its Windows gap. Drive's streaming implementation is a
   different mechanism, so the OneDrive result does not carry over, and the client

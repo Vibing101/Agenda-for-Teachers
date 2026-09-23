@@ -22,6 +22,9 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 // Imported after the mock is registered, as the other screen tests do, so the
 // screen's `api` module binds to the mocked bridge rather than the real one.
 const { default: GradesScreen } = await import("../../src/screens/GradesScreen");
+
+/** The day the shell hands down. No screen reads the clock itself. */
+const TODAY = "2026-09-20";
 const { el } = await import("../../src/i18n/el");
 const { renderScreen } = await import("../helpers/mount");
 const { emptyPlanner } = await import("../helpers/fakeBackend");
@@ -50,7 +53,7 @@ function conductRow(field: HTMLElement) {
 
 describe("the gradebook", () => {
   it("shows each student's average and suggestion, and leaves an ungraded row blank", () => {
-    renderScreen(GradesScreen, gradedPlanner(), invoke);
+    renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     const eleni = screen.getByRole("row", { name: /Ελένη Παπαδοπούλου/ });
     expect(within(eleni).getByText("17.2")).toBeInTheDocument();
@@ -67,7 +70,7 @@ describe("the gradebook", () => {
 
   it("recomputes the average when a mark is changed", async () => {
     const user = userEvent.setup();
-    renderScreen(GradesScreen, gradedPlanner(), invoke);
+    renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     const mark = cell("Διαγώνισμα", "Ελένη Παπαδοπούλου");
     await user.clear(mark);
@@ -82,7 +85,7 @@ describe("the gradebook", () => {
 
   it("clears a mark back to blank rather than to zero", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke);
+    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     const mark = cell("Διαγώνισμα", "Γιώργος Χαραλάμπους");
     await user.clear(mark);
@@ -102,7 +105,7 @@ describe("the gradebook", () => {
 
   it("stores the code, not the label, for a coded column", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke);
+    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     await user.selectOptions(
       cell("Προφορικά", "Γιώργος Χαραλάμπους"),
@@ -122,7 +125,7 @@ describe("the running weight total", () => {
     const planner = gradedPlanner();
     // Start the sheet short: 60% + 20% = 80%.
     planner.grade_columns[1].weight = 20;
-    renderScreen(GradesScreen, planner, invoke);
+    renderScreen(GradesScreen, planner, invoke, { today: TODAY });
 
     expect(screen.getAllByText(/80%/).length).toBeGreaterThan(0);
     expect(screen.getByRole("status")).toHaveTextContent(el["grades.weightNeverBlocks"]);
@@ -139,7 +142,7 @@ describe("the running weight total", () => {
 
   it("warns again when the weights go over 100", async () => {
     const user = userEvent.setup();
-    renderScreen(GradesScreen, gradedPlanner(), invoke);
+    renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     expect(screen.queryByRole("status")).not.toBeInTheDocument(); // 60 + 40
 
@@ -155,7 +158,7 @@ describe("the running weight total", () => {
     const user = userEvent.setup();
     const planner = gradedPlanner();
     planner.grade_columns[1].weight = 90; // 150% in total
-    const backend = renderScreen(GradesScreen, planner, invoke);
+    const backend = renderScreen(GradesScreen, planner, invoke, { today: TODAY });
 
     expect(screen.getByRole("status")).toBeInTheDocument();
 
@@ -171,7 +174,7 @@ describe("the running weight total", () => {
 
   it("leaves a non-numeric column out of the total, and offers it no weight field", () => {
     const planner = gradedPlanner();
-    renderScreen(GradesScreen, planner, invoke);
+    renderScreen(GradesScreen, planner, invoke, { today: TODAY });
 
     // Four columns, but only the two numeric ones can carry a weight.
     expect(screen.getAllByLabelText(el["grades.weight"])).toHaveLength(2);
@@ -182,7 +185,7 @@ describe("the running weight total", () => {
 
   it("refuses one invalid weight without touching the rest of the sheet", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke);
+    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     const weights = screen.getAllByLabelText(el["grades.weight"]);
     await user.clear(weights[0]);
@@ -200,7 +203,7 @@ describe("the columns", () => {
     // The M1 lesson: a creation flow tested only from an empty fixture is not
     // tested. This starts from a class that already has four columns and marks.
     const user = userEvent.setup();
-    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke);
+    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     await user.click(screen.getByRole("button", { name: el["grades.addColumn"] }));
 
@@ -214,7 +217,7 @@ describe("the columns", () => {
 
   it("gives a new column no weight at all, rather than zero", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke);
+    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     await user.click(screen.getByRole("button", { name: el["grades.addColumn"] }));
 
@@ -226,7 +229,7 @@ describe("the columns", () => {
 
   it("renames a column without losing its marks", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke);
+    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     const labels = screen.getAllByLabelText(el["grades.columnLabel"]);
     await user.clear(labels[0]);
@@ -241,7 +244,7 @@ describe("the columns", () => {
 
 describe("the summaries", () => {
   it("matches the hand-computed class summary", () => {
-    renderScreen(GradesScreen, gradedPlanner(), invoke);
+    renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
     const summary = panel(el["grades.classSummary"]);
     const value = (label: string) => summary.getByText(label).nextElementSibling!.textContent;
 
@@ -258,7 +261,7 @@ describe("the summaries", () => {
   });
 
   it("rolls every class up, and averages the class averages for the year", () => {
-    renderScreen(GradesScreen, gradedPlanner(), invoke);
+    renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
     const year = panel(el["grades.yearSummary"]);
 
     // Α1 is 13.2 and Β2 is 20, so the year reads 16.6 — the average of the two
@@ -272,7 +275,7 @@ describe("the summaries", () => {
 
   it("lets the threshold be cleared and retyped, and never silently becomes zero", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke);
+    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
     const threshold = screen.getByLabelText(el["grades.passMark"]);
 
     // Clearing the box must leave it empty to type into, not snap to "0" —
@@ -293,7 +296,7 @@ describe("the summaries", () => {
 
   it("moves a student between the pass and at-risk counts when the threshold changes", async () => {
     const user = userEvent.setup();
-    renderScreen(GradesScreen, gradedPlanner(), invoke);
+    renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     const threshold = screen.getByLabelText(el["grades.passMark"]);
     await user.clear(threshold);
@@ -311,7 +314,7 @@ describe("the summaries", () => {
 describe("the conduct sheet", () => {
   it("keeps the written overall result exactly as typed, and computes nothing", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke);
+    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     const results = screen.getAllByLabelText(el["grades.overallResult"]);
     await user.clear(results[1]);
@@ -324,7 +327,7 @@ describe("the conduct sheet", () => {
 
   it("stores a conduct code, and does not let conduct touch the average", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke);
+    const backend = renderScreen(GradesScreen, gradedPlanner(), invoke, { today: TODAY });
 
     const conduct = screen.getAllByLabelText(el["grades.conduct"])[0];
     await user.selectOptions(conduct, el["vocab.conduct.needs_intervention"]);
@@ -340,7 +343,7 @@ describe("the conduct sheet", () => {
 
 describe("with nothing to grade yet", () => {
   it("says so rather than showing an empty grid", () => {
-    renderScreen(GradesScreen, emptyPlanner(), invoke);
+    renderScreen(GradesScreen, emptyPlanner(), invoke, { today: TODAY });
     expect(screen.getByText(el["grades.noClasses"])).toBeInTheDocument();
   });
 });

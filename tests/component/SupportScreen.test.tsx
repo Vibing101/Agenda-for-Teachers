@@ -26,6 +26,9 @@ const { supportPlanner, ELENI, PLAN_ONE, PLAN_TWO, GOAL_ONE } = await import(
 );
 const { default: SupportScreen } = await import("../../src/screens/SupportScreen");
 
+/** The day the shell hands down. No screen reads the clock itself. */
+const TODAY = "2026-11-16";
+
 function panel(heading: string) {
   return within(screen.getByRole("heading", { name: heading }).closest("section")!);
 }
@@ -36,12 +39,12 @@ describe("support plans", () => {
   });
 
   it("asks for a student before anything else when there are none", () => {
-    renderScreen(SupportScreen, emptyPlanner(), invoke);
+    renderScreen(SupportScreen, emptyPlanner(), invoke, { today: TODAY });
     expect(screen.getByText(/Δεν υπάρχει ακόμη μαθητής/)).toBeInTheDocument();
   });
 
   it("lists the selected student's plans and opens the first", async () => {
-    renderScreen(SupportScreen, supportPlanner(), invoke);
+    renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const plans = panel("Πλάνα στήριξης");
     expect(plans.getByRole("button", { name: /Πλάνο 1/ })).toBeInTheDocument();
     expect(plans.getByRole("button", { name: /Πλάνο 2/ })).toBeInTheDocument();
@@ -51,7 +54,7 @@ describe("support plans", () => {
   });
 
   it("shows the card's ΕΠΕ box read-only, so it is clear which field is which", () => {
-    renderScreen(SupportScreen, supportPlanner(), invoke);
+    renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const plans = panel("Πλάνα στήριξης");
     const box = plans.getByRole("heading", { name: "Από την καρτέλα του μαθητή" }).closest("div")!;
     expect(within(box).getByText("Προσαρμογές")).toBeInTheDocument();
@@ -69,7 +72,7 @@ describe("support plans", () => {
    */
   it("leaves every existing plan byte-for-byte unchanged when a new one is added", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(SupportScreen, supportPlanner(), invoke);
+    const backend = renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const before = structuredClone(backend.planner.support_plans);
     const goalsBefore = structuredClone(backend.planner.support_goals);
 
@@ -99,7 +102,7 @@ describe("support plans", () => {
    */
   it("binds the editor to the plan just created, not to the one that was selected", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(SupportScreen, supportPlanner(), invoke);
+    const backend = renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
 
     await user.click(screen.getByRole("button", { name: "Νέο πλάνο στήριξης" }));
     await waitFor(() => expect(backend.planner.support_plans).toHaveLength(4));
@@ -129,7 +132,7 @@ describe("support plans", () => {
   /** The same trap one level down: a new goal inside a plan that has goals. */
   it("leaves every existing goal unchanged when a new goal is added", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(SupportScreen, supportPlanner(), invoke);
+    const backend = renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const before = structuredClone(backend.planner.support_goals);
     expect(before).toHaveLength(2);
 
@@ -147,7 +150,7 @@ describe("support plans", () => {
 
   it("writes an edited goal to that goal only", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(SupportScreen, supportPlanner(), invoke);
+    const backend = renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
 
     const second = screen.getByRole("group", { name: "Στόχος 2" });
     await user.selectOptions(within(second).getByLabelText("Πρόοδος"), "needs_review");
@@ -172,7 +175,7 @@ describe("support plans", () => {
    */
   it("never lets a change to a goal touch the plan's teacher-written status", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(SupportScreen, supportPlanner(), invoke);
+    const backend = renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const statusBefore = backend.planner.support_plans.find((p) => p.id === PLAN_ONE)!.status;
     expect(statusBefore).toBe("Σε εφαρμογή");
 
@@ -211,7 +214,7 @@ describe("support plans", () => {
 
   it("keeps the selection off another student's plan when the student changes", async () => {
     const user = userEvent.setup();
-    renderScreen(SupportScreen, supportPlanner(), invoke);
+    renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const plans = panel("Πλάνα στήριξης");
 
     await user.selectOptions(plans.getByLabelText("Μαθητής"), "22");
@@ -222,7 +225,7 @@ describe("support plans", () => {
 
   it("deletes a plan's goals with it and leaves the other plan alone", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(SupportScreen, supportPlanner(), invoke);
+    const backend = renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
 
     await user.click(screen.getByRole("button", { name: "Διαγραφή πλάνου" }));
     await waitFor(() =>
@@ -241,7 +244,7 @@ describe("the cross-class support overview", () => {
   });
 
   it("shows one row per student who needs one, and no row for anyone else", () => {
-    renderScreen(SupportScreen, supportPlanner(), invoke);
+    renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const overview = panel("Στήριξη και προσαρμογές");
     const names = overview.getAllByRole("rowheader").map((h) => h.textContent);
     expect(names).toEqual(["Ελένη Παπαδοπούλου", "Μαρία Ιωάννου", "Νίκος Γεωργίου"]);
@@ -249,7 +252,7 @@ describe("the cross-class support overview", () => {
   });
 
   it("merges the card's category with the per-class support flag and its note", () => {
-    renderScreen(SupportScreen, supportPlanner(), invoke);
+    renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const overview = panel("Στήριξη και προσαρμογές");
     const row = within(overview.getByRole("rowheader", { name: "Ελένη Παπαδοπούλου" }).closest("tr")!);
     // Both classes she is in …
@@ -261,7 +264,7 @@ describe("the cross-class support overview", () => {
   });
 
   it("shows every plan's status and next review date", () => {
-    renderScreen(SupportScreen, supportPlanner(), invoke);
+    renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const overview = panel("Στήριξη και προσαρμογές");
     const row = within(overview.getByRole("rowheader", { name: "Ελένη Παπαδοπούλου" }).closest("tr")!);
     expect(row.getByText("Σε εφαρμογή")).toBeInTheDocument();
@@ -278,7 +281,7 @@ describe("the cross-class support overview", () => {
    */
   it("reflects a plan change made above it, with nothing to regenerate", async () => {
     const user = userEvent.setup();
-    renderScreen(SupportScreen, supportPlanner(), invoke);
+    renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const overview = () => panel("Στήριξη και προσαρμογές");
     expect(overview().getByText("Σε εφαρμογή")).toBeInTheDocument();
 
@@ -295,7 +298,7 @@ describe("the cross-class support overview", () => {
 
   it("brings a student in as soon as her first plan is created", async () => {
     const user = userEvent.setup();
-    renderScreen(SupportScreen, supportPlanner(), invoke);
+    renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
     const plans = panel("Πλάνα στήριξης");
     expect(panel("Στήριξη και προσαρμογές").queryByText("Κώστας Δημητρίου")).not.toBeInTheDocument();
 
@@ -305,5 +308,54 @@ describe("the cross-class support overview", () => {
     await waitFor(() =>
       expect(panel("Στήριξη και προσαρμογές").getByText("Κώστας Δημητρίου")).toBeInTheDocument(),
     );
+  });
+
+  /**
+   * The printed overview is the screen's own table, and the status on it is the
+   * teacher's sentence — M4.5's third acceptance criterion, driven through the
+   * real screen rather than asserted on a document in isolation.
+   */
+  it("exports the overview with each status exactly as typed", async () => {
+    const user = userEvent.setup();
+    renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
+
+    await user.click(screen.getByRole("button", { name: "Εξαγωγή PDF επισκόπησης" }));
+
+    await waitFor(() =>
+      expect(invoke.mock.calls.some(([command]) => command === "export_pdf")).toBe(true),
+    );
+    const call = invoke.mock.calls.find(([command]) => command === "export_pdf")!;
+    const { html, fileName } = call[1] as Record<string, unknown>;
+
+    expect(html).toContain("Σε εφαρμογή");
+    expect(html).toContain("Ολοκληρώθηκε");
+    expect(html).toContain("Υπό κατάρτιση");
+    // No goal, and no count taken from one, reaches the paper.
+    expect(html).not.toContain("Ανάγνωση κειμένου 80 λέξεων χωρίς βοήθεια");
+    expect(html).not.toContain("Επιτεύχθηκε");
+    expect(fileName).toBe("Στήριξη και προσαρμογές — 16.11.2026");
+  });
+
+  it("exports a status the teacher has just retyped, not the one it replaced", async () => {
+    const user = userEvent.setup();
+    renderScreen(SupportScreen, supportPlanner(), invoke, { today: TODAY });
+
+    const status = screen.getByLabelText("Κατάσταση");
+    await user.clear(status);
+    await user.type(status, "Αναθεωρήθηκε");
+    await user.click(screen.getByRole("button", { name: "Αποθήκευση" }));
+    await waitFor(() =>
+      expect(panel("Στήριξη και προσαρμογές").getByText("Αναθεωρήθηκε")).toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Εξαγωγή PDF επισκόπησης" }));
+
+    await waitFor(() =>
+      expect(invoke.mock.calls.some(([command]) => command === "export_pdf")).toBe(true),
+    );
+    const call = invoke.mock.calls.find(([command]) => command === "export_pdf")!;
+    const { html } = call[1] as Record<string, unknown>;
+    expect(html).toContain("Αναθεωρήθηκε");
+    expect(html).not.toContain("Σε εφαρμογή");
   });
 });

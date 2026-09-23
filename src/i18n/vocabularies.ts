@@ -141,5 +141,7 @@ export const attendanceStateLabel = (code: string) => vocabLabelId("attendanceSt
 /** The one-character symbol the source's printed card uses for a state. */
 export const attendanceSymbolLabel = (code: string) => vocabLabelId("attendanceSymbol", code);
 export const absenceKindLabel = (code: string) => vocabLabelId("absenceKind", code);
+/** The abbreviation the source register heads its two tick columns with. */
+export const absenceKindShortLabel = (code: string) => vocabLabelId("absenceKindShort", code);
 export const followUpLabel = (code: string) => vocabLabelId("followUp", code);
 export const goalProgressLabel = (code: string) => vocabLabelId("goalProgress", code);

@@ -8,6 +8,11 @@
  * that needs it, so no component reaches for `new Date()` on its own. That is
  * what makes the Today view testable on a chosen date — see M3's second
  * acceptance criterion — and it is why `App` takes an optional `today` override.
+ *
+ * That claim was inaccurate between M3 and M4.5: M2's export button, inside
+ * `GradesScreen`, read the clock itself. Lifting it into the shared
+ * `ExportButton` at M4.5 — rather than copying the violation into three more
+ * printed sheets — is what made the sentence true again.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, isAppError, type Status } from "./api";
@@ -272,13 +277,13 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
             <StudentsScreen planner={planner} run={run} />
           )}
           {section === "students" && page === "behaviour" && (
-            <BehaviourScreen planner={planner} run={run} />
+            <BehaviourScreen planner={planner} run={run} today={today} />
           )}
           {section === "students" && page === "support" && (
-            <SupportScreen planner={planner} run={run} />
+            <SupportScreen planner={planner} run={run} today={today} />
           )}
           {section === "grades" && (page ?? "gradebook") === "gradebook" && (
-            <GradesScreen planner={planner} run={run} />
+            <GradesScreen planner={planner} run={run} today={today} />
           )}
           {section === "grades" && page === "attendance" && (
             <AttendanceScreen planner={planner} run={run} today={today} />

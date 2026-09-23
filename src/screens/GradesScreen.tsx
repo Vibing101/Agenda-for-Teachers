@@ -18,10 +18,11 @@
  *   typed at speed.
  */
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { api, isAppError } from "../api";
+import { api } from "../api";
+import { ExportButton } from "../components/ExportButton";
 import { Button, Field, Panel, SelectField, TextArea, TextField } from "../components/Fields";
 import { useStoredDraft } from "../components/useStoredDraft";
-import { formatDate, todayIso } from "../domain/dates";
+import { formatDate } from "../domain/dates";
 import {
   classRoster,
   columnsFor,
@@ -60,7 +61,16 @@ import {
 import { conductSheetHtml, gradeSheetHtml } from "../print/gradeSheets";
 import type { Run } from "./types";
 
-export default function GradesScreen({ planner, run }: { planner: Planner; run: Run }) {
+export default function GradesScreen({
+  planner,
+  run,
+  today,
+}: {
+  planner: Planner;
+  run: Run;
+  /** The day the shell read from the calendar. Never read here directly. */
+  today: string;
+}) {
   const t = useTranslate();
   const [selectedId, setSelectedId] = useState<number | null>(planner.classes[0]?.id ?? null);
 
@@ -100,9 +110,21 @@ export default function GradesScreen({ planner, run }: { planner: Planner; run: 
         <>
           <SheetSettings key={`g${selected.id}`} schoolClass={selected} planner={planner} run={run} />
           <Columns key={`c${selected.id}`} schoolClass={selected} planner={planner} run={run} />
-          <Gradebook key={`b${selected.id}`} schoolClass={selected} planner={planner} run={run} />
+          <Gradebook
+            key={`b${selected.id}`}
+            schoolClass={selected}
+            planner={planner}
+            run={run}
+            today={today}
+          />
           <ClassSummaryPanel schoolClass={selected} planner={planner} />
-          <ConductSheet key={`k${selected.id}`} schoolClass={selected} planner={planner} run={run} />
+          <ConductSheet
+            key={`k${selected.id}`}
+            schoolClass={selected}
+            planner={planner}
+            run={run}
+            today={today}
+          />
         </>
       )}
 
@@ -351,10 +373,12 @@ function Gradebook({
   schoolClass,
   planner,
   run,
+  today,
 }: {
   schoolClass: SchoolClass;
   planner: Planner;
   run: Run;
+  today: string;
 }) {
   const t = useTranslate();
   const columns = columnsFor(planner, schoolClass.id);
@@ -367,13 +391,11 @@ function Gradebook({
       actions={
         <ExportButton
           labelId="grades.exportSheet"
-          fileName={(date) =>
-            t("grades.sheetFileName", {
-              class: schoolClass.name.trim() || t("common.unnamed"),
-              date,
-            })
-          }
-          html={(today) => gradeSheetHtml(t, planner, schoolClass.id, today)}
+          fileName={t("grades.sheetFileName", {
+            class: schoolClass.name.trim() || t("common.unnamed"),
+            date: formatDate(today),
+          })}
+          html={() => gradeSheetHtml(t, planner, schoolClass.id, today)}
         />
       }
     >
@@ -584,10 +606,12 @@ function ConductSheet({
   schoolClass,
   planner,
   run,
+  today,
 }: {
   schoolClass: SchoolClass;
   planner: Planner;
   run: Run;
+  today: string;
 }) {
   const t = useTranslate();
   const roster = classRoster(planner, schoolClass.id);
@@ -599,13 +623,11 @@ function ConductSheet({
       actions={
         <ExportButton
           labelId="grades.exportConduct"
-          fileName={(date) =>
-            t("grades.conductFileName", {
-              class: schoolClass.name.trim() || t("common.unnamed"),
-              date,
-            })
-          }
-          html={(today) => conductSheetHtml(t, planner, schoolClass.id, today)}
+          fileName={t("grades.conductFileName", {
+            class: schoolClass.name.trim() || t("common.unnamed"),
+            date: formatDate(today),
+          })}
+          html={() => conductSheetHtml(t, planner, schoolClass.id, today)}
         />
       }
     >
@@ -660,55 +682,5 @@ function ConductRow({ student, row, run }: { student: Student; row: GradeRow; ru
       />
       <Button labelId="common.save" onClick={() => void commit(draft)} />
     </li>
-  );
-}
-
-// ---------------------------------------------------------- PDF exporting ---
-
-/**
- * Builds a document and asks the Rust side to write it to `exports/`.
- *
- * Export is not a mutation, so it does not go through `run`: nothing about the
- * data file changes, and a failed export must not look like a failed save.
- */
-function ExportButton({
-  labelId,
-  fileName,
-  html,
-}: {
-  labelId: "grades.exportSheet" | "grades.exportConduct";
-  fileName: (formattedDate: string) => string;
-  html: (today: string) => string;
-}) {
-  const t = useTranslate();
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  return (
-    <>
-      <Button
-        labelId={labelId}
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          setMessage(null);
-          const today = todayIso();
-          try {
-            const path = await api.exportPdf(fileName(formatDate(today)), html(today), true);
-            setMessage(t("grades.exported", { path }));
-          } catch (e) {
-            setMessage(isAppError(e) ? e.message : String(e));
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-      {busy && <span className="muted">{t("grades.exporting")}</span>}
-      {message && (
-        <span className="message" role="status">
-          {message}
-        </span>
-      )}
-    </>
   );
 }
