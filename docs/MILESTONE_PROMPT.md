@@ -46,15 +46,30 @@ gate result to the machine that produced it.
   Its **Resolved** table records calls already made: apply them, do not
   re-litigate them. Its **Open** section lists what is deliberately undecided.
   Read **Carried risks** too — those are live.
-- **`docs/ENGINEERING.md`** — repo layout, branching, the six-step gate, sign-off.
+- **`docs/ENGINEERING.md`** — repo layout, branching, the six-step gate,
+  sign-off, and **your milestone's acceptance criteria**. It is the only copy of
+  all of those; the spec used to carry a second one and they drifted.
 - **`docs/WINDOWS_VM.md`** — how the Windows half of the gate is run, what the
   VM can verify, and the two things that still need a human.
 - **The release note for every milestone already shipped**, in
   `docs/milestones/`. They record decisions and patterns you are expected to
   follow rather than reinvent, and traps already paid for.
-- **`reference/`** — the original PDF package and Excel registry. Read-only
-  source material and the authority on wording, field lists and layout. Never
-  edit it; never generate into it.
+- **`reference/`** — the original source material, and the authority on wording,
+  field lists and layout while a module is being built. Read-only: never edit
+  it; never generate into it.
+
+  **It is a third party's copyrighted work and is scheduled for removal from
+  this repository.** Treat it as temporary. Two rules follow, and they apply
+  now rather than when it goes:
+
+  - **Build no dependency on it.** Nothing in `src/`, `src-tauri/` or `tests/`
+    reads from it at build time or run time, and nothing may start. Content
+    that the app needs is *transcribed into the repo* — the 7 letters and the
+    150-message bank live in `src/i18n/`, and the app reads them from there.
+  - **Quote it in a release note rather than pointing at it.** When a decision
+    turns on what a source page says, copy the sentence or the field list into
+    the note. A citation of a path that will not exist is a decision nobody can
+    check later.
 
 ## 3. Language — settled, not reopenable
 

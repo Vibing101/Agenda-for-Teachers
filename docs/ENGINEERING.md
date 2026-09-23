@@ -6,7 +6,7 @@
 /
 ├─ src-tauri/          ← Rust backend: file I/O, SQLite, backup job, PDF trigger
 ├─ src/                 ← frontend (framework choice left to the implementing agent; keep it boring)
-├─ reference/            ← the source PDF package (letters, message bank, print templates, quick-start guide) and the Excel grade registry — read-only inputs, never generated output
+├─ reference/            ← third-party source material, read-only, never generated into — SCHEDULED FOR REMOVAL, so nothing may depend on it (see README)
 ├─ docs/
 │   ├─ REBUILD_SPEC.md      ← the functional/architecture spec, kept in sync
 │   ├─ ENGINEERING.md       ← this document
@@ -68,6 +68,13 @@ A milestone is "done" only when its specific acceptance criteria (below) are met
 
 Each milestone's generic gate (above) still applies; these are what's specific to that milestone's own content.
 
+**This file is the single home for the process and these criteria.**
+`REBUILD_SPEC.md` used to carry a second copy of both, and the two drifted:
+M4.5 inserted itself into the roadmap and added its criteria to the spec's copy
+only, so this file — the one every release note cites for its gate results —
+was missing a whole milestone's criteria for two milestones. The spec now points
+here instead of repeating it.
+
 **M0 — Shell & persistence**
 - App launches by double-click on both Windows and macOS from inside a folder actively synced by both Google Drive and OneDrive (test both, not just one).
 - Data written, then a full app quit and relaunch, still shows the data.
@@ -93,6 +100,12 @@ Each milestone's generic gate (above) still applies; these are what's specific t
 - The monthly attendance grid and the detailed absence-event log can hold different, non-derived data for the same student/date without either overwriting the other.
 - A support plan's status field is never overwritten by changes to its goals (status stays teacher-written).
 - The cross-class support overview correctly reflects a plan change made in a single class.
+
+**M4.5 — Printing attendance, behaviour and support**
+- The incident log, the absence register and the support overview each generate a real PDF file in `exports/` that opens and renders Greek correctly (not just Latin).
+- Each printed sheet carries the same records the screen shows for the same filter/selection — nothing is recomputed for print, and a sheet never disagrees with the screen it was printed from.
+- A support plan's teacher-written status appears on the printed overview exactly as typed, and printing computes nothing from a plan's goals.
+- The printed absence register and the printed attendance grid, if both are produced, remain independent of each other — neither derives a figure from the other.
 
 **M5 — Parents & staff**
 - All 7 letters and a sample across all 15 message-bank categories generate a correctly-formatted, Greek-rendering PDF with every placeholder filled and none left as `[BRACKETS]`.
