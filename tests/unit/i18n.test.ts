@@ -7,8 +7,9 @@
  * checks it from the other side, against the files on disk.)
  */
 import { describe, expect, it } from "vitest";
-import { el } from "../../src/i18n/el";
-import { translate, translatorFor, type StringId } from "../../src/i18n";
+// The *merged* bundle — app labels plus M5's letters and message bank — since
+// that is what `StringId` and the lookup are built from.
+import { el, translate, translatorFor, type StringId } from "../../src/i18n";
 import {
   ABSENCE_KINDS,
   absenceKindLabel,

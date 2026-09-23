@@ -14,7 +14,26 @@
  * notes, class names, custom labels — those are rendered exactly as entered,
  * in whichever language she used, whatever the UI language is.
  */
-import { el } from "./el";
+import { el as elUi } from "./el";
+import { lettersEl } from "./lettersEl";
+import { messagesEl } from "./messagesEl";
+
+/**
+ * The Greek bundle, assembled from three files that hold three different kinds
+ * of string: the app's own labels, the seven parent letters and the
+ * 150-message bank.
+ *
+ * **Splitting by kind rather than by screen is deliberate** (M5). The letters
+ * and the message bank are the *product's content* — 465 strings of it, several
+ * paragraphs long apiece — and putting them in `el.ts` beside "Αποθήκευση"
+ * would have roughly tripled that file and mixed two unrelated things. Nothing
+ * else changes: one lookup, one `StringId` type, and the eslint rule that keeps
+ * Greek inside `src/i18n/` still covers all three files.
+ *
+ * M9 adds `en.ts`, `lettersEn.ts` and `messagesEn.ts` and one more entry in
+ * `BUNDLES` — files added, not files edited.
+ */
+const el = { ...elUi, ...lettersEl, ...messagesEl };
 
 export type StringId = keyof typeof el;
 export type Locale = "el" | "en";
@@ -30,6 +49,8 @@ export const DEFAULT_LOCALE: Locale = "el";
 const BUNDLES: Partial<Record<Locale, Partial<Record<StringId, string>>>> = {
   el,
 };
+
+export { el };
 
 /** Values substituted into a string's `{placeholder}` slots. */
 export type Params = Record<string, string | number>;

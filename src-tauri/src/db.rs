@@ -19,7 +19,7 @@ use crate::model::GOAL_AREAS;
 use rusqlite::{params, Connection};
 use std::path::Path;
 
-pub const SCHEMA_VERSION: i64 = 5;
+pub const SCHEMA_VERSION: i64 = 6;
 
 pub fn open_at(db_path: &Path) -> AppResult<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -67,6 +67,11 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     if current < 5 {
         migrate_to_5(conn)?;
         conn.pragma_update(None, "user_version", 5)?;
+        current = 5;
+    }
+    if current < 6 {
+        migrate_to_6(conn)?;
+        conn.pragma_update(None, "user_version", 6)?;
     }
     Ok(())
 }
@@ -471,6 +476,86 @@ fn migrate_to_5(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
+/// M5 — parents and staff.
+///
+/// Four tables, all purely additive: nothing M0–M4 wrote is touched, so a data
+/// file from any previously shipped build climbs to 6 and keeps every row.
+///
+/// **`parent_contact` and `parent_appointment` are deliberately unrelated.**
+/// The spec calls one "a booking" and the other "a record of what happened",
+/// and M5's second acceptance criterion is that both can exist for the same
+/// guardian on the same date without either disturbing the other. So there is
+/// **no foreign key between them, no shared key beyond the student both may
+/// name, no trigger and no view** — the same construction M4 used to keep the
+/// attendance grid independent of the absence register, and for the same
+/// reason: two tables that cannot reach each other cannot overwrite each other.
+///
+/// `parent_appointment.date` is an actual date, not a weekday index, so the
+/// Monday–Friday grid is a view over a chosen week rather than a stored shape.
+/// That is M1's rule and M4's precedent, and it is what makes a booking survive
+/// a change to the school year's start date.
+fn migrate_to_6(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "BEGIN;
+
+         CREATE TABLE parent_contact (
+             id         INTEGER PRIMARY KEY,
+             student_id INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+             date       TEXT NOT NULL DEFAULT '',
+             guardian   TEXT NOT NULL DEFAULT '',
+             format     TEXT NOT NULL DEFAULT 'meeting',
+             reason     TEXT NOT NULL DEFAULT '',
+             agreements TEXT NOT NULL DEFAULT '',
+             outcome    TEXT NOT NULL DEFAULT '',
+             next_step  TEXT NOT NULL DEFAULT '',
+             remarks    TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX parent_contact_by_student ON parent_contact(student_id);
+         CREATE INDEX parent_contact_by_date ON parent_contact(date);
+
+         CREATE TABLE parent_appointment (
+             id         INTEGER PRIMARY KEY,
+             date       TEXT NOT NULL DEFAULT '',
+             clock_time TEXT NOT NULL DEFAULT '',
+             student_id INTEGER REFERENCES student(id) ON DELETE SET NULL,
+             guardian   TEXT NOT NULL DEFAULT '',
+             mode       TEXT NOT NULL DEFAULT 'in_person',
+             place      TEXT NOT NULL DEFAULT '',
+             status     TEXT NOT NULL DEFAULT 'proposed',
+             topic      TEXT NOT NULL DEFAULT '',
+             outcome    TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX parent_appointment_by_date ON parent_appointment(date);
+
+         CREATE TABLE staff_meeting (
+             id         INTEGER PRIMARY KEY,
+             position   INTEGER NOT NULL DEFAULT 0,
+             kind       TEXT NOT NULL DEFAULT 'staff',
+             date       TEXT NOT NULL DEFAULT '',
+             clock_time TEXT NOT NULL DEFAULT '',
+             duration   TEXT NOT NULL DEFAULT '',
+             attendees  TEXT NOT NULL DEFAULT '',
+             agenda     TEXT NOT NULL DEFAULT '',
+             class_id   INTEGER REFERENCES class(id) ON DELETE SET NULL,
+             notes      TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX staff_meeting_by_date ON staff_meeting(date);
+
+         CREATE TABLE meeting_agreement (
+             id         INTEGER PRIMARY KEY,
+             meeting_id INTEGER NOT NULL REFERENCES staff_meeting(id) ON DELETE CASCADE,
+             position   INTEGER NOT NULL DEFAULT 0,
+             who        TEXT NOT NULL DEFAULT '',
+             what       TEXT NOT NULL DEFAULT '',
+             deadline   TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX meeting_agreement_by_meeting ON meeting_agreement(meeting_id);
+
+         COMMIT;",
+    )?;
+    Ok(())
+}
+
 /// Folds every M1 `class_slot` row into the master timetable, losing none.
 ///
 /// A slot's `(period_label, start_time, end_time)` becomes an hour, and the slot
@@ -810,12 +895,16 @@ mod tests {
         assert!(!dir.path().join("planner.sqlite-shm").exists());
     }
 
-    /// A data file as the signed-off M3 build left it climbs to `user_version
-    /// = 5` with every M3 record still in place and the five new tables
-    /// present. M4 adds tables and touches none of the existing ones, so this
-    /// is the whole of what the step has to prove.
+    /// A data file as the signed-off M3 build left it climbs to the current
+    /// schema with every M3 record still in place and every later milestone's
+    /// tables present. M4 and M5 both only add tables, so this is the whole of
+    /// what the step has to prove.
+    ///
+    /// Kept climbing from **M3** rather than being re-pointed at the newest
+    /// version each milestone: the rule is that a file from *any* previously
+    /// shipped build climbs, and the oldest one still exercises every step.
     #[test]
-    fn an_m3_file_climbs_to_5_without_losing_anything() {
+    fn an_m3_file_climbs_to_the_current_schema_without_losing_anything() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("planner.sqlite");
 
@@ -844,7 +933,7 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
 
         let planner = store::load(&conn).unwrap();
         // Everything M3 wrote is still there, untouched.
@@ -860,6 +949,11 @@ mod tests {
         assert!(planner.incidents.is_empty());
         assert!(planner.support_plans.is_empty());
         assert!(planner.support_goals.is_empty());
+        // And M5's, likewise invented from nothing.
+        assert!(planner.parent_contacts.is_empty());
+        assert!(planner.parent_appointments.is_empty());
+        assert!(planner.staff_meetings.is_empty());
+        assert!(planner.meeting_agreements.is_empty());
 
         for table in [
             "attendance_mark",
@@ -867,6 +961,10 @@ mod tests {
             "incident",
             "support_plan",
             "support_goal",
+            "parent_contact",
+            "parent_appointment",
+            "staff_meeting",
+            "meeting_agreement",
         ] {
             let present: i64 = conn
                 .query_row(
@@ -875,7 +973,76 @@ mod tests {
                     |r| r.get(0),
                 )
                 .unwrap();
-            assert_eq!(present, 1, "{table} should exist at user_version 5");
+            assert_eq!(present, 1, "{table} should exist at the current schema");
         }
+    }
+
+    /// A data file as the **signed-off M4.5 build** left it — `user_version =
+    /// 5`, with real M4 rows on it — climbs to 6 and keeps every one of them.
+    ///
+    /// This is the case the teacher actually meets: she has been using the last
+    /// shipped build and her file has data in it. The M3 test above proves the
+    /// whole ladder still runs; this proves the top rung does not disturb the
+    /// records the previous milestone wrote.
+    #[test]
+    fn an_m4_file_with_data_on_it_climbs_to_6_and_keeps_every_row() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+
+        let conn = Connection::open(&path).unwrap();
+        migrate_to_1(&conn).unwrap();
+        migrate_to_2(&conn).unwrap();
+        migrate_to_3(&conn).unwrap();
+        migrate_to_4(&conn).unwrap();
+        migrate_to_5(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 5).unwrap();
+        conn.execute_batch(
+            "INSERT INTO class (id, name, subject) VALUES (1, 'Α1', 'Μαθηματικά');
+             INSERT INTO student (id, full_name) VALUES (1, 'Ελένη Παπαδοπούλου');
+             INSERT INTO enrollment (class_id, student_id, roster_no) VALUES (1, 1, 1);
+             INSERT INTO attendance_mark (class_id, student_id, date, state)
+             VALUES (1, 1, '2026-11-05', 'present');
+             INSERT INTO absence_event (class_id, student_id, date, kind, reason)
+             VALUES (1, 1, '2026-11-05', 'late', 'Λεωφορείο');
+             INSERT INTO incident (student_id, class_id, date, what_happened)
+             VALUES (1, 1, '2026-11-06', 'Διαφωνία στο διάλειμμα');
+             INSERT INTO support_plan (id, student_id, position, status)
+             VALUES (1, 1, 0, 'Δουλεύει καλά με τον νέο ρυθμό');
+             INSERT INTO support_goal (plan_id, position, goal, progress)
+             VALUES (1, 0, 'Ανάγνωση δέκα λεπτά τη μέρα', 'in_progress');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let conn = open_at(&path).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 6);
+
+        let planner = store::load(&conn).unwrap();
+        // Every M4 row, exactly as it was written.
+        assert_eq!(planner.attendance_marks.len(), 1);
+        assert_eq!(planner.attendance_marks[0].state, "present");
+        assert_eq!(planner.absence_events.len(), 1);
+        assert_eq!(planner.absence_events[0].reason, "Λεωφορείο");
+        assert_eq!(planner.incidents[0].what_happened, "Διαφωνία στο διάλειμμα");
+        assert_eq!(
+            planner.support_plans[0].status, "Δουλεύει καλά με τον νέο ρυθμό",
+            "a teacher-written status is not something a migration may touch"
+        );
+        assert_eq!(planner.support_goals[0].progress, "in_progress");
+        // The contested M4 pair is still contested: a mark and an event on the
+        // same day for the same student, both present, neither derived.
+        assert_eq!(
+            planner.attendance_marks[0].date,
+            planner.absence_events[0].date
+        );
+
+        // And M5's tables are there and empty.
+        assert!(planner.parent_contacts.is_empty());
+        assert!(planner.parent_appointments.is_empty());
+        assert!(planner.staff_meetings.is_empty());
+        assert!(planner.meeting_agreements.is_empty());
     }
 }

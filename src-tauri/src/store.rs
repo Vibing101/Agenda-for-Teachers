@@ -37,6 +37,10 @@ pub fn load(conn: &Connection) -> AppResult<Planner> {
         incidents: incidents(conn)?,
         support_plans: support_plans(conn)?,
         support_goals: support_goals(conn)?,
+        parent_contacts: parent_contacts(conn)?,
+        parent_appointments: parent_appointments(conn)?,
+        staff_meetings: staff_meetings(conn)?,
+        meeting_agreements: meeting_agreements(conn)?,
     })
 }
 
@@ -1263,6 +1267,291 @@ pub fn save_support_goal(conn: &Connection, g: &SupportGoal) -> AppResult<i64> {
 
 pub fn delete_support_goal(conn: &Connection, id: i64) -> AppResult<()> {
     conn.execute("DELETE FROM support_goal WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+// ------------------------------------------------- M5: parents and staff ---
+
+/// Every line of the parent communication log.
+///
+/// **Reads `parent_contact` and nothing else.** The appointment grid is loaded
+/// separately below and the two never appear in one statement — see
+/// `migrate_to_6` for why that is the whole mechanism behind M5's second
+/// acceptance criterion.
+fn parent_contacts(conn: &Connection) -> AppResult<Vec<ParentContact>> {
+    collect(
+        conn,
+        "SELECT id, student_id, date, guardian, format, reason, agreements,
+                outcome, next_step, remarks
+           FROM parent_contact ORDER BY date, id",
+        |r| {
+            Ok(ParentContact {
+                id: r.get(0)?,
+                student_id: r.get(1)?,
+                date: r.get(2)?,
+                guardian: r.get(3)?,
+                format: r.get(4)?,
+                reason: r.get(5)?,
+                agreements: r.get(6)?,
+                outcome: r.get(7)?,
+                next_step: r.get(8)?,
+                remarks: r.get(9)?,
+            })
+        },
+    )
+}
+
+/// Every parent appointment. Ordered by date and clock time, which is the order
+/// the week grid and the upcoming panel both want.
+fn parent_appointments(conn: &Connection) -> AppResult<Vec<ParentAppointment>> {
+    collect(
+        conn,
+        "SELECT id, date, clock_time, student_id, guardian, mode, place, status, topic, outcome
+           FROM parent_appointment ORDER BY date, clock_time, id",
+        |r| {
+            Ok(ParentAppointment {
+                id: r.get(0)?,
+                date: r.get(1)?,
+                clock_time: r.get(2)?,
+                // NULL stays None: a slot booked before it is clear which child
+                // it is about is not a slot about student zero.
+                student_id: r.get(3)?,
+                guardian: r.get(4)?,
+                mode: r.get(5)?,
+                place: r.get(6)?,
+                status: r.get(7)?,
+                topic: r.get(8)?,
+                outcome: r.get(9)?,
+            })
+        },
+    )
+}
+
+fn staff_meetings(conn: &Connection) -> AppResult<Vec<StaffMeeting>> {
+    collect(
+        conn,
+        "SELECT id, position, kind, date, clock_time, duration, attendees, agenda,
+                class_id, notes
+           FROM staff_meeting ORDER BY date, clock_time, position, id",
+        |r| {
+            Ok(StaffMeeting {
+                id: r.get(0)?,
+                position: r.get(1)?,
+                kind: r.get(2)?,
+                date: r.get(3)?,
+                clock_time: r.get(4)?,
+                duration: r.get(5)?,
+                attendees: r.get(6)?,
+                agenda: r.get(7)?,
+                class_id: r.get(8)?,
+                notes: r.get(9)?,
+            })
+        },
+    )
+}
+
+fn meeting_agreements(conn: &Connection) -> AppResult<Vec<MeetingAgreement>> {
+    collect(
+        conn,
+        "SELECT id, meeting_id, position, who, what, deadline
+           FROM meeting_agreement ORDER BY meeting_id, position, id",
+        |r| {
+            Ok(MeetingAgreement {
+                id: r.get(0)?,
+                meeting_id: r.get(1)?,
+                position: r.get(2)?,
+                who: r.get(3)?,
+                what: r.get(4)?,
+                deadline: r.get(5)?,
+            })
+        },
+    )
+}
+
+/// Inserts or updates one line of the communication log.
+///
+/// **This statement cannot reach `parent_appointment`.** There is no call in
+/// this module that writes both tables, which is what makes a booking and a
+/// record of what happened independent rather than merely intended to be.
+pub fn save_parent_contact(conn: &Connection, c: &ParentContact) -> AppResult<i64> {
+    if c.id == 0 {
+        conn.execute(
+            "INSERT INTO parent_contact (student_id, date, guardian, format, reason,
+                                         agreements, outcome, next_step, remarks)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                c.student_id,
+                c.date,
+                c.guardian,
+                c.format,
+                c.reason,
+                c.agreements,
+                c.outcome,
+                c.next_step,
+                c.remarks
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE parent_contact
+                SET student_id = ?2, date = ?3, guardian = ?4, format = ?5, reason = ?6,
+                    agreements = ?7, outcome = ?8, next_step = ?9, remarks = ?10
+              WHERE id = ?1",
+            params![
+                c.id,
+                c.student_id,
+                c.date,
+                c.guardian,
+                c.format,
+                c.reason,
+                c.agreements,
+                c.outcome,
+                c.next_step,
+                c.remarks
+            ],
+        )?;
+        Ok(c.id)
+    }
+}
+
+pub fn delete_parent_contact(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM parent_contact WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one appointment.
+///
+/// The counterpart of [`save_parent_contact`], and deliberately its mirror
+/// image: it cannot reach `parent_contact` either.
+pub fn save_parent_appointment(conn: &Connection, a: &ParentAppointment) -> AppResult<i64> {
+    if a.id == 0 {
+        conn.execute(
+            "INSERT INTO parent_appointment (date, clock_time, student_id, guardian, mode,
+                                             place, status, topic, outcome)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                a.date,
+                a.clock_time,
+                a.student_id,
+                a.guardian,
+                a.mode,
+                a.place,
+                a.status,
+                a.topic,
+                a.outcome
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE parent_appointment
+                SET date = ?2, clock_time = ?3, student_id = ?4, guardian = ?5, mode = ?6,
+                    place = ?7, status = ?8, topic = ?9, outcome = ?10
+              WHERE id = ?1",
+            params![
+                a.id,
+                a.date,
+                a.clock_time,
+                a.student_id,
+                a.guardian,
+                a.mode,
+                a.place,
+                a.status,
+                a.topic,
+                a.outcome
+            ],
+        )?;
+        Ok(a.id)
+    }
+}
+
+pub fn delete_parent_appointment(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM parent_appointment WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one meeting. A new one goes on the end.
+pub fn save_staff_meeting(conn: &Connection, m: &StaffMeeting) -> AppResult<i64> {
+    if m.id == 0 {
+        let next: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM staff_meeting",
+            [],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO staff_meeting (position, kind, date, clock_time, duration,
+                                        attendees, agenda, class_id, notes)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                next,
+                m.kind,
+                m.date,
+                m.clock_time,
+                m.duration,
+                m.attendees,
+                m.agenda,
+                m.class_id,
+                m.notes
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE staff_meeting
+                SET position = ?2, kind = ?3, date = ?4, clock_time = ?5, duration = ?6,
+                    attendees = ?7, agenda = ?8, class_id = ?9, notes = ?10
+              WHERE id = ?1",
+            params![
+                m.id,
+                m.position,
+                m.kind,
+                m.date,
+                m.clock_time,
+                m.duration,
+                m.attendees,
+                m.agenda,
+                m.class_id,
+                m.notes
+            ],
+        )?;
+        Ok(m.id)
+    }
+}
+
+/// Deletes a meeting and, by cascade, its agreements.
+pub fn delete_staff_meeting(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM staff_meeting WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one agreement out of a meeting. A new one goes on the end
+/// of that meeting's own list.
+pub fn save_meeting_agreement(conn: &Connection, a: &MeetingAgreement) -> AppResult<i64> {
+    if a.id == 0 {
+        let next: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM meeting_agreement WHERE meeting_id = ?1",
+            [a.meeting_id],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO meeting_agreement (meeting_id, position, who, what, deadline)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![a.meeting_id, next, a.who, a.what, a.deadline],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE meeting_agreement SET who = ?2, what = ?3, deadline = ?4, position = ?5
+              WHERE id = ?1",
+            params![a.id, a.who, a.what, a.deadline, a.position],
+        )?;
+        Ok(a.id)
+    }
+}
+
+pub fn delete_meeting_agreement(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM meeting_agreement WHERE id = ?1", [id])?;
     Ok(())
 }
 
@@ -2975,5 +3264,304 @@ mod tests {
         assert_eq!(planner.support_plans.len(), 1);
         assert_eq!(planner.support_goals.len(), 1);
         assert_eq!(planner.support_goals[0].plan_id, first);
+    }
+
+    // --------------------------------------------- M5: parents and staff ---
+
+    fn sample_contact(student_id: i64) -> ParentContact {
+        ParentContact {
+            id: 0,
+            student_id,
+            date: "2026-11-05".into(),
+            guardian: "Άννα Παπαδοπούλου".into(),
+            format: "phone".into(),
+            reason: "Συχνές καθυστερήσεις το πρωί".into(),
+            agreements: "Θα φεύγουν δέκα λεπτά νωρίτερα".into(),
+            outcome: "Συνεννοηθήκαμε ήρεμα".into(),
+            next_step: "Επανεξέταση σε δύο εβδομάδες".into(),
+            remarks: "Η μητέρα δουλεύει βάρδιες".into(),
+        }
+    }
+
+    fn sample_appointment(student_id: i64) -> ParentAppointment {
+        ParentAppointment {
+            id: 0,
+            date: "2026-11-05".into(),
+            clock_time: "13:30".into(),
+            student_id: Some(student_id),
+            guardian: "Άννα Παπαδοπούλου".into(),
+            mode: "in_person".into(),
+            place: "Αίθουσα 203".into(),
+            status: "confirmed".into(),
+            topic: "Πρόοδος στα Μαθηματικά".into(),
+            outcome: String::new(),
+        }
+    }
+
+    /// Every field of every M5 record survives a write and a fresh read.
+    #[test]
+    fn m5_records_round_trip() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let student_id = save_student(&conn, &sample_student()).unwrap();
+
+        let contact = sample_contact(student_id);
+        save_parent_contact(&conn, &contact).unwrap();
+        let appointment = sample_appointment(student_id);
+        save_parent_appointment(&conn, &appointment).unwrap();
+
+        let meeting = StaffMeeting {
+            id: 0,
+            position: 0,
+            kind: "council".into(),
+            date: "2026-11-09".into(),
+            clock_time: "14:00".into(),
+            duration: "90 λεπτά".into(),
+            attendees: "Όλοι οι διδάσκοντες του τμήματος".into(),
+            agenda: "Πρόοδος τμήματος · δύο περιστατικά".into(),
+            class_id: Some(class_id),
+            notes: "Τα πρακτικά κρατήθηκαν από τη Μ. Νικολάου".into(),
+        };
+        let meeting_id = save_staff_meeting(&conn, &meeting).unwrap();
+        save_meeting_agreement(
+            &conn,
+            &MeetingAgreement {
+                id: 0,
+                meeting_id,
+                position: 0,
+                who: "Μ. Νικολάου".into(),
+                what: "Επικοινωνία με τους γονείς δύο μαθητών".into(),
+                deadline: "2026-11-16".into(),
+            },
+        )
+        .unwrap();
+
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.parent_contacts.len(), 1);
+        assert_eq!(
+            planner.parent_contacts[0],
+            ParentContact {
+                id: planner.parent_contacts[0].id,
+                ..contact
+            }
+        );
+        assert_eq!(
+            planner.parent_appointments[0],
+            ParentAppointment {
+                id: planner.parent_appointments[0].id,
+                ..appointment
+            }
+        );
+        assert_eq!(planner.staff_meetings[0].duration, "90 λεπτά");
+        assert_eq!(planner.staff_meetings[0].class_id, Some(class_id));
+        assert_eq!(planner.meeting_agreements[0].deadline, "2026-11-16");
+    }
+
+    /// **M5's second acceptance criterion, at the storage layer.**
+    ///
+    /// A booking and a record of what happened, for the same guardian on the
+    /// same date, coexist untouched. Checked as *insensitivity* rather than as
+    /// a count: writing one table over and over leaves the other's rows
+    /// byte-for-byte equal to what they were.
+    #[test]
+    fn an_appointment_and_a_contact_for_the_same_guardian_and_date_are_independent() {
+        let (_dir, conn) = open();
+        let student_id = save_student(&conn, &sample_student()).unwrap();
+
+        save_parent_contact(&conn, &sample_contact(student_id)).unwrap();
+        save_parent_appointment(&conn, &sample_appointment(student_id)).unwrap();
+
+        let before = load(&conn).unwrap();
+        assert_eq!(before.parent_contacts.len(), 1);
+        assert_eq!(before.parent_appointments.len(), 1);
+        assert_eq!(
+            before.parent_contacts[0].date,
+            before.parent_appointments[0].date
+        );
+        assert_eq!(
+            before.parent_contacts[0].guardian,
+            before.parent_appointments[0].guardian
+        );
+
+        // Twenty more bookings for the same guardian, including one that is
+        // cancelled and one that is done.
+        for hour in 0..20 {
+            let mut extra = sample_appointment(student_id);
+            extra.clock_time = format!("{:02}:00", hour);
+            extra.status = if hour % 2 == 0 { "cancelled" } else { "done" }.into();
+            save_parent_appointment(&conn, &extra).unwrap();
+        }
+        let after = load(&conn).unwrap();
+        assert_eq!(
+            after.parent_contacts, before.parent_contacts,
+            "writing the appointment grid changed the communication log"
+        );
+
+        // And the other way round.
+        for n in 0..20 {
+            let mut extra = sample_contact(student_id);
+            extra.reason = format!("λόγος {n}");
+            save_parent_contact(&conn, &extra).unwrap();
+        }
+        let last = load(&conn).unwrap();
+        assert_eq!(
+            last.parent_appointments, after.parent_appointments,
+            "writing the communication log changed the appointment grid"
+        );
+    }
+
+    /// Deleting the student cascades to both — she is the only thing they
+    /// share, and it is a link, not a dependency between them.
+    #[test]
+    fn deleting_a_student_takes_her_contacts_and_empties_her_appointment() {
+        let (_dir, conn) = open();
+        let student_id = save_student(&conn, &sample_student()).unwrap();
+        save_parent_contact(&conn, &sample_contact(student_id)).unwrap();
+        save_parent_appointment(&conn, &sample_appointment(student_id)).unwrap();
+
+        delete_student(&conn, student_id).unwrap();
+        let planner = load(&conn).unwrap();
+
+        assert!(
+            planner.parent_contacts.is_empty(),
+            "the log line was about her"
+        );
+        // The booking is a slot in the teacher's week and still happened; only
+        // the link to the deleted card is emptied.
+        assert_eq!(planner.parent_appointments.len(), 1);
+        assert_eq!(planner.parent_appointments[0].student_id, None);
+        assert_eq!(planner.parent_appointments[0].guardian, "Άννα Παπαδοπούλου");
+    }
+
+    /// Deleting a class keeps the minutes of a meeting that happened, emptying
+    /// only the optional link — the same call M4 made for an incident.
+    #[test]
+    fn deleting_a_class_keeps_the_meeting_and_empties_its_link() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let meeting_id = save_staff_meeting(
+            &conn,
+            &StaffMeeting {
+                id: 0,
+                position: 0,
+                kind: "class".into(),
+                date: "2026-11-09".into(),
+                clock_time: "14:00".into(),
+                duration: String::new(),
+                attendees: String::new(),
+                agenda: "Πρόοδος τμήματος".into(),
+                class_id: Some(class_id),
+                notes: String::new(),
+            },
+        )
+        .unwrap();
+        save_meeting_agreement(
+            &conn,
+            &MeetingAgreement {
+                id: 0,
+                meeting_id,
+                position: 0,
+                who: "Μ. Νικολάου".into(),
+                what: "Ενημέρωση γονέων".into(),
+                deadline: String::new(),
+            },
+        )
+        .unwrap();
+
+        delete_class(&conn, class_id).unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(
+            planner.staff_meetings.len(),
+            1,
+            "the meeting still happened"
+        );
+        assert_eq!(planner.staff_meetings[0].class_id, None);
+        assert_eq!(planner.staff_meetings[0].agenda, "Πρόοδος τμήματος");
+        assert_eq!(planner.meeting_agreements.len(), 1);
+    }
+
+    /// Deleting a meeting takes its agreements with it, and nothing else.
+    #[test]
+    fn deleting_a_meeting_cascades_to_its_agreements_only() {
+        let (_dir, conn) = open();
+        let first = save_staff_meeting(
+            &conn,
+            &StaffMeeting {
+                id: 0,
+                position: 0,
+                kind: "staff".into(),
+                date: "2026-11-02".into(),
+                clock_time: String::new(),
+                duration: String::new(),
+                attendees: String::new(),
+                agenda: "Πρώτη".into(),
+                class_id: None,
+                notes: String::new(),
+            },
+        )
+        .unwrap();
+        let second = save_staff_meeting(
+            &conn,
+            &StaffMeeting {
+                id: 0,
+                position: 0,
+                kind: "staff".into(),
+                date: "2026-11-03".into(),
+                clock_time: String::new(),
+                duration: String::new(),
+                attendees: String::new(),
+                agenda: "Δεύτερη".into(),
+                class_id: None,
+                notes: String::new(),
+            },
+        )
+        .unwrap();
+        for meeting_id in [first, second] {
+            save_meeting_agreement(
+                &conn,
+                &MeetingAgreement {
+                    id: 0,
+                    meeting_id,
+                    position: 0,
+                    who: "Μ. Νικολάου".into(),
+                    what: "Ενέργεια".into(),
+                    deadline: String::new(),
+                },
+            )
+            .unwrap();
+        }
+
+        delete_staff_meeting(&conn, first).unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.staff_meetings.len(), 1);
+        assert_eq!(planner.staff_meetings[0].id, second);
+        assert_eq!(planner.meeting_agreements.len(), 1);
+        assert_eq!(planner.meeting_agreements[0].meeting_id, second);
+    }
+
+    /// A new meeting and a new agreement go on the end of their own list,
+    /// so a second one never lands on top of the first.
+    #[test]
+    fn new_meetings_and_agreements_go_on_the_end() {
+        let (_dir, conn) = open();
+        let blank = StaffMeeting {
+            id: 0,
+            position: 0,
+            kind: "staff".into(),
+            date: String::new(),
+            clock_time: String::new(),
+            duration: String::new(),
+            attendees: String::new(),
+            agenda: String::new(),
+            class_id: None,
+            notes: String::new(),
+        };
+        let first = save_staff_meeting(&conn, &blank).unwrap();
+        let second = save_staff_meeting(&conn, &blank).unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.staff_meetings.len(), 2, "a blank meeting is kept");
+        let positions: Vec<i64> = planner.staff_meetings.iter().map(|m| m.position).collect();
+        assert_eq!(positions, vec![0, 1]);
+        assert_ne!(first, second);
     }
 }

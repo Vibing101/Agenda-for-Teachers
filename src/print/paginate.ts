@@ -20,6 +20,21 @@
  * The rules are the source product's: the header block and the column headers
  * repeat on every page, and a row is never cut in half — one that does not fit
  * starts the next page instead.
+ *
+ * **M5 taught it a second kind of item.** Until then every printable surface was
+ * a table and the only thing that could be broken between pages was a row. A
+ * letter is not a table: it is a sequence of blocks — a field row, a paragraph,
+ * a captioned area, a reply slip — and those flow down the page alongside rows
+ * rather than instead of them. So the loop below walks *items* in document
+ * order, where an item is either a table row or a block, and a page grows a
+ * table only when a row actually lands on it. A document that is all table
+ * paginates exactly as it did before, which is what keeps M2's and M4.5's four
+ * sheets unchanged.
+ *
+ * What is **not** given back to the engine is the decision: the app still
+ * measures and still places. A block that must not be cut says so in CSS
+ * (`break-inside: avoid` on a reply slip) *and* is kept whole here, because
+ * only the second of those two is binding on a fixed-height captured page.
  */
 
 export interface Pagination {
@@ -53,35 +68,47 @@ export function paginate(root: HTMLElement, measure: Measure = measureOffsetHeig
   const header = sheet.querySelector("header");
   const table = sheet.querySelector("table");
   const footer = sheet.querySelector("footer");
-  if (!header || !table) return { pages: 0, pageWidth, pageHeight };
+  // A letter has no table, so only the header is required now.
+  if (!header) return { pages: 0, pageWidth, pageHeight };
 
-  const head = table.querySelector("thead");
-  const rows = Array.from(table.tBodies[0]?.rows ?? []);
+  const head = table?.querySelector("thead") ?? null;
+
+  // The things that flow, in document order: every table row, then every
+  // letter block. A register has only the first kind and a letter only the
+  // second; nothing stops a document having both.
+  const items: Element[] = [
+    ...Array.from(table?.tBodies[0]?.rows ?? []),
+    ...Array.from(sheet.querySelectorAll<HTMLElement>(":scope > .block")),
+  ];
 
   const pages = document.createElement("div");
   // Attached to the document *before* anything is measured: an element that is
   // not in the document has no layout, so every height would read as zero and
   // the whole roster would end up on one clipped page.
   sheet.before(pages);
-  let current = newPage(pages, header, head);
+  let current = newPage(pages, header);
+  let onPage = 0;
 
-  for (const row of rows) {
-    const body = current.querySelector("tbody")!;
-    body.appendChild(row);
-    if (measure(inner(current)) > content && body.rows.length > 1) {
-      // It did not fit: take it back off and start the page it belongs on.
-      body.removeChild(row);
-      current = newPage(pages, header, head);
-      current.querySelector("tbody")!.appendChild(row);
+  for (const item of items) {
+    place(current, item, head);
+    onPage += 1;
+    // The first item on a page is always kept, even if it overflows on its
+    // own: dropping it for never fitting would lose it altogether, and a row
+    // taller than a sheet is still a row the teacher wrote.
+    if (measure(inner(current)) > content && onPage > 1) {
+      remove(item);
+      current = newPage(pages, header);
+      place(current, item, head);
+      onPage = 1;
     }
   }
 
   if (footer) {
     inner(current).appendChild(footer);
-    if (measure(inner(current)) > content) {
+    if (measure(inner(current)) > content && onPage > 0) {
       // The note and the footer would spill off the bottom: give them a page
       // of their own rather than losing them.
-      current = newPage(pages, header, head);
+      current = newPage(pages, header);
       current.querySelector("table")?.remove();
       inner(current).appendChild(footer);
     }
@@ -95,8 +122,41 @@ function inner(page: HTMLElement): HTMLElement {
   return page.querySelector<HTMLElement>(".page-inner")!;
 }
 
-/** A fresh page carrying the sheet's header and the column headers. */
-function newPage(container: HTMLElement, header: Element, head: Element | null): HTMLElement {
+/**
+ * Puts one flowing item onto a page: a row into the page's table, a block
+ * straight onto the page.
+ *
+ * A page grows its table **lazily**, when a row first needs it, so a page of a
+ * letter does not carry an empty table and a stray set of column headers.
+ */
+function place(page: HTMLElement, item: Element, head: Element | null): void {
+  if (item.tagName === "TR") {
+    let body = page.querySelector("tbody");
+    if (!body) {
+      const table = document.createElement("table");
+      if (head) table.appendChild(head.cloneNode(true));
+      body = document.createElement("tbody");
+      table.appendChild(body);
+      inner(page).appendChild(table);
+    }
+    body.appendChild(item);
+  } else {
+    inner(page).appendChild(item);
+  }
+}
+
+function remove(item: Element): void {
+  item.parentElement?.removeChild(item);
+}
+
+/**
+ * A fresh page carrying the sheet's header.
+ *
+ * The column headers are **not** added here any more: [`place`] adds the table
+ * and its `thead` when a row first lands on the page, so a page holding only
+ * letter blocks does not carry an empty table.
+ */
+function newPage(container: HTMLElement, header: Element): HTMLElement {
   const page = document.createElement("div");
   page.className = "page";
   const wrapper = document.createElement("div");
@@ -104,12 +164,6 @@ function newPage(container: HTMLElement, header: Element, head: Element | null):
   page.appendChild(wrapper);
 
   wrapper.appendChild(header.cloneNode(true));
-
-  const table = document.createElement("table");
-  if (head) table.appendChild(head.cloneNode(true));
-  table.appendChild(document.createElement("tbody"));
-  wrapper.appendChild(table);
-
   container.appendChild(page);
   return page;
 }

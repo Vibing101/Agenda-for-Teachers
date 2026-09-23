@@ -26,7 +26,7 @@ import {
 } from "../domain/behaviour";
 import type { Planner } from "../domain/types";
 import type { Translate } from "../i18n";
-import { renderPrintDocument, type PrintCell, type PrintDocument } from "./document";
+import { renderPrintDocument, type PrintCell, type TableDocument } from "./document";
 import { printFooter, tickText } from "./sheetParts";
 
 /**
@@ -44,7 +44,7 @@ export function incidentSheetDocument(
   planner: Planner,
   filter: IncidentFilter,
   today: string,
-): PrintDocument {
+): TableDocument {
   const rows = filteredIncidents(planner, filter);
 
   const filterStudent = planner.students.find((s) => s.id === filter.studentId);

@@ -12,7 +12,7 @@ import { DEFAULT_LOCALE, translatorFor } from "../../src/i18n";
 import { LocaleContext } from "../../src/i18n/useTranslate";
 import type { Planner } from "../../src/domain/types";
 import type { Run } from "../../src/screens/types";
-import { createFakeBackend, type FakeBackend } from "./fakeBackend";
+import { createFakeBackend, emptyPlanner, type FakeBackend } from "./fakeBackend";
 
 export interface ScreenProps {
   planner: Planner;
@@ -45,6 +45,34 @@ function Harness<P extends { planner: Planner }>({
   // view, which writes nothing — simply ignores it.
   const props = { planner, run, ...extra } as unknown as P;
   return <Screen {...props} />;
+}
+
+/**
+ * Renders a screen that takes **no planner** — M5's letters and message bank,
+ * whose content comes from the language bundle rather than from stored data.
+ *
+ * It still wires the mocked `invoke`, because such a screen can still export a
+ * PDF and a test needs to read what reached `export_pdf`.
+ */
+export function renderStandalone<P extends object>(
+  Screen: ComponentType<P>,
+  props: P,
+  invoke: MockedInvoke,
+): FakeBackend {
+  const backend = createFakeBackend(emptyPlanner());
+  invoke.mockImplementation((command, args) => {
+    try {
+      return Promise.resolve(backend.handle(command, args));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  });
+  render(
+    <LocaleContext.Provider value={{ locale: DEFAULT_LOCALE, t: translatorFor(DEFAULT_LOCALE) }}>
+      <Screen {...props} />
+    </LocaleContext.Provider>,
+  );
+  return backend;
 }
 
 interface MockedInvoke {

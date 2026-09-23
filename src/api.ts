@@ -14,10 +14,14 @@ import type {
   ImportantDate,
   Incident,
   LessonPlan,
+  MeetingAgreement,
+  ParentAppointment,
+  ParentContact,
   Planner,
   SchoolClass,
   SchoolYear,
   Seat,
+  StaffMeeting,
   Student,
   SupportGoal,
   SupportPlan,
@@ -129,6 +133,28 @@ export const api = {
    */
   saveSupportGoal: (goal: SupportGoal) => invoke<Planner>("save_support_goal", { goal }),
   deleteSupportGoal: (id: number) => invoke<Planner>("delete_support_goal", { id }),
+
+  /**
+   * One line of the parent communication log — a record of what happened.
+   *
+   * **This reaches the log and nothing else.** The appointment grid below is
+   * independent of it by the spec's own decision, so — exactly as with M4's
+   * attendance pair — there is deliberately no call here that writes both.
+   */
+  saveParentContact: (contact: ParentContact) => invoke<Planner>("save_parent_contact", { contact }),
+  deleteParentContact: (id: number) => invoke<Planner>("delete_parent_contact", { id }),
+
+  /** One booking in the weekly grid. Independent of the log above. */
+  saveParentAppointment: (appointment: ParentAppointment) =>
+    invoke<Planner>("save_parent_appointment", { appointment }),
+  deleteParentAppointment: (id: number) => invoke<Planner>("delete_parent_appointment", { id }),
+
+  saveStaffMeeting: (meeting: StaffMeeting) => invoke<Planner>("save_staff_meeting", { meeting }),
+  deleteStaffMeeting: (id: number) => invoke<Planner>("delete_staff_meeting", { id }),
+
+  saveMeetingAgreement: (agreement: MeetingAgreement) =>
+    invoke<Planner>("save_meeting_agreement", { agreement }),
+  deleteMeetingAgreement: (id: number) => invoke<Planner>("delete_meeting_agreement", { id }),
 
   /**
    * Writes one document into `exports/` as a real PDF and resolves with its

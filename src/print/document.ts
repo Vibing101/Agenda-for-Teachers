@@ -38,6 +38,17 @@ export interface PrintCell {
    * letting the engine give a one-character column the same room as a name.
    */
   width?: string;
+  /**
+   * Never break this cell's text across lines.
+   *
+   * Added at M5, for a column that is short and must stay legible: a date read
+   * as `05.11.20` / `26` down two lines is not a date. The page's default is
+   * `overflow-wrap: anywhere`, which is right for a teacher's sentence and
+   * wrong for a formatted number — this is the opt-out, and it is deliberately
+   * per-cell rather than a change to the default, because the default is what
+   * stops a long word overflowing the sheet.
+   */
+  nowrap?: boolean;
 }
 
 /**
@@ -60,6 +71,41 @@ export interface PrintBox {
   emptyText?: string;
 }
 
+/**
+ * A block of a printed *letter*, as opposed to a row of a printed register.
+ *
+ * **M5 is the first milestone whose printed output is not a table**, and this
+ * is the extension that made room for it rather than a second renderer. The
+ * source's seven parent letters are forms: a row of small captioned fields, a
+ * fixed sentence or two, captioned areas the teacher writes into, and — on two
+ * of them — a reply slip ruled off at the foot of the page. Each of those is a
+ * block here, and `renderPrintDocument` stays the one way HTML is produced.
+ *
+ * - `fields` — a row of small captioned values, the source's own page head.
+ * - `prose` — fixed sentences from the language bundle.
+ * - `area` — a captioned box holding what the teacher typed, or ruled space
+ *   when she typed nothing. `rows` is how many lines tall the blank is, which
+ *   is what makes an unfilled letter printable as a form.
+ * - `slip` — `ΑΠΟΚΟΨΤΕ ΚΑΙ ΕΠΙΣΤΡΕΨΤΕ`: a cut rule, a caption, a sentence and
+ *   its signature lines. Marked `break-inside: avoid`, so it is never cut in
+ *   half by a page break — a reply slip split across two sheets is not a reply
+ *   slip.
+ * - `signatures` — a row of ruled lines with captions beneath them.
+ * - `award` — the certificate's centred name-and-reason block.
+ */
+export type PrintBlock =
+  | { kind: "fields"; fields: { label: string; value: string }[] }
+  | { kind: "prose"; lines: string[] }
+  | { kind: "area"; caption: string; text: string; rows?: number }
+  | {
+      kind: "slip";
+      caption: string;
+      text: string;
+      fields: { label: string; value: string }[];
+    }
+  | { kind: "signatures"; fields: { label: string; value: string }[] }
+  | { kind: "award"; receivesCaption: string; name: string; forCaption: string; reason: string };
+
 export interface PrintTable {
   head: PrintCell[];
   /** An extra header row under the first, for the gradebook's weight row. */
@@ -69,9 +115,18 @@ export interface PrintTable {
 
 export interface PrintDocument {
   title: string;
+  /** The italic line under the title that the source's letters carry. */
+  subtitle?: string;
   /** The sheet's header fields — class, subject, period, scale, threshold. */
   meta: { label: string; value: string }[];
-  table: PrintTable;
+  /**
+   * The sheet's one table. **Optional since M5**: a letter has no table, and
+   * carries [`blocks`] instead. A document may have both, and a register that
+   * has only a table is exactly what it was before.
+   */
+  table?: PrintTable;
+  /** A letter's blocks, printed under the table if there is one. */
+  blocks?: PrintBlock[];
   /** The small print under the table, if the source sheet has one. */
   note?: string;
   /** The source page's own captioned boxes, under the table. */
@@ -86,8 +141,29 @@ export interface PrintDocument {
    * stylesheet survives that.
    */
   dense?: boolean;
+  /**
+   * A certificate: one centred page inside a ruled frame, as the source's
+   * `Έπαινος` and `Βραβείο επίδοσης` pages are.
+   *
+   * Worth recording, because the M5 brief said otherwise: those two pages are
+   * **one certificate each on a full A4 portrait sheet**, not two up. The pages
+   * were rendered and looked at to be sure.
+   */
+  certificate?: boolean;
   footer: string;
 }
+
+/**
+ * A document that certainly has a table — every register and grade sheet this
+ * app prints.
+ *
+ * `PrintDocument.table` became optional at M5, when the seven parent letters
+ * arrived and turned out not to be tables at all. The register builders still
+ * always produce one, and saying so here keeps their callers — and M2's and
+ * M4.5's tests — reading `doc.table.rows` without a narrowing dance for a case
+ * that cannot arise.
+ */
+export type TableDocument = PrintDocument & { table: PrintTable };
 
 /**
  * A4 at 72 points to the inch, in the CSS pixels the print window renders in.
@@ -127,6 +203,7 @@ function cell(c: PrintCell, tag: "td" | "th"): string {
     c.strong ? "strong" : "",
     c.muted ? "muted" : "",
     c.wide ? "wide" : "",
+    c.nowrap ? "nowrap" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -208,6 +285,9 @@ const STYLES = `
   td.strong, th.strong { font-weight: 700; }
   td.muted, th.muted { color: #666; }
   .wide { width: 22%; }
+  /* A short, formatted value — a date, a clock time, a vocabulary label — that
+     would be unreadable broken across lines. */
+  td.nowrap, th.nowrap { overflow-wrap: normal; word-break: keep-all; white-space: nowrap; }
   /* One block per sheet of paper, at exactly A4. macOS captures one rectangle
      of this size per block; Windows' own print-to-PDF breaks at the same
      blocks. */
@@ -263,7 +343,179 @@ const STYLES = `
     font-size: 7pt;
     color: #666;
   }
+  /* ------------------------------------------------- M5: letter blocks --- */
+  /* A letter is prose and ruled space rather than a table, so these are the
+     first print styles in this file that are not about rows and columns. */
+  .subtitle {
+    font-size: 10pt;
+    font-style: italic;
+    color: #444;
+    margin: -1mm 0 2mm;
+  }
+  .block { margin: 0 0 3mm; }
+  /* A row of small captioned values across the head of a letter — the class,
+     the school year and the date, as the source page carries them. */
+  .fieldrow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3mm 6mm;
+  }
+  .fieldrow .field { flex: 1 1 28%; min-width: 28%; }
+  .fieldrow .caption,
+  .block .caption {
+    display: block;
+    font-size: 7pt;
+    letter-spacing: 0.08em;
+    color: #444;
+    margin-bottom: 0.8mm;
+  }
+  /* The value sits on a rule, so a field left blank is a line to write on —
+     which is what the source's own paper gives the teacher. */
+  .fieldrow .value {
+    display: block;
+    border-bottom: 0.4pt solid #666;
+    min-height: 5mm;
+    font-weight: 600;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+  .prose { margin: 0 0 2mm; white-space: pre-line; overflow-wrap: anywhere; }
+  /* A captioned area the teacher writes into. Its minimum height is set per
+     block from its own row count, so an unfilled newsletter still prints as a
+     form with room in it rather than as a caption with nothing under it. */
+  .area {
+    border: 0.4pt solid #666;
+    padding: 1.4mm 1.6mm;
+  }
+  .area .text {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    display: block;
+  }
+  /* The detach-and-return reply slip: ruled off above, and never split across
+     a page break. A slip that arrives on two sheets is not a slip. */
+  .slip {
+    border-top: 0.8pt dashed #666;
+    padding-top: 2mm;
+    margin-top: 4mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .signatures {
+    display: flex;
+    gap: 6mm;
+    margin-top: 5mm;
+  }
+  .signatures .field { flex: 1; }
+  .signatures .value {
+    display: block;
+    border-bottom: 0.4pt solid #000;
+    min-height: 7mm;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+  .signatures .caption {
+    display: block;
+    font-size: 7pt;
+    letter-spacing: 0.08em;
+    color: #444;
+    margin-top: 0.8mm;
+  }
+  /* The certificate: one centred page inside a ruled frame. The source's two
+     award pages are one each on a full A4 portrait sheet — verified against
+     the source PDF, because the M5 brief said they were two up. */
+  .certificate .page-inner {
+    border: 1.2pt solid #000;
+    padding: 12mm 10mm;
+    height: 100%;
+    box-sizing: border-box;
+    text-align: center;
+  }
+  .certificate h1 { font-size: 26pt; margin: 18mm 0 2mm; }
+  .certificate .meta { display: none; }
+  .award { margin: 10mm 0; }
+  .award .caption {
+    display: block;
+    font-size: 7pt;
+    letter-spacing: 0.14em;
+    color: #444;
+  }
+  .award .name {
+    display: block;
+    border-bottom: 0.8pt solid #000;
+    min-height: 11mm;
+    font-size: 16pt;
+    margin: 2mm 18mm 6mm;
+    overflow-wrap: anywhere;
+  }
+  .award .reason {
+    display: block;
+    border-bottom: 0.4pt solid #666;
+    min-height: 16mm;
+    margin: 2mm 12mm;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+  .certificate .signatures { margin: 14mm 14mm 0; }
 `;
+
+/** One letter block as HTML. See [`PrintBlock`] for what each kind is. */
+function block(b: PrintBlock): string {
+  const caption = (text: string) => `<span class="caption">${escapeHtml(text)}</span>`;
+  const ruled = (fields: { label: string; value: string }[]) =>
+    fields
+      .map(
+        (f) =>
+          `<div class="field"><span class="value">${escapeHtml(f.value)}</span>` +
+          caption(f.label) +
+          `</div>`,
+      )
+      .join("");
+
+  switch (b.kind) {
+    case "fields":
+      return (
+        `<div class="block fieldrow">` +
+        b.fields
+          .map(
+            (f) =>
+              `<div class="field">${caption(f.label)}` +
+              `<span class="value">${escapeHtml(f.value)}</span></div>`,
+          )
+          .join("") +
+        `</div>`
+      );
+    case "prose":
+      return b.lines
+        .map((line) => `<p class="block prose">${escapeHtml(line)}</p>`)
+        .join("");
+    case "area": {
+      // Six millimetres a line is the height this stylesheet's 9pt text with
+      // its 1.35 line-height actually occupies, rounded up so a blank never
+      // comes out shorter than the writing it is standing in for.
+      const height = `min-height:${Math.max(1, b.rows ?? 4) * 6}mm`;
+      return (
+        `<div class="block area" style="${height}">${caption(b.caption)}` +
+        `<span class="text">${escapeHtml(b.text)}</span></div>`
+      );
+    }
+    case "slip":
+      return (
+        `<div class="block slip">${caption(b.caption)}` +
+        `<p class="prose">${escapeHtml(b.text)}</p>` +
+        `<div class="signatures">${ruled(b.fields)}</div></div>`
+      );
+    case "signatures":
+      return `<div class="block signatures">${ruled(b.fields)}</div>`;
+    case "award":
+      return (
+        `<div class="block award">${caption(b.receivesCaption)}` +
+        `<span class="name">${escapeHtml(b.name)}</span>` +
+        caption(b.forCaption) +
+        `<span class="reason">${escapeHtml(b.reason)}</span></div>`
+      );
+  }
+}
 
 /**
  * The complete standalone document handed to the print window.
@@ -282,13 +534,20 @@ export function renderPrintDocument(doc: PrintDocument, landscape = true): strin
     )
     .join("");
 
-  const head = `<tr>${doc.table.head.map((c) => cell(c, "th")).join("")}</tr>`;
-  const subHead = doc.table.subHead
-    ? `<tr>${doc.table.subHead.map((c) => cell(c, "th")).join("")}</tr>`
+  // A letter has no table at all. `table` became optional at M5 for exactly
+  // that, and a register that has one is emitted byte-for-byte as before.
+  const table = doc.table
+    ? `<table><thead>` +
+      `<tr>${doc.table.head.map((c) => cell(c, "th")).join("")}</tr>` +
+      (doc.table.subHead
+        ? `<tr>${doc.table.subHead.map((c) => cell(c, "th")).join("")}</tr>`
+        : "") +
+      `</thead><tbody>` +
+      doc.table.rows.map((row) => `<tr>${row.map((c) => cell(c, "td")).join("")}</tr>`).join("") +
+      `</tbody></table>`
     : "";
-  const body = doc.table.rows
-    .map((row) => `<tr>${row.map((c) => cell(c, "td")).join("")}</tr>`)
-    .join("");
+
+  const blocks = (doc.blocks ?? []).map(block).join("\n");
 
   const { width, height, margin } = pageGeometry(landscape);
   const geometry =
@@ -319,10 +578,12 @@ export function renderPrintDocument(doc: PrintDocument, landscape = true): strin
     `<style>${STYLES}
   .page { width: ${width}px; height: ${height}px; padding: ${margin}px; }${dense}
 </style>`,
-    `<div id="sheet" ${geometry}>`,
+    `<div id="sheet" ${geometry}${doc.certificate ? ` class="certificate"` : ""}>`,
     `<header><h1>${escapeHtml(doc.title)}</h1>`,
+    doc.subtitle ? `<p class="subtitle">${escapeHtml(doc.subtitle)}</p>` : "",
     `<div class="meta">${meta}</div></header>`,
-    `<table><thead>${head}${subHead}</thead><tbody>${body}</tbody></table>`,
+    table,
+    blocks,
     `<footer>`,
     boxes,
     doc.note ? `<p class="note">${escapeHtml(doc.note)}</p>` : "",

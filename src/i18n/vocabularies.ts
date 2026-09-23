@@ -94,6 +94,34 @@ export const GOAL_PROGRESS = [
   "needs_review",
 ] as const;
 
+/**
+ * How a parent contact happened — the source log's "Μορφή" column (M5).
+ *
+ * Five codes rather than free text, because the column is a fixed vocabulary
+ * everywhere else in this app and because a printed register reads better with
+ * one word per line than with whatever the teacher typed that day. `note` is
+ * the case the source's own register keeps room for: something she recorded
+ * without a conversation having taken place.
+ */
+export const CONTACT_FORMATS = ["meeting", "phone", "email", "message", "note"] as const;
+/** How a parent appointment is to be held (M5). */
+export const APPOINTMENT_MODES = ["in_person", "phone", "online"] as const;
+/**
+ * Where a booking stands (M5).
+ *
+ * `proposed` is what a new slot starts at — the teacher has offered it and the
+ * guardian has not answered — and it is deliberately distinct from
+ * `confirmed`, because the upcoming panel shows both and the difference is what
+ * the teacher is looking for.
+ */
+export const APPOINTMENT_STATUSES = ["proposed", "confirmed", "done", "cancelled"] as const;
+/**
+ * The three kinds of meeting the spec names: "Staff/council/class meetings"
+ * (M5). The source product's own index offers Συνεδριάσεις συλλόγου and
+ * Συμβούλια τμημάτων, and a class's own meeting is the third the spec adds.
+ */
+export const MEETING_KINDS = ["staff", "council", "class"] as const;
+
 /** Monday–Saturday, matching the source timetable grid. */
 export const WEEKDAYS = [1, 2, 3, 4, 5, 6] as const;
 /**
@@ -116,6 +144,10 @@ export type AbsenceKind = (typeof ABSENCE_KINDS)[number];
 export type FollowUpStatus = (typeof FOLLOW_UP_STATUSES)[number];
 export type GoalProgress = (typeof GOAL_PROGRESS)[number];
 export type GoalArea = (typeof GOAL_AREAS)[number];
+export type ContactFormat = (typeof CONTACT_FORMATS)[number];
+export type AppointmentMode = (typeof APPOINTMENT_MODES)[number];
+export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
+export type MeetingKind = (typeof MEETING_KINDS)[number];
 export type Weekday = (typeof WEEKDAYS)[number];
 export type AgendaScope = (typeof AGENDA_SCOPES)[number];
 export type Month = (typeof MONTHS)[number];
@@ -145,3 +177,7 @@ export const absenceKindLabel = (code: string) => vocabLabelId("absenceKind", co
 export const absenceKindShortLabel = (code: string) => vocabLabelId("absenceKindShort", code);
 export const followUpLabel = (code: string) => vocabLabelId("followUp", code);
 export const goalProgressLabel = (code: string) => vocabLabelId("goalProgress", code);
+export const contactFormatLabel = (code: string) => vocabLabelId("contactFormat", code);
+export const appointmentModeLabel = (code: string) => vocabLabelId("appointmentMode", code);
+export const appointmentStatusLabel = (code: string) => vocabLabelId("appointmentStatus", code);
+export const meetingKindLabel = (code: string) => vocabLabelId("meetingKind", code);

@@ -187,6 +187,10 @@ pub struct Planner {
     pub incidents: Vec<Incident>,
     pub support_plans: Vec<SupportPlan>,
     pub support_goals: Vec<SupportGoal>,
+    pub parent_contacts: Vec<ParentContact>,
+    pub parent_appointments: Vec<ParentAppointment>,
+    pub staff_meetings: Vec<StaffMeeting>,
+    pub meeting_agreements: Vec<MeetingAgreement>,
 }
 
 // ------------------------------------------------------------- M2: grades ---
@@ -527,3 +531,122 @@ pub const GOAL_PROGRESS: [&str; 5] = [
     "met",
     "needs_review",
 ];
+
+// ------------------------------------------------- M5: parents and staff ---
+
+/// One line of the parent communication log — the source's "Επικοινωνία με
+/// τους γονείς · Μητρώο επικοινωνιών · κατάλληλο για επίσημη τεκμηρίωση".
+///
+/// **This is a record of what happened.** The booking of a future meeting is
+/// [`ParentAppointment`], which is a different table with no key in common and
+/// no statement that writes both. The spec says so in as many words — "a
+/// booking vs. a record of what happened" — and M5's second acceptance
+/// criterion is that the two coexist for the same guardian and date without
+/// either touching the other. That is held by construction, exactly as M4 held
+/// the attendance grid against the absence register.
+///
+/// `guardian` is free text rather than a link to one of the student card's two
+/// guardian slots: the person who actually rang may be a grandparent, a lawyer
+/// or an interpreter, and the source column is headed simply "Ποιος".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ParentContact {
+    #[serde(default)]
+    pub id: i64,
+    pub student_id: i64,
+    pub date: String,
+    /// The source column "Ποιος" — who was spoken to.
+    pub guardian: String,
+    /// `meeting` | `phone` | `email` | `message` | `note` — the source's "Μορφή".
+    pub format: String,
+    /// The source's "Αιτία". Kept apart from `agreements` because the spec asks
+    /// for exactly that split.
+    pub reason: String,
+    /// The source's "Συμφωνίες".
+    pub agreements: String,
+    pub outcome: String,
+    /// The source's "Επόμενα".
+    pub next_step: String,
+    /// The page-level "ΠΑΡΑΤΗΡΗΣΕΙΣ" box, stored per line and printed
+    /// attributed — the shape M4.5 resolved for a source page's captioned box.
+    pub remarks: String,
+}
+
+pub const CONTACT_FORMATS: [&str; 5] = ["meeting", "phone", "email", "message", "note"];
+
+/// One booking in the weekly parent-appointment grid — the source's
+/// "Συναντήσεις με γονείς · Οι εβδομαδιαίες συναντήσεις", an Ώρα ×
+/// Δευτέρα–Παρασκευή grid.
+///
+/// **Keyed by an actual date, never by a weekday index**, for the reason this
+/// project has kept every dated thing that way since M1: the week grid is a
+/// *view*, built by `domain/appointments.ts` from the Monday it is asked for,
+/// and moving the school year's start date moves nothing that is stored.
+///
+/// Independent of [`ParentContact`] — see that type.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ParentAppointment {
+    #[serde(default)]
+    pub id: i64,
+    /// `YYYY-MM-DD`. The grid's column.
+    pub date: String,
+    /// `HH:MM`. The grid's row.
+    pub clock_time: String,
+    /// Optional: a slot may be booked for a guardian before it is clear which
+    /// child it is about, and the source's cell is free text.
+    pub student_id: Option<i64>,
+    pub guardian: String,
+    /// `in_person` | `phone` | `online`
+    pub mode: String,
+    pub place: String,
+    /// `proposed` | `confirmed` | `done` | `cancelled`
+    pub status: String,
+    pub topic: String,
+    pub outcome: String,
+}
+
+pub const APPOINTMENT_MODES: [&str; 3] = ["in_person", "phone", "online"];
+pub const APPOINTMENT_STATUSES: [&str; 4] = ["proposed", "confirmed", "done", "cancelled"];
+
+/// One staff, council or class meeting — the source's "Ομάδα · συνεδριάσεις
+/// και συσκέψεις", whose cards carry ΗΜΕΡΟΜΗΝΙΑ / ΕΙΔΟΣ / ΔΙΑΡΚΕΙΑ over a
+/// ΗΜΕΡΗΣΙΑ ΔΙΑΤΑΞΗ · ΣΥΜΦΩΝΙΕΣ · ΕΝΕΡΓΕΙΕΣ area.
+///
+/// The agreements the spec asks for — who, what and by when — are rows of
+/// [`MeetingAgreement`] rather than one text field, because the spec names
+/// three parts and a deadline is a date the upcoming panel can read.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StaffMeeting {
+    #[serde(default)]
+    pub id: i64,
+    #[serde(default)]
+    pub position: i64,
+    /// `staff` | `council` | `class`
+    pub kind: String,
+    pub date: String,
+    pub clock_time: String,
+    /// Free text: "90 λεπτά" and "2 ώρες" are both things a teacher writes.
+    pub duration: String,
+    pub attendees: String,
+    pub agenda: String,
+    /// The optional class a class-council meeting is about. `ON DELETE SET
+    /// NULL`, like an incident's: deleting a class does not delete the minutes
+    /// of a meeting that happened.
+    pub class_id: Option<i64>,
+    pub notes: String,
+}
+
+pub const MEETING_KINDS: [&str; 3] = ["staff", "council", "class"];
+
+/// One agreement out of a meeting: who does what, by when.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MeetingAgreement {
+    #[serde(default)]
+    pub id: i64,
+    pub meeting_id: i64,
+    #[serde(default)]
+    pub position: i64,
+    /// The person who took it on.
+    pub who: String,
+    pub what: String,
+    pub deadline: String,
+}

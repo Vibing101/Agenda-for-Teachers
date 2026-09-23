@@ -44,8 +44,10 @@ describe("the app shell", () => {
   it("shows where the data lives, including the schema version", async () => {
     mount();
     expect(await screen.findByText("/Drive/Ατζέντα/data/planner.sqlite")).toBeInTheDocument();
-    // M3's forward migration: `user_version = 4`.
-    expect(screen.getByText("5")).toBeInTheDocument();
+    // M5's forward migration: `user_version = 6`. This line is also the
+    // cheapest check that a manual pass is looking at the build under test —
+    // see the bundle-identifier hazard in `docs/MILESTONE_PROMPT.md`.
+    expect(screen.getByText("6")).toBeInTheDocument();
   });
 
   it("reaches the four M3 sections", async () => {
@@ -143,13 +145,23 @@ describe("the app shell", () => {
   });
 
   /**
-   * **M4 adds four surfaces and no top-level tabs.** The spec files them under
-   * two sections the app already has, and the source product reaches each from
-   * its module's own index page, so they are sub-tabs inside those sections.
-   * This pins the arrangement so a later agent does not quietly add four more
-   * things to the top row.
+   * **The top row, pinned — so a later agent does not quietly add to it.**
+   *
+   * It was eight from M0 to M4.5. M4 added four surfaces and no tabs, because
+   * the spec files those under two sections the app already had and the source
+   * product reaches each from its module's own index page; they are sub-tabs
+   * inside those sections and this test is what keeps them there.
+   *
+   * **M5 makes it nine, deliberately.** Its module — the spec's "5. Γονείς &
+   * Ομάδα" — is the first since M0 with no existing section to belong to:
+   * nothing in the app was about parents or about staff meetings. The source
+   * product carries ΓΟΝΕΙΣ and ΟΜΑΔΑ as two separate top-level items, which
+   * would have made ten; M5 takes **one** tab, named after the spec's module
+   * rather than after either half, with all five of its surfaces filed under it
+   * as sub-pages. So the number moved by one, once, for a module that had
+   * nowhere else to go — not because the rule was relaxed.
    */
-  it("keeps eight top-level sections after M4", async () => {
+  it("keeps the top row to nine sections after M5", async () => {
     mount();
     await screen.findByRole("heading", { name: "Σχολικό έτος" });
     const top = screen.getAllByRole("navigation")[0];
@@ -161,8 +173,42 @@ describe("the app shell", () => {
       "Πρόγραμμα",
       "Πλάνο",
       "Ατζέντα",
+      "Γονείς & Ομάδα",
       "Σημερινό",
     ]);
+  });
+
+  /**
+   * M5's five surfaces are sub-pages of the one new section, which is M4's
+   * shape and the reason the top row grew by one rather than by five.
+   */
+  it("files all five M5 surfaces under the one new section", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+
+    await user.click(screen.getByRole("button", { name: "Γονείς & Ομάδα" }));
+    // It opens on the communication log, the first sub-page.
+    expect(
+      await screen.findByRole("heading", { name: "Επικοινωνία με τους γονείς" }),
+    ).toBeInTheDocument();
+
+    const sub = screen.getAllByRole("navigation")[1];
+    expect(within(sub).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Επικοινωνία",
+      "Συναντήσεις",
+      "Συνεδριάσεις",
+      "Επιστολές",
+      "Μηνύματα",
+    ]);
+
+    await user.click(within(sub).getByRole("button", { name: "Επιστολές" }));
+    expect(
+      await screen.findByRole("heading", { name: "Έτοιμες επιστολές προς γονείς" }),
+    ).toBeInTheDocument();
+
+    await user.click(within(sub).getByRole("button", { name: "Μηνύματα" }));
+    expect(await screen.findByRole("heading", { name: "Τράπεζα μηνυμάτων" })).toBeInTheDocument();
   });
 
   it("files attendance under Βαθμοί, as the spec and the source product do", async () => {

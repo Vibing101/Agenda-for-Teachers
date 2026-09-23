@@ -43,11 +43,11 @@ import {
   followUpLabel,
   monthLabel,
 } from "../i18n/vocabularies";
-import { renderPrintDocument, type PrintCell, type PrintDocument } from "./document";
+import { renderPrintDocument, type PrintCell, type TableDocument } from "./document";
 import { boxLine, printFooter, tickText } from "./sheetParts";
 
 /** The header the source register carries: ΤΑΞΗ / ΜΑΘΗΜΑ / ΠΕΡΙΟΔΟΣ. */
-function classMeta(t: Translate, planner: Planner, classId: number): PrintDocument["meta"] {
+function classMeta(t: Translate, planner: Planner, classId: number): TableDocument["meta"] {
   const schoolClass = planner.classes.find((c) => c.id === classId);
   return [
     { label: t("grades.printClass"), value: schoolClass?.name.trim() || t("common.unnamed") },
@@ -86,7 +86,7 @@ export function absenceRegisterDocument(
   planner: Planner,
   classId: number,
   today: string,
-): PrintDocument {
+): TableDocument {
   const events = eventsOfClass(planner, classId);
 
   const head: PrintCell[] = [
@@ -185,7 +185,7 @@ export function monthCardDocument(
   classId: number,
   month: string,
   today: string,
-): PrintDocument {
+): TableDocument {
   const days = monthDays(month);
   const rows = monthRows(planner, classId, month);
 

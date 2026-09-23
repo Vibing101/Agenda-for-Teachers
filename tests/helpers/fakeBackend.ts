@@ -29,10 +29,14 @@ import type {
   ImportantDate,
   Incident,
   LessonPlan,
+  MeetingAgreement,
+  ParentAppointment,
+  ParentContact,
   Planner,
   SchoolClass,
   SchoolYear,
   Seat,
+  StaffMeeting,
   Student,
   SupportGoal,
   SupportPlan,
@@ -79,6 +83,10 @@ export function emptyPlanner(): Planner {
     incidents: [],
     support_plans: [],
     support_goals: [],
+    parent_contacts: [],
+    parent_appointments: [],
+    staff_meetings: [],
+    meeting_agreements: [],
   };
 }
 
@@ -114,7 +122,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           app_folder: "/Drive/Ατζέντα",
           db_path: "/Drive/Ατζέντα/data/planner.sqlite",
           db_exists: true,
-          schema_version: 5,
+          schema_version: 6,
           backup_count: 2,
           last_backup: "2026-09-19T07:30:00+03:00",
           disk_changed: diskChanged,
@@ -408,6 +416,59 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
         }
         case "delete_support_goal":
           planner.support_goals = planner.support_goals.filter((g) => g.id !== args.id);
+          break;
+        // M5. The two halves of the parent module are written by two commands
+        // that each touch one array, exactly as the Rust side does — there is
+        // deliberately no case here that writes both.
+        case "save_parent_contact": {
+          const c = { ...(args.contact as ParentContact) };
+          if (c.id === 0) c.id = nextId++;
+          planner.parent_contacts = upsert(planner.parent_contacts, c, (x) => x.id);
+          break;
+        }
+        case "delete_parent_contact":
+          planner.parent_contacts = planner.parent_contacts.filter((c) => c.id !== args.id);
+          break;
+        case "save_parent_appointment": {
+          const a = { ...(args.appointment as ParentAppointment) };
+          if (a.id === 0) a.id = nextId++;
+          planner.parent_appointments = upsert(planner.parent_appointments, a, (x) => x.id);
+          break;
+        }
+        case "delete_parent_appointment":
+          planner.parent_appointments = planner.parent_appointments.filter(
+            (a) => a.id !== args.id,
+          );
+          break;
+        case "save_staff_meeting": {
+          const m = { ...(args.meeting as StaffMeeting) };
+          if (m.id === 0) {
+            m.id = nextId++;
+            m.position = planner.staff_meetings.length;
+          }
+          planner.staff_meetings = upsert(planner.staff_meetings, m, (x) => x.id);
+          break;
+        }
+        case "delete_staff_meeting":
+          planner.staff_meetings = planner.staff_meetings.filter((m) => m.id !== args.id);
+          // As the schema's cascade does.
+          planner.meeting_agreements = planner.meeting_agreements.filter(
+            (a) => a.meeting_id !== args.id,
+          );
+          break;
+        case "save_meeting_agreement": {
+          const a = { ...(args.agreement as MeetingAgreement) };
+          if (a.id === 0) {
+            a.id = nextId++;
+            a.position = planner.meeting_agreements.filter(
+              (x) => x.meeting_id === a.meeting_id,
+            ).length;
+          }
+          planner.meeting_agreements = upsert(planner.meeting_agreements, a, (x) => x.id);
+          break;
+        }
+        case "delete_meeting_agreement":
+          planner.meeting_agreements = planner.meeting_agreements.filter((a) => a.id !== args.id);
           break;
         case "export_pdf":
           // The real export opens a hidden window and drives the platform's

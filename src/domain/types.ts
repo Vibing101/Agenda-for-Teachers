@@ -5,6 +5,8 @@
  */
 import type { AbsenceEvent, AttendanceMark } from "./attendance";
 import type { Incident } from "./behaviour";
+import type { MeetingAgreement, StaffMeeting } from "./meetings";
+import type { ParentAppointment, ParentContact } from "./parents";
 import type { SupportGoal, SupportPlan } from "./support";
 import type { ClassGrading, GradeColumn, GradeRow, GradeValue } from "./grades";
 import type { AgendaNote } from "./agenda";
@@ -144,6 +146,10 @@ export interface Planner {
   incidents: Incident[];
   support_plans: SupportPlan[];
   support_goals: SupportGoal[];
+  parent_contacts: ParentContact[];
+  parent_appointments: ParentAppointment[];
+  staff_meetings: StaffMeeting[];
+  meeting_agreements: MeetingAgreement[];
 }
 
 /** A blank card, so "new student" and "loaded student" are the same shape. */
@@ -196,6 +202,16 @@ export type { AbsenceEvent, AttendanceMark } from "./attendance";
 export type { Incident } from "./behaviour";
 export type { SupportGoal, SupportPlan } from "./support";
 export type { SenStatus } from "../i18n/vocabularies";
+
+/**
+ * M5's records live beside their own selectors too — the contact next to the
+ * rule that makes it a *record of what happened*, the appointment next to the
+ * rule that keys it by an actual date and builds the week grid as a view over
+ * one, and the meeting next to the upcoming panel that reads both. Re-exported
+ * for the same reason as the others.
+ */
+export type { ParentAppointment, ParentContact } from "./parents";
+export type { MeetingAgreement, StaffMeeting } from "./meetings";
 
 export function emptyClass(): SchoolClass {
   return {

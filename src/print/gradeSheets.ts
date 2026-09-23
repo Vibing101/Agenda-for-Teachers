@@ -28,7 +28,7 @@ import {
   descriptiveGradeLabel,
   passFailGradeLabel,
 } from "../i18n/vocabularies";
-import { renderPrintDocument, type PrintCell, type PrintDocument } from "./document";
+import { renderPrintDocument, type PrintCell, type TableDocument } from "./document";
 
 /**
  * What one cell reads as on paper.
@@ -57,7 +57,7 @@ function sheetMeta(
   planner: Planner,
   classId: number,
   includeScale: boolean,
-): PrintDocument["meta"] {
+): TableDocument["meta"] {
   const schoolClass = planner.classes.find((c) => c.id === classId);
   const grading = gradingFor(planner, classId);
   const meta = [
@@ -98,7 +98,7 @@ export function gradeSheetDocument(
   planner: Planner,
   classId: number,
   today: string,
-): PrintDocument {
+): TableDocument {
   const columns = columnsFor(planner, classId);
   const roster = classRoster(planner, classId);
   const results = resultsFor(planner, classId);
@@ -163,7 +163,7 @@ export function conductSheetDocument(
   planner: Planner,
   classId: number,
   today: string,
-): PrintDocument {
+): TableDocument {
   const roster = classRoster(planner, classId);
 
   const head: PrintCell[] = [

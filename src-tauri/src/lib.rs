@@ -5,7 +5,8 @@
 //! M1 puts the first real data behind it — school year, classes, students; M2
 //! the gradebook; M3 the teacher's master timetable, her weekly lesson plans
 //! and her agenda notes; M4 attendance, absence events, behaviour incidents
-//! and support plans.
+//! and support plans; M5 the parent communication log, the parent-appointment
+//! grid, staff meetings and their agreements.
 //!
 //! Two rules shape the command layer:
 //!
@@ -388,6 +389,78 @@ fn delete_support_goal(state: tauri::State<'_, AppState>, id: i64) -> AppResult<
     mutate(&state, |tx| store::delete_support_goal(tx, id))
 }
 
+// ------------------------------------------------- M5: parents and staff ---
+
+/// One line of the parent communication log — a record of what happened.
+///
+/// Note what this cannot do: `store::save_parent_contact` names only
+/// `parent_contact`, so writing a record of a conversation has no path to the
+/// appointment grid. **There is deliberately no command that writes both**,
+/// which is M5's second acceptance criterion held by construction rather than
+/// by care — the same shape M4 used for the attendance grid and the absence
+/// register.
+#[tauri::command]
+fn save_parent_contact(
+    state: tauri::State<'_, AppState>,
+    contact: ParentContact,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_parent_contact(tx, &contact).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_parent_contact(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_parent_contact(tx, id))
+}
+
+/// One booking in the weekly grid. The mirror image of the command above, and
+/// just as unable to reach the other table.
+#[tauri::command]
+fn save_parent_appointment(
+    state: tauri::State<'_, AppState>,
+    appointment: ParentAppointment,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_parent_appointment(tx, &appointment).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_parent_appointment(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_parent_appointment(tx, id))
+}
+
+#[tauri::command]
+fn save_staff_meeting(
+    state: tauri::State<'_, AppState>,
+    meeting: StaffMeeting,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_staff_meeting(tx, &meeting).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_staff_meeting(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_staff_meeting(tx, id))
+}
+
+#[tauri::command]
+fn save_meeting_agreement(
+    state: tauri::State<'_, AppState>,
+    agreement: MeetingAgreement,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_meeting_agreement(tx, &agreement).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_meeting_agreement(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_meeting_agreement(tx, id))
+}
+
 // ------------------------------------------------------------ PDF export ---
 
 /// Writes one document to `exports/` as a real PDF and returns its path.
@@ -707,6 +780,14 @@ pub fn run() {
             delete_support_plan,
             save_support_goal,
             delete_support_goal,
+            save_parent_contact,
+            delete_parent_contact,
+            save_parent_appointment,
+            delete_parent_appointment,
+            save_staff_meeting,
+            delete_staff_meeting,
+            save_meeting_agreement,
+            delete_meeting_agreement,
             export_pdf,
             print_job,
             print_ready,

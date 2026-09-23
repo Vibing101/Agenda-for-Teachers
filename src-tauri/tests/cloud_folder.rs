@@ -334,6 +334,72 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     )
     .unwrap();
 
+    // M5 — and the pair this milestone is judged on: **a booking and a record
+    // of what happened, for the same guardian on the same date.** They are in
+    // two tables that cannot reach each other, so both must survive the quit
+    // and come back disagreeing about nothing, because neither knows the other
+    // exists.
+    store::save_parent_contact(
+        &conn,
+        &ParentContact {
+            id: 0,
+            student_id: student,
+            date: "2026-11-05".into(),
+            guardian: "Άννα Παπαδοπούλου".into(),
+            format: "phone".into(),
+            reason: "Συχνές καθυστερήσεις το πρωί".into(),
+            agreements: "Θα φεύγουν δέκα λεπτά νωρίτερα".into(),
+            outcome: "Συνεννοηθήκαμε ήρεμα".into(),
+            next_step: "Επανεξέταση σε δύο εβδομάδες".into(),
+            remarks: "Η μητέρα δουλεύει βάρδιες".into(),
+        },
+    )
+    .unwrap();
+    store::save_parent_appointment(
+        &conn,
+        &ParentAppointment {
+            id: 0,
+            date: "2026-11-05".into(),
+            clock_time: "13:30".into(),
+            student_id: Some(student),
+            guardian: "Άννα Παπαδοπούλου".into(),
+            mode: "in_person".into(),
+            place: "Αίθουσα 203".into(),
+            status: "confirmed".into(),
+            topic: "Πρόοδος στα Μαθηματικά".into(),
+            outcome: "".into(),
+        },
+    )
+    .unwrap();
+    let meeting_id = store::save_staff_meeting(
+        &conn,
+        &StaffMeeting {
+            id: 0,
+            position: 0,
+            kind: "council".into(),
+            date: "2026-11-09".into(),
+            clock_time: "14:00".into(),
+            duration: "90 λεπτά".into(),
+            attendees: "Όλοι οι διδάσκοντες του τμήματος".into(),
+            agenda: "Πρόοδος τμήματος · δύο περιστατικά".into(),
+            class_id: Some(class_a),
+            notes: "Τα πρακτικά κρατήθηκαν από τη Μ. Νικολάου".into(),
+        },
+    )
+    .unwrap();
+    store::save_meeting_agreement(
+        &conn,
+        &MeetingAgreement {
+            id: 0,
+            meeting_id,
+            position: 0,
+            who: "Μ. Νικολάου".into(),
+            what: "Επικοινωνία με τους γονείς δύο μαθητών".into(),
+            deadline: "2026-11-16".into(),
+        },
+    )
+    .unwrap();
+
     let saved = store::load(&conn).unwrap();
     drop(conn); // the app quits
     let after_write = Fingerprint::of(&paths::db_path()).unwrap();
@@ -494,6 +560,49 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     )
     .unwrap();
     let moved = store::load(&conn).unwrap();
+    // M5, read back after the quit. Both halves of the contested pair, and
+    // every field of each.
+    assert_eq!(reloaded.parent_contacts.len(), 1);
+    let contact = &reloaded.parent_contacts[0];
+    assert_eq!(contact.date, "2026-11-05");
+    assert_eq!(contact.guardian, "Άννα Παπαδοπούλου");
+    assert_eq!(contact.format, "phone");
+    assert_eq!(contact.reason, "Συχνές καθυστερήσεις το πρωί");
+    assert_eq!(contact.agreements, "Θα φεύγουν δέκα λεπτά νωρίτερα");
+    assert_eq!(contact.outcome, "Συνεννοηθήκαμε ήρεμα");
+    assert_eq!(contact.next_step, "Επανεξέταση σε δύο εβδομάδες");
+    assert_eq!(contact.remarks, "Η μητέρα δουλεύει βάρδιες");
+
+    assert_eq!(reloaded.parent_appointments.len(), 1);
+    let appointment = &reloaded.parent_appointments[0];
+    assert_eq!(appointment.date, "2026-11-05");
+    assert_eq!(appointment.clock_time, "13:30");
+    assert_eq!(appointment.mode, "in_person");
+    assert_eq!(appointment.place, "Αίθουσα 203");
+    assert_eq!(appointment.status, "confirmed");
+    assert_eq!(appointment.topic, "Πρόοδος στα Μαθηματικά");
+    assert_eq!(
+        appointment.outcome, "",
+        "a booking that has not happened yet has no outcome, and that is not a defect"
+    );
+    // The point of the pair: same guardian, same day, two independent records.
+    assert_eq!(appointment.date, contact.date);
+    assert_eq!(appointment.guardian, contact.guardian);
+    assert_eq!(appointment.student_id, Some(contact.student_id));
+
+    assert_eq!(reloaded.staff_meetings.len(), 1);
+    let meeting = &reloaded.staff_meetings[0];
+    assert_eq!(meeting.kind, "council");
+    assert_eq!(meeting.date, "2026-11-09");
+    assert_eq!(meeting.clock_time, "14:00");
+    assert_eq!(meeting.duration, "90 λεπτά");
+    assert_eq!(meeting.attendees, "Όλοι οι διδάσκοντες του τμήματος");
+    assert_eq!(meeting.agenda, "Πρόοδος τμήματος · δύο περιστατικά");
+    assert_eq!(meeting.notes, "Τα πρακτικά κρατήθηκαν από τη Μ. Νικολάου");
+    assert_eq!(reloaded.meeting_agreements.len(), 1);
+    assert_eq!(reloaded.meeting_agreements[0].who, "Μ. Νικολάου");
+    assert_eq!(reloaded.meeting_agreements[0].deadline, "2026-11-16");
+
     assert_eq!(moved.classes, reloaded.classes);
     assert_eq!(moved.students, reloaded.students);
     assert_eq!(moved.enrollments, reloaded.enrollments);
@@ -520,6 +629,13 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert_eq!(moved.incidents, reloaded.incidents);
     assert_eq!(moved.support_plans, reloaded.support_plans);
     assert_eq!(moved.support_goals, reloaded.support_goals);
+    // M5's records are keyed by actual dates too — a contact by the day it
+    // happened, an appointment by the day it is booked for, a meeting by the
+    // day it sat — so moving the school year leaves all four alone.
+    assert_eq!(moved.parent_contacts, reloaded.parent_contacts);
+    assert_eq!(moved.parent_appointments, reloaded.parent_appointments);
+    assert_eq!(moved.staff_meetings, reloaded.staff_meetings);
+    assert_eq!(moved.meeting_agreements, reloaded.meeting_agreements);
     drop(conn);
 
     // Opening and reading must not disturb the file, or every session would

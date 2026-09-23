@@ -25,7 +25,7 @@ import { supportOverview, type SupportOverviewRow } from "../domain/support";
 import type { Planner } from "../domain/types";
 import type { Translate } from "../i18n";
 import { senStatusLabel } from "../i18n/vocabularies";
-import { renderPrintDocument, type PrintCell, type PrintDocument } from "./document";
+import { renderPrintDocument, type PrintCell, type TableDocument } from "./document";
 import { printFooter } from "./sheetParts";
 
 /** Several values in one cell, one per line, as the screen stacks them. */
@@ -51,7 +51,7 @@ export function supportOverviewDocument(
   t: Translate,
   planner: Planner,
   today: string,
-): PrintDocument {
+): TableDocument {
   const rows = supportOverview(planner);
 
   const head: PrintCell[] = [

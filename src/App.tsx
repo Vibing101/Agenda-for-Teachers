@@ -22,10 +22,15 @@ import type { Planner } from "./domain/types";
 import { DEFAULT_LOCALE, translatorFor, type StringId } from "./i18n";
 import { LocaleContext, useTranslate } from "./i18n/useTranslate";
 import AgendaScreen from "./screens/AgendaScreen";
+import AppointmentsScreen from "./screens/AppointmentsScreen";
 import AttendanceScreen from "./screens/AttendanceScreen";
 import BehaviourScreen from "./screens/BehaviourScreen";
 import ClassesScreen from "./screens/ClassesScreen";
+import ContactsScreen from "./screens/ContactsScreen";
 import GradesScreen from "./screens/GradesScreen";
+import LettersScreen from "./screens/LettersScreen";
+import MeetingsScreen from "./screens/MeetingsScreen";
+import MessagesScreen from "./screens/MessagesScreen";
 import PlanScreen, { type PlanFocus } from "./screens/PlanScreen";
 import StudentsScreen from "./screens/StudentsScreen";
 import SupportScreen from "./screens/SupportScreen";
@@ -42,6 +47,7 @@ type Section =
   | "timetable"
   | "agenda"
   | "plan"
+  | "parents"
   | "today";
 
 /**
@@ -56,13 +62,28 @@ type Section =
  * περιστατικά" from ΜΑΘΗΤΕΣ. So this is that index: one row of sub-tabs inside
  * the section the spec puts the surface in, rather than four more things
  * competing for the top row.
+ *
+ * **M5 adds the ninth top-level tab, and it is the first since M0.** Its module
+ * is the spec's "5. Γονείς & Ομάδα", and unlike M4's four surfaces it has no
+ * existing section to belong to: nothing in the app is about parents or about
+ * staff meetings. The source product puts ΓΟΝΕΙΣ and ΟΜΑΔΑ side by side in its
+ * own navigation, which argues for two more tabs; this takes **one**, named
+ * after the spec's module rather than after either half, and files all five of
+ * M5's surfaces under it as sub-pages. That keeps M4's shape — sub-pages inside
+ * a section, the top row as small as the spec allows — while keeping the label
+ * honest about holding the staff meetings as well as the parent ones.
  */
 type Page =
   | "gradebook"
   | "attendance"
   | "cards"
   | "behaviour"
-  | "support";
+  | "support"
+  | "contacts"
+  | "appointments"
+  | "meetings"
+  | "letters"
+  | "messages";
 
 const SECTIONS: { key: Section; labelId: StringId; pages?: { key: Page; labelId: StringId }[] }[] = [
   { key: "year", labelId: "nav.year" },
@@ -87,6 +108,17 @@ const SECTIONS: { key: Section; labelId: StringId; pages?: { key: Page; labelId:
   { key: "timetable", labelId: "nav.timetable" },
   { key: "plan", labelId: "nav.plan" },
   { key: "agenda", labelId: "nav.agenda" },
+  {
+    key: "parents",
+    labelId: "nav.parents",
+    pages: [
+      { key: "contacts", labelId: "nav.contacts" },
+      { key: "appointments", labelId: "nav.appointments" },
+      { key: "meetings", labelId: "nav.meetings" },
+      { key: "letters", labelId: "nav.letters" },
+      { key: "messages", labelId: "nav.messages" },
+    ],
+  },
   // Last, as the source product puts "ΣΗΜΕΡΙΝΟ ΜΑΘΗΜΑ" at the right of its nav.
   { key: "today", labelId: "nav.today" },
 ];
@@ -135,6 +167,11 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
   const today = fixedToday ?? liveToday;
   /** Set when the Today view asks for a particular class's week to be opened. */
   const [planFocus, setPlanFocus] = useState<PlanFocus | null>(null);
+  /**
+   * Set when the upcoming-overview panel asks for a meeting's minutes, which
+   * the spec asks it to open straight into.
+   */
+  const [meetingFocus, setMeetingFocus] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   /**
@@ -288,6 +325,25 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
           {section === "grades" && page === "attendance" && (
             <AttendanceScreen planner={planner} run={run} today={today} />
           )}
+          {section === "parents" && (page ?? "contacts") === "contacts" && (
+            <ContactsScreen planner={planner} run={run} today={today} />
+          )}
+          {section === "parents" && page === "appointments" && (
+            <AppointmentsScreen
+              planner={planner}
+              run={run}
+              today={today}
+              onOpenMeeting={(id) => {
+                setMeetingFocus(id);
+                setPage("meetings");
+              }}
+            />
+          )}
+          {section === "parents" && page === "meetings" && (
+            <MeetingsScreen planner={planner} run={run} focusId={meetingFocus} />
+          )}
+          {section === "parents" && page === "letters" && <LettersScreen today={today} />}
+          {section === "parents" && page === "messages" && <MessagesScreen today={today} />}
           {section === "timetable" && <TimetableScreen planner={planner} run={run} />}
           {section === "plan" && (
             <PlanScreen planner={planner} run={run} today={today} focus={planFocus} />
