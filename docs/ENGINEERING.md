@@ -6,7 +6,7 @@
 /
 ├─ src-tauri/          ← Rust backend: file I/O, SQLite, backup job, PDF trigger
 ├─ src/                 ← frontend (framework choice left to the implementing agent; keep it boring)
-├─ reference/            ← third-party source material, read-only, never generated into — SCHEDULED FOR REMOVAL, so nothing may depend on it (see README)
+├─ reference/            ← third-party source material, read-only, never generated into — in use until M9, removed after it, so nothing may depend on it (see README)
 ├─ docs/
 │   ├─ REBUILD_SPEC.md      ← the functional/architecture spec, kept in sync
 │   ├─ ENGINEERING.md       ← this document

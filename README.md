@@ -21,23 +21,39 @@ server, and no runtime for the teacher to install.
 
 ## Source material
 
-This app implements a planner whose original source material — its wording,
-field lists and page layouts — is **a third party's copyrighted work**, used
-here only as a reference while building.
+[`reference/`](reference/) holds the original product package this rebuild draws
+on: the 289-page fillable planner PDF, the quick-start guide, the 11 print
+templates, the 7 parent letters, the 150-message bank, and the Excel grade
+registry.
 
-**That material is not part of this project and is scheduled for removal from
-the repository.** The `reference/` folder still holds it today; it will be
-deleted, and the repo will then carry only code, tests and documentation. Treat
-it as already gone when planning work:
+**These are read-only inputs.** They are the authority for wording, layout and
+field lists when building a module — never edit them, and never generate output
+into that folder. Generated PDFs go to `exports/`.
 
-- **Never edit it, and never generate output into it.** Generated PDFs go to
-  `exports/`.
-- **Do not add a dependency on it.** Nothing in `src/`, `src-tauri/` or `tests/`
-  reads from `reference/` at build time or at run time, and nothing should
-  start. Content taken from it — the letter templates and the message bank —
-  was transcribed into `src/i18n/` and the app reads it from there.
-- **Do not redistribute it.** If you fork or publish this repo, remove the
-  folder first.
+### It stays until the last milestone, then it goes
+
+The package is **a third party's copyrighted work**, kept here only as a working
+reference while the app is built. It stays for exactly as long as it is still
+being drawn on: **once the final milestone is complete and the product owner is
+satisfied that everything needed has been taken from it, the folder is removed
+from the repository.** M9 is the milestone that settles that, because its own
+criteria include a side-by-side check of generated PDFs against the source
+product's equivalent pages — so the source is still needed right up to the end.
+
+Two rules follow, and they apply now rather than at M9:
+
+- **Build no dependency on it.** Nothing in `src/`, `src-tauri/` or `tests/`
+  reads from `reference/` at build time or run time, and nothing should start.
+  Content the app needs is *transcribed into the repo* — the 7 letters and the
+  150-message bank live in `src/i18n/` and are read from there, which is why
+  removing the folder later will not break a build or a test.
+- **Do not publish the repo while it is still here.** Deleting the folder at M9
+  removes it from the working tree but **not from git history**: the bytes stay
+  in the pack and anyone cloning still receives them. Making the removal real
+  means rewriting history (`git filter-repo`) and force-pushing, which breaks
+  every existing clone — cheap today, because the repo is private and
+  single-user, and expensive once it is not. **Deferred deliberately, and
+  recorded in the spec's Carried risks.**
 
 ## Stack
 

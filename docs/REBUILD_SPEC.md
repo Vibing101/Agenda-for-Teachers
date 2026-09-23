@@ -472,6 +472,32 @@ sequence.
 
 ### Carried risks
 
+- **The source package is a third party's copyrighted work and is still in the
+  repository — including in its history.** It is kept deliberately: it is the
+  authority on wording, field lists and layout for every milestone, and **M9's
+  own acceptance criteria require a side-by-side check of generated PDFs against
+  the source product's equivalent pages**, so it is needed right to the end.
+  The plan, decided by the product owner on 2026-09-23: **`reference/` is
+  deleted once the final milestone is complete** and the product owner is
+  satisfied everything needed has been taken from it.
+
+  **Deleting the folder then will not be enough on its own.** A `git rm` removes
+  it from the working tree but not from history — the bytes stay in the pack and
+  any clone still receives them. A genuine removal means rewriting history
+  (`git filter-repo`) and force-pushing, which invalidates every existing clone.
+
+  **Deferred deliberately, and it is cheap to defer**: the repository is private
+  and the product owner is its only user, so there are no clones to break today.
+  That is exactly what makes it expensive later. **The trigger is publication or
+  a second collaborator, whichever comes first** — not M9. If the repo is ever
+  to be made public, shared, or handed to another developer, the history rewrite
+  happens *before* that, not after.
+
+  Nothing in `src/`, `src-tauri/`, `tests/`, the build or CI reads from
+  `reference/` — checked, not assumed — and the content the app actually needs
+  (the 7 letters, the 150-message bank) was transcribed into `src/i18n/` at M5.
+  So the deletion itself is a one-line change that breaks no build.
+
 - **An unsigned Windows build tagged with Mark of the Web will not start without
   the teacher clicking through SmartScreen.** Anything downloaded, emailed, or in
   some configurations delivered by a sync client arrives with that tag.

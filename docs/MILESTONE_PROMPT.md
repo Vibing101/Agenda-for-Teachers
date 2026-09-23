@@ -58,14 +58,20 @@ gate result to the machine that produced it.
   field lists and layout while a module is being built. Read-only: never edit
   it; never generate into it.
 
-  **It is a third party's copyrighted work and is scheduled for removal from
-  this repository.** Treat it as temporary. Two rules follow, and they apply
-  now rather than when it goes:
+  **Use it.** It is the working authority for every milestone up to and
+  including M9, whose own criteria include a side-by-side check of generated
+  PDFs against the source product's pages — so it is needed right to the end.
+
+  **It is also a third party's copyrighted work, and it leaves the repository
+  once the last milestone is done** and the product owner is satisfied nothing
+  more is needed from it. Two rules follow from that, and they apply now rather
+  than at M9:
 
   - **Build no dependency on it.** Nothing in `src/`, `src-tauri/` or `tests/`
     reads from it at build time or run time, and nothing may start. Content
     that the app needs is *transcribed into the repo* — the 7 letters and the
     150-message bank live in `src/i18n/`, and the app reads them from there.
+    That is what will let the folder be deleted without breaking a build.
   - **Quote it in a release note rather than pointing at it.** When a decision
     turns on what a source page says, copy the sentence or the field list into
     the note. A citation of a path that will not exist is a decision nobody can
