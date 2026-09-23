@@ -2,7 +2,18 @@
 
 **Date:** 2026-09-23
 **Branch:** `m5-parents-staff`
-**Signed off by:** <product owner, once reviewed>
+**Signed off by:** Product owner, 2026-09-23 — squash-merged to `main` as
+`3618bc9`. The merge's tree hash is `69b589d40268cdcb0840f4778bc80b2ccfbf6926`,
+identical to the branch head `5ffe628`, so the squash lost nothing. The branch
+was deleted afterwards.
+
+**Two items under "What still needs a human" were _not_ performed before the
+sign-off**, and are stated plainly here rather than left to be inferred:
+**nobody has looked at a printed letter**, and **the Windows typing pass is
+still undone**. The product owner signed off with both outstanding. They remain
+outstanding against this milestone and are carried into M6's brief — the same
+position M2 was merged in, and the reason M2's own typing pass went undone for
+three milestones afterwards.
 
 Worked on **the dev Mac** (`uname -s` = `Darwin`, `VBoxManage list vms` lists
 `MilestoneTesting`), with the Windows half of the gate driven over SSH into the

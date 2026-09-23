@@ -22,6 +22,26 @@
 - `main` is always releasable. Work happens on short-lived branches named `m<N>-<slug>` (e.g. `m2-grades`), one per milestone or a clear sub-slice of one.
 - Commit messages state what changed and why in one line; a commit that only makes tests pass again references the milestone it belongs to.
 - One pull request per milestone (or per sub-slice, for the larger milestones like M6). No PR merges with failing CI.
+- **Merge with a squash, and delete the branch in the same breath.** Every
+  milestone so far has been squash-merged, which has one consequence worth
+  knowing: **a squashed branch is never an ancestor of `main`**. The squash
+  creates a new commit with the same *tree* but unrelated history, so
+  `git branch --merged` will not list it, `git merge-base --is-ancestor` says
+  no, and the branch looks permanently unmerged in every client. That is not a
+  failed merge — it is what squashing means.
+
+  So do not check whether a branch merged by asking git whether it is merged.
+  **Compare the trees:**
+
+  ```sh
+  git rev-parse <branch-head>^{tree}
+  git rev-parse <merge-commit>^{tree}   # identical => the squash lost nothing
+  ```
+
+  Then delete the branch locally and on the remote (`git branch -D`,
+  `git push origin --delete`, or `gh pr merge --delete-branch` at merge time),
+  so nobody has to ask the question again. M4.5's branch survived its merge for
+  exactly this reason and was noticed a day later.
 
 ## The gate every milestone must pass before it's called done
 
