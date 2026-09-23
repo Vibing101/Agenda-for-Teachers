@@ -6,6 +6,7 @@ import type {
   AttendanceMark,
   ClassGrading,
   Enrollment,
+  Exam,
   GradeColumn,
   GradeRow,
   GradeValue,
@@ -14,10 +15,12 @@ import type {
   ImportantDate,
   Incident,
   LessonPlan,
+  LessonReflection,
   MeetingAgreement,
   ParentAppointment,
   ParentContact,
   Planner,
+  Resource,
   SchoolClass,
   SchoolYear,
   Seat,
@@ -25,8 +28,12 @@ import type {
   Student,
   SupportGoal,
   SupportPlan,
+  Textbook,
   TimetableCell,
   TimetablePeriod,
+  Trip,
+  TripConsent,
+  Unit,
 } from "./domain/types";
 
 export interface Status {
@@ -155,6 +162,49 @@ export const api = {
   saveMeetingAgreement: (agreement: MeetingAgreement) =>
     invoke<Planner>("save_meeting_agreement", { agreement }),
   deleteMeetingAgreement: (id: number) => invoke<Planner>("delete_meeting_agreement", { id }),
+
+  /**
+   * One unit — which is one row of the annual plan **and** one unit card,
+   * because the source's two pages are two views of one record.
+   *
+   * Note what is missing beside it: there is no `saveProgressCell`. The
+   * week-by-class matrix is a view over `saveLessonPlan` above, so there is
+   * deliberately no second place to write a week's work — M6's first
+   * acceptance criterion, held by there being no command for it.
+   */
+  saveUnit: (unit: Unit) => invoke<Planner>("save_unit", { unit }),
+  deleteUnit: (id: number) => invoke<Planner>("delete_unit", { id }),
+
+  /**
+   * One planned assessment.
+   *
+   * **This reaches the exam tracker and nothing else.** An exam's `weight` is
+   * the teacher's plan; M2's percentage weights live on a grade column and are
+   * what compute an average. No call here writes one.
+   */
+  saveExam: (exam: Exam) => invoke<Planner>("save_exam", { exam }),
+  deleteExam: (id: number) => invoke<Planner>("delete_exam", { id }),
+
+  /** One dated reflection. Independent of the weekly plan the matrix reads. */
+  saveLessonReflection: (reflection: LessonReflection) =>
+    invoke<Planner>("save_lesson_reflection", { reflection }),
+  deleteLessonReflection: (id: number) => invoke<Planner>("delete_lesson_reflection", { id }),
+
+  saveTrip: (trip: Trip) => invoke<Planner>("save_trip", { trip }),
+  deleteTrip: (id: number) => invoke<Planner>("delete_trip", { id }),
+
+  /**
+   * One student's consent for one trip, keyed by the pair. A cleared one is
+   * removed rather than stored blank, backend-side — so the register's derived
+   * count never includes a cell the teacher emptied.
+   */
+  setTripConsent: (consent: TripConsent) => invoke<Planner>("set_trip_consent", { consent }),
+
+  saveTextbook: (textbook: Textbook) => invoke<Planner>("save_textbook", { textbook }),
+  deleteTextbook: (id: number) => invoke<Planner>("delete_textbook", { id }),
+
+  saveResource: (resource: Resource) => invoke<Planner>("save_resource", { resource }),
+  deleteResource: (id: number) => invoke<Planner>("delete_resource", { id }),
 
   /**
    * Writes one document into `exports/` as a real PDF and resolves with its

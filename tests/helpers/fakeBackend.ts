@@ -21,6 +21,7 @@ import type {
   AttendanceMark,
   ClassGrading,
   Enrollment,
+  Exam,
   GradeColumn,
   GradeRow,
   GradeValue,
@@ -29,10 +30,12 @@ import type {
   ImportantDate,
   Incident,
   LessonPlan,
+  LessonReflection,
   MeetingAgreement,
   ParentAppointment,
   ParentContact,
   Planner,
+  Resource,
   SchoolClass,
   SchoolYear,
   Seat,
@@ -40,8 +43,12 @@ import type {
   Student,
   SupportGoal,
   SupportPlan,
+  Textbook,
   TimetableCell,
   TimetablePeriod,
+  Trip,
+  TripConsent,
+  Unit,
 } from "../../src/domain/types";
 import { GOAL_AREAS } from "../../src/i18n/vocabularies";
 
@@ -87,6 +94,13 @@ export function emptyPlanner(): Planner {
     parent_appointments: [],
     staff_meetings: [],
     meeting_agreements: [],
+    units: [],
+    exams: [],
+    lesson_reflections: [],
+    trips: [],
+    trip_consents: [],
+    textbooks: [],
+    resources: [],
   };
 }
 
@@ -122,7 +136,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           app_folder: "/Drive/Ατζέντα",
           db_path: "/Drive/Ατζέντα/data/planner.sqlite",
           db_exists: true,
-          schema_version: 6,
+          schema_version: 7,
           backup_count: 2,
           last_backup: "2026-09-19T07:30:00+03:00",
           disk_changed: diskChanged,
@@ -469,6 +483,94 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
         }
         case "delete_meeting_agreement":
           planner.meeting_agreements = planner.meeting_agreements.filter((a) => a.id !== args.id);
+          break;
+        // M6. Seven commands, seven arrays — and **no case that writes a
+        // progress-matrix cell**, because there is no such table: the matrix is
+        // a view over `save_lesson_plan` above. A test asserts that the matrix
+        // screen reaches storage through the lesson plan and nothing else.
+        case "save_unit": {
+          const u = { ...(args.unit as Unit) };
+          if (u.id === 0) {
+            u.id = nextId++;
+            u.position = planner.units.filter((x) => x.class_id === u.class_id).length;
+          }
+          planner.units = upsert(planner.units, u, (x) => x.id);
+          break;
+        }
+        case "delete_unit":
+          planner.units = planner.units.filter((u) => u.id !== args.id);
+          break;
+        case "save_exam": {
+          const e = { ...(args.exam as Exam) };
+          if (e.id === 0) e.id = nextId++;
+          planner.exams = upsert(planner.exams, e, (x) => x.id);
+          break;
+        }
+        case "delete_exam":
+          planner.exams = planner.exams.filter((e) => e.id !== args.id);
+          break;
+        case "save_lesson_reflection": {
+          const r = { ...(args.reflection as LessonReflection) };
+          if (r.id === 0) r.id = nextId++;
+          planner.lesson_reflections = upsert(planner.lesson_reflections, r, (x) => x.id);
+          break;
+        }
+        case "delete_lesson_reflection":
+          planner.lesson_reflections = planner.lesson_reflections.filter(
+            (r) => r.id !== args.id,
+          );
+          break;
+        case "save_trip": {
+          const t = { ...(args.trip as Trip) };
+          if (t.id === 0) {
+            t.id = nextId++;
+            t.position = planner.trips.length;
+          }
+          planner.trips = upsert(planner.trips, t, (x) => x.id);
+          break;
+        }
+        case "delete_trip":
+          planner.trips = planner.trips.filter((t) => t.id !== args.id);
+          // As the schema's cascade does.
+          planner.trip_consents = planner.trip_consents.filter((c) => c.trip_id !== args.id);
+          break;
+        case "set_trip_consent": {
+          const c = { ...(args.consent as TripConsent) };
+          const matches = (x: TripConsent) =>
+            x.trip_id === c.trip_id && x.student_id === c.student_id;
+          // A cleared consent is removed, as the Rust side does: an unrecorded
+          // one is the absence of a row, not a third state.
+          planner.trip_consents =
+            c.state === "" && c.note === ""
+              ? planner.trip_consents.filter((x) => !matches(x))
+              : planner.trip_consents.some(matches)
+                ? planner.trip_consents.map((x) => (matches(x) ? c : x))
+                : [...planner.trip_consents, c];
+          break;
+        }
+        case "save_textbook": {
+          const b = { ...(args.textbook as Textbook) };
+          if (b.id === 0) {
+            b.id = nextId++;
+            b.position = planner.textbooks.length;
+          }
+          planner.textbooks = upsert(planner.textbooks, b, (x) => x.id);
+          break;
+        }
+        case "delete_textbook":
+          planner.textbooks = planner.textbooks.filter((b) => b.id !== args.id);
+          break;
+        case "save_resource": {
+          const r = { ...(args.resource as Resource) };
+          if (r.id === 0) {
+            r.id = nextId++;
+            r.position = planner.resources.filter((x) => x.category === r.category).length;
+          }
+          planner.resources = upsert(planner.resources, r, (x) => x.id);
+          break;
+        }
+        case "delete_resource":
+          planner.resources = planner.resources.filter((r) => r.id !== args.id);
           break;
         case "export_pdf":
           // The real export opens a hidden window and drives the platform's

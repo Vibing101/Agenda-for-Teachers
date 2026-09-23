@@ -122,6 +122,34 @@ export const APPOINTMENT_STATUSES = ["proposed", "confirmed", "done", "cancelled
  */
 export const MEETING_KINDS = ["staff", "council", "class"] as const;
 
+/**
+ * Whether a student's guardian has consented to a trip (M6).
+ *
+ * **Two codes, and no row means "not recorded yet."** The source register's
+ * `Συγκαταθέσεις` column is a blank cell the teacher fills as the slips come
+ * back, so "I have not asked" and "she has not answered" are the same absence —
+ * exactly as an unmarked day in the attendance grid is the absence of a row
+ * rather than a fifth state.
+ */
+export const CONSENT_STATES = ["given", "refused"] as const;
+
+/**
+ * What a teaching resource is (M6).
+ *
+ * **These are the source page's own six captioned boxes** on *Υλικά και πηγές*.
+ * The rebuild spec names a different six — own / school / shared / borrowed /
+ * digital / other — and calls them "the six source categories", which the page
+ * itself contradicts. See `domain/resources.ts`; raised for the product owner.
+ */
+export const RESOURCE_CATEGORIES = [
+  "websites",
+  "apps",
+  "books",
+  "video",
+  "classroom",
+  "other",
+] as const;
+
 /** Monday–Saturday, matching the source timetable grid. */
 export const WEEKDAYS = [1, 2, 3, 4, 5, 6] as const;
 /**
@@ -148,6 +176,8 @@ export type ContactFormat = (typeof CONTACT_FORMATS)[number];
 export type AppointmentMode = (typeof APPOINTMENT_MODES)[number];
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 export type MeetingKind = (typeof MEETING_KINDS)[number];
+export type ConsentState = (typeof CONSENT_STATES)[number];
+export type ResourceCategory = (typeof RESOURCE_CATEGORIES)[number];
 export type Weekday = (typeof WEEKDAYS)[number];
 export type AgendaScope = (typeof AGENDA_SCOPES)[number];
 export type Month = (typeof MONTHS)[number];
@@ -181,3 +211,5 @@ export const contactFormatLabel = (code: string) => vocabLabelId("contactFormat"
 export const appointmentModeLabel = (code: string) => vocabLabelId("appointmentMode", code);
 export const appointmentStatusLabel = (code: string) => vocabLabelId("appointmentStatus", code);
 export const meetingKindLabel = (code: string) => vocabLabelId("meetingKind", code);
+export const consentStateLabel = (code: string) => vocabLabelId("consentState", code);
+export const resourceCategoryLabel = (code: string) => vocabLabelId("resourceCategory", code);

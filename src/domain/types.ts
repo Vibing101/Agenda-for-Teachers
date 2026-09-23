@@ -7,6 +7,11 @@ import type { AbsenceEvent, AttendanceMark } from "./attendance";
 import type { Incident } from "./behaviour";
 import type { MeetingAgreement, StaffMeeting } from "./meetings";
 import type { ParentAppointment, ParentContact } from "./parents";
+import type { Exam } from "./exams";
+import type { LessonReflection } from "./reflections";
+import type { Resource, Textbook } from "./resources";
+import type { Trip, TripConsent } from "./trips";
+import type { Unit } from "./units";
 import type { SupportGoal, SupportPlan } from "./support";
 import type { ClassGrading, GradeColumn, GradeRow, GradeValue } from "./grades";
 import type { AgendaNote } from "./agenda";
@@ -150,6 +155,13 @@ export interface Planner {
   parent_appointments: ParentAppointment[];
   staff_meetings: StaffMeeting[];
   meeting_agreements: MeetingAgreement[];
+  units: Unit[];
+  exams: Exam[];
+  lesson_reflections: LessonReflection[];
+  trips: Trip[];
+  trip_consents: TripConsent[];
+  textbooks: Textbook[];
+  resources: Resource[];
 }
 
 /** A blank card, so "new student" and "loaded student" are the same shape. */
@@ -212,6 +224,22 @@ export type { SenStatus } from "../i18n/vocabularies";
  */
 export type { ParentAppointment, ParentContact } from "./parents";
 export type { MeetingAgreement, StaffMeeting } from "./meetings";
+
+/**
+ * M6's records live beside their own selectors too — the unit next to the rule
+ * that makes it the annual plan's row as well as its own card, the exam next to
+ * the rule that keeps it out of the gradebook's arithmetic, and the trip next
+ * to the rule that counts its consents rather than storing a number.
+ *
+ * **There is no progress-matrix record here, and that is the point.** The
+ * week-by-class matrix is a view over `lesson_plans` above — see
+ * `domain/progress.ts`.
+ */
+export type { Unit } from "./units";
+export type { Exam } from "./exams";
+export type { LessonReflection } from "./reflections";
+export type { Trip, TripConsent } from "./trips";
+export type { Resource, Textbook } from "./resources";
 
 export function emptyClass(): SchoolClass {
   return {

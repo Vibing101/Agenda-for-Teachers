@@ -324,7 +324,81 @@ sequence.
 | **The printed communication log's column count** | **Eight, where the source page has seven** — the extra is the spec's own `outcome` (M5) | The source's columns are `Ημερομηνία / Μαθητής / Ποιος / Μορφή / Αιτία / Συμφωνίες / Επόμενα`, and the spec's field list adds "outcome" between the agreements and the next step. Dropping it would have lost a field the spec names; adding it is a deliberate departure from the source's column count, recorded rather than quiet — the same call M4.5 made for the support overview's seventh column |
 | **A short formatted value that must not break across lines** | **`PrintCell.nowrap`** (M5) | Found by looking at a real rendered PDF rather than at the HTML: the log's date column broke `05.11.2026` into `05.11.20` / `26`, and its format column broke `Τηλέφωνο`. The page's default `overflow-wrap: anywhere` is right for a teacher's sentence and wrong for a formatted number, so the opt-out is per cell rather than a change to the default — the default is what stops a long Greek surname overflowing the sheet |
 
+| **Whether the week-by-class progress matrix is a stored table** | **No — it is a view over M3's `lesson_plan`, and M6 adds no table for it** (M6). `domain/progress.ts` builds the grid from whichever weeks are asked for; the screen takes no `run` and has no input of any kind | M6's first acceptance criterion says the matrix must reflect the weekly plan "without duplicate data entry", and a table with a cell per `(week, class)` would give the teacher two places to write what she did that week. **The source product agrees in its own words**: the index card that opens this page is headed *"Το εβδομαδιαίο πλάνο σε έναν πίνακα · Η πρόοδος των τμημάτων, εβδομάδα με εβδομάδα"* — the weekly plan in one table. It is the fourth time this call has been made, after M4's attendance grid, M5's appointment week and M3's own timetable |
+| **The matrix's `Εβδομάδα` rows** | **Derived from the school year's start date at display time** (M6). No M6 table carries a week, and a Rust test walks every column of every table asserting none is named like a week index | The matrix's own axis is the one shape this project has refused since M1. Correcting the start date must re-label the rows and move nothing; `tests/unit/progress.test.ts` and `tests/component/ProgressScreen.test.tsx` both move it and find the same plan under a different number |
+| **Whether the annual plan and the units are one record or two** | **One: `unit`** (M6). The annual plan is `annualPlan()`, a view of a class's units in order | The source keeps two pages — *Ετήσιο πλάνο*, whose columns are `Περίοδος / Θεματική ενότητα / Δεξιότητες / Κριτήρια / Ώρες / Αξιολόγηση`, and *Ενότητες*, a card per unit — and **every column of the first is a field of the second**. Two tables would make the teacher type a unit's title and its hours twice, which is the same defect the matrix criterion forbids. Same call M3 took on the timetable: where two surfaces cover one thing, one is derived. The unit card's `ΒΑΘΜΟΙ` and the annual plan's `Αξιολόγηση` are one field; its `ΔΙΔΑΚΤΙΚΟΙ ΣΤΟΧΟΙ` and the plan's `Δεξιότητες / Κριτήρια` are **two**, because the source heads them differently and merging would lose a distinction the teacher made — the call M4 took on a support plan's strengths and needs |
+| **Where M6's eight surfaces live in the navigation** | **Seven sub-pages inside `Πλάνο`, and no new top-level tab** (M6) — Εβδομάδα / Ετήσιο πλάνο / Πρόοδος τμημάτων / Εξετάσεις / Αναστοχασμός / Εκδρομές / Βιβλία & υλικά. **The top row stays at nine** | M4's shape, which M5 departed from only because module 5 had nowhere to go. The spec files all eight surfaces under module 3, and the app already had `Πλάνο` as that module's section — it simply had no sub-pages, because M3 built only the weekly plan. The eight become seven because two pairs collapse: the annual plan and the units are one record, and the two reference lists are the two surfaces that hang off no class and no week. `tests/component/App.test.tsx` is renamed to say the nine survive M6 and pins the new row |
+| **A trip's `Συγκαταθέσεις` column** | **Derived, never typed** (M6). Consents are rows keyed `(trip_id, student_id)`; the register's cell is counted from them by `consentTally()` over the class's *roster* | The spec asks for per-student consent tracking, so the consents are records. A number the teacher typed could disagree with the list she ticked; a counted one cannot. Reading the roster from `enrollment` rather than from the consents is what makes a student added to the class appear with nothing recorded |
+| **A trip consent's states** | **Two — `given` and `refused` — and no row means "not recorded yet"** (M6). Clearing both the state and the note removes the row | M4's rule for an unmarked attendance cell, restated: an unrecorded consent is the absence of a row, not a third code, because the source's column is a blank cell the teacher fills as the slips come back. A cleared state with a note still on it keeps the row and counts as pending, so a note she wrote is never thrown away by a dropdown |
+| **Whether a trip fills in M5's consent letter** | **No — M6 wires nothing to it** (M6). The trips screen points at *Γονείς & Ομάδα → Επιστολές* in a hint and stops there | M5 ships *Συγκατάθεση για επίσκεψη / εκδρομή* as one of the seven letters and **deliberately stores nothing for a filled letter**. Filling one from a trip would change that decision, which is M5's and the product owner's, not M6's. **Raised — see Open** |
+| **The six resource categories** | **The source page's own six captioned boxes** (M6): `ΙΣΤΟΤΟΠΟΙ ΚΑΙ ΠΛΑΤΦΟΡΜΕΣ`, `ΕΦΑΡΜΟΓΕΣ`, `ΒΙΒΛΙΑ ΚΑΙ ΚΕΙΜΕΝΑ`, `ΒΙΝΤΕΟ ΚΑΙ ΗΧΟΣ`, `ΒΟΗΘΗΜΑΤΑ ΣΤΗΝ ΤΑΞΗ`, `ΑΛΛΕΣ ΠΗΓΕΣ` — as stable codes `websites` / `apps` / `books` / `video` / `classroom` / `other` | **This document's module-3 entry names a different six** — own / school / shared / borrowed / digital / other — and calls them "the six source categories". The source page contradicts that: its boxes are about what a resource *is*, not who it belongs to, and its own index card reads *"Ιστότοποι, εφαρμογές, βιβλία και ταινίες"*. Nothing resembling the provenance list appears anywhere in the source package, including the materials-loan log among M7's print forms, which was checked. The page wins on a question of what is on the page — the same call M5 took on the award pages being 2-up. **Raised rather than settled quietly — see Open** |
+| **Whether an exam's kind, a textbook's `Κατάσταση` and its `Τιμή` are vocabularies** | **No — all three are free text** (M6) | The source pages are blank forms that enumerate nothing, and a teacher writes "δωρεάν" in a price box as readily as a number. The app does not invent a category the source does not have, which is the rule M4 followed on absence kinds. The resource categories above *are* a vocabulary by the same rule, because the source page prints all six of them as captions |
+| **What an exam's `Βαρύτητα` does** | **Nothing — it is a planning note** (M6). It is stored on `exam` and is deliberately not wired to M2's percentage-weighted gradebook, whose weights live on `grade_column` | Two surfaces that both say "βαρύτητα" are exactly where a silent coupling would hide. No command, no selector and no statement reaches from one to the other; a test asserts the whole gradebook output is unchanged by adding exams, and the screen says so under the field rather than leaving the teacher to guess |
+| **What deleting a class does to M6's records** | **A unit goes with it; an exam, a trip and a reflection stay with their link emptied** (M6) — `CASCADE` on `unit`, `ON DELETE SET NULL` on the other three | A unit *is* the class's annual plan and means nothing without it. The other three record something that was planned or that happened, which is still true after the class is gone — the call M4 took on an incident and M5 on a meeting |
+| **Which M6 surfaces produce a PDF** | **None** (M6), per the M2/M3 precedent that a milestone ships its scope line exactly, and M6's names no PDF | The "PDF output" section names **"annual goals"** among the surfaces that produce a real file. That reads as M1's **six fixed annual-goal areas**, not M6's annual *plan*: the phrase matches `annual_goals` exactly, and module 1's own entry says those six are "printed as one table" while module 3 says nothing of the sort about the annual plan. So M6 is promised none. **But M1's annual goals are still unprinted** and nothing has claimed them — raised, see Open |
+
+
 ### Open — flag back rather than silently decide
+
+- **Are the six resource categories about what a material *is*, or about whom
+  it belongs to?** This document's module-3 entry says "entries across the six
+  source categories (own / school / shared / borrowed / digital / other)" —
+  provenance. **The source page says otherwise.** *Υλικά και πηγές* has six
+  captioned boxes and they are `ΙΣΤΟΤΟΠΟΙ ΚΑΙ ΠΛΑΤΦΟΡΜΕΣ`, `ΕΦΑΡΜΟΓΕΣ`, `ΒΙΒΛΙΑ
+  ΚΑΙ ΚΕΙΜΕΝΑ`, `ΒΙΝΤΕΟ ΚΑΙ ΗΧΟΣ`, `ΒΟΗΘΗΜΑΤΑ ΣΤΗΝ ΤΑΞΗ`, `ΑΛΛΕΣ ΠΗΓΕΣ`, and
+  the ΠΛΑΝΟ index card that opens it reads *"Ιστότοποι, εφαρμογές, βιβλία και
+  ταινίες"*. The provenance list appears nowhere in the source package; the
+  materials-loan log among M7's 11 print forms was checked and its columns are
+  `Ημερομηνία / Μάθημα / Δόθηκε σε / Πόσα / Επιστροφή / Κατάσταση`. M6 ships the
+  page's six. If the provenance six were meant — and there is a real argument
+  for them, since knowing whether a thing is the school's or yours is what you
+  need when you leave — it is one vocabulary and one migration. Raised at M6
+  (2026-09-23).
+
+- **Should M1's six annual-goal areas print?** The "PDF output" section names
+  "annual goals" among the surfaces that produce a real PDF file, and module 1
+  says the six areas are "printed as one table". **Nothing has built it.** M1's
+  own scope line named no PDF and M1 predates the print machinery entirely;
+  M4.5 built the three M4 surfaces and M5 the parent ones, and neither was asked
+  for this. M6 read the phrase carefully because it had to decide whether it
+  meant M6's annual *plan* — it does not; `annual_goals` is M1's table and the
+  wording matches it — and so M6 ships no PDF, per its own scope line. But that
+  leaves a surface this document promises a file and has not got one, which is
+  exactly the shape that created M4.5. It is one document definition on the
+  existing contract. Raised at M6 (2026-09-23).
+
+- **Should a trip be able to fill in M5's consent letter?** M5 ships
+  *Συγκατάθεση για επίσκεψη / εκδρομή* as one of the seven parent letters, and
+  **stores nothing for a filled letter** by a decision of its own. The letter
+  asks for six fields — `destination`, `date`, `class`, `hours`, `cost`,
+  `escorts` — and a trip now holds **five of them** (`activity` → destination,
+  `date`, `class_id`, `cost`, `responsible` → escorts; only `hours` has no
+  equivalent). Handing them across would save the teacher typing them twice,
+  which is the same argument that shaped everything else in this milestone. M6 does not do it, because it would change M5's
+  decision rather than extend it, and because it is entangled with the open
+  question about whether a filled letter should persist at all. The trips screen
+  points at the letter in a hint instead. Raised at M6 (2026-09-23).
+
+- **Should any of M6's six new surfaces print?** M6 ships none, because its
+  scope line names none and the M2/M3 precedent is that a milestone ships its
+  scope line exactly. But four of them are registers of the same shape as the
+  ones M4.5 and M5 gave PDFs to — the exam tracker, the trips register, the
+  textbook list and the annual plan are all things a teacher hands to a head of
+  department or carries to a meeting — and each would be one document definition
+  on the existing contract. The progress matrix is the interesting one: it is
+  the widest table in the app after the attendance card, and the source prints
+  it over two pages. Raised at M6 (2026-09-23).
+
+- **Is an exam's `Βαρύτητα` meant to reach the gradebook?** M6 keeps them
+  strictly apart: an exam's weight is a planning note, and M2's percentage
+  weights on `grade_column` are what compute an average. That is the safe
+  reading — the app never invents a number the teacher did not type — and it is
+  what the two source pages look like, since the exam page is a planning
+  register and the weights live in the grade registry. But a teacher who writes
+  "20%" on an exam in September and then types 20 into a grade column in
+  November has said the same thing twice, which is the one thing this milestone
+  spent its effort avoiding elsewhere. Linking them would mean an exam
+  optionally naming a grade column. Raised at M6 (2026-09-23).
 
 - **Does the Feb–Dec year model cover eleven months or twelve?** Read literally
   it is February to December, which is eleven. The source product's own

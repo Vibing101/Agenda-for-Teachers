@@ -19,7 +19,7 @@ use crate::model::GOAL_AREAS;
 use rusqlite::{params, Connection};
 use std::path::Path;
 
-pub const SCHEMA_VERSION: i64 = 6;
+pub const SCHEMA_VERSION: i64 = 7;
 
 pub fn open_at(db_path: &Path) -> AppResult<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -72,6 +72,11 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     if current < 6 {
         migrate_to_6(conn)?;
         conn.pragma_update(None, "user_version", 6)?;
+        current = 6;
+    }
+    if current < 7 {
+        migrate_to_7(conn)?;
+        conn.pragma_update(None, "user_version", 7)?;
     }
     Ok(())
 }
@@ -556,6 +561,124 @@ fn migrate_to_6(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
+/// M6 — annual planning, units, exams, reflections, trips, textbooks and
+/// resources.
+///
+/// Seven tables, all purely additive: nothing M0–M5 wrote is touched, so a data
+/// file from any previously shipped build climbs to 7 and keeps every row.
+///
+/// **There is no progress-matrix table, and that is the milestone's central
+/// decision.** M6's first acceptance criterion is that the week-by-class matrix
+/// "correctly reflects entries made from the per-class weekly plan (M3) without
+/// duplicate data entry". A table with a cell per `(week, class)` would give the
+/// teacher a second place to write what she did that week, so the matrix is a
+/// *view* over M3's `lesson_plan` instead — built by `domain/progress.ts` from
+/// whichever weeks are asked for. The source product agrees: its own index card
+/// for that page is headed **"Το εβδομαδιαίο πλάνο σε έναν πίνακα"** — the
+/// weekly plan in one table.
+///
+/// **Nothing here is keyed by a week index either.** `unit` carries no week,
+/// `exam` and `lesson_reflection` and `trip` carry actual dates, and the
+/// matrix's own `Εβδομάδα` rows are derived from the school year's start date
+/// at display time. Correcting that start date re-labels the rows and moves
+/// nothing.
+///
+/// **`unit` is the annual plan as well as the unit card**, because every column
+/// of the source's *Ετήσιο πλάνο* table is a field of its *Ενότητες* card —
+/// see [`crate::model::Unit`].
+fn migrate_to_7(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "BEGIN;
+
+         CREATE TABLE unit (
+             id              INTEGER PRIMARY KEY,
+             class_id        INTEGER NOT NULL REFERENCES class(id) ON DELETE CASCADE,
+             position        INTEGER NOT NULL DEFAULT 0,
+             title           TEXT NOT NULL DEFAULT '',
+             period          TEXT NOT NULL DEFAULT '',
+             hours           TEXT NOT NULL DEFAULT '',
+             deadlines       TEXT NOT NULL DEFAULT '',
+             objectives      TEXT NOT NULL DEFAULT '',
+             skills          TEXT NOT NULL DEFAULT '',
+             methods         TEXT NOT NULL DEFAULT '',
+             assessment      TEXT NOT NULL DEFAULT '',
+             content         TEXT NOT NULL DEFAULT '',
+             materials       TEXT NOT NULL DEFAULT '',
+             differentiation TEXT NOT NULL DEFAULT '',
+             review          TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX unit_by_class ON unit(class_id);
+
+         CREATE TABLE exam (
+             id            INTEGER PRIMARY KEY,
+             class_id      INTEGER REFERENCES class(id) ON DELETE SET NULL,
+             date          TEXT NOT NULL DEFAULT '',
+             kind          TEXT NOT NULL DEFAULT '',
+             scope         TEXT NOT NULL DEFAULT '',
+             weight        TEXT NOT NULL DEFAULT '',
+             collaboration TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX exam_by_date ON exam(date);
+
+         CREATE TABLE lesson_reflection (
+             id       INTEGER PRIMARY KEY,
+             class_id INTEGER REFERENCES class(id) ON DELETE SET NULL,
+             date     TEXT NOT NULL DEFAULT '',
+             notes    TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX lesson_reflection_by_date ON lesson_reflection(date);
+
+         CREATE TABLE trip (
+             id          INTEGER PRIMARY KEY,
+             position    INTEGER NOT NULL DEFAULT 0,
+             date        TEXT NOT NULL DEFAULT '',
+             activity    TEXT NOT NULL DEFAULT '',
+             class_id    INTEGER REFERENCES class(id) ON DELETE SET NULL,
+             responsible TEXT NOT NULL DEFAULT '',
+             transport   TEXT NOT NULL DEFAULT '',
+             cost        TEXT NOT NULL DEFAULT '',
+             checklist   TEXT NOT NULL DEFAULT '',
+             evaluation  TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX trip_by_date ON trip(date);
+
+         CREATE TABLE trip_consent (
+             trip_id    INTEGER NOT NULL REFERENCES trip(id)    ON DELETE CASCADE,
+             student_id INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+             state      TEXT NOT NULL CHECK (state IN ('given', 'refused')),
+             note       TEXT NOT NULL DEFAULT '',
+             PRIMARY KEY (trip_id, student_id)
+         );
+         CREATE INDEX trip_consent_by_student ON trip_consent(student_id);
+
+         CREATE TABLE textbook (
+             id        INTEGER PRIMARY KEY,
+             position  INTEGER NOT NULL DEFAULT 0,
+             subject   TEXT NOT NULL DEFAULT '',
+             title     TEXT NOT NULL DEFAULT '',
+             publisher TEXT NOT NULL DEFAULT '',
+             isbn      TEXT NOT NULL DEFAULT '',
+             level     TEXT NOT NULL DEFAULT '',
+             price     TEXT NOT NULL DEFAULT '',
+             status    TEXT NOT NULL DEFAULT '',
+             remarks   TEXT NOT NULL DEFAULT ''
+         );
+
+         CREATE TABLE resource (
+             id       INTEGER PRIMARY KEY,
+             category TEXT NOT NULL DEFAULT 'websites',
+             position INTEGER NOT NULL DEFAULT 0,
+             title    TEXT NOT NULL DEFAULT '',
+             detail   TEXT NOT NULL DEFAULT '',
+             notes    TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX resource_by_category ON resource(category);
+
+         COMMIT;",
+    )?;
+    Ok(())
+}
+
 /// Folds every M1 `class_slot` row into the master timetable, losing none.
 ///
 /// A slot's `(period_label, start_time, end_time)` becomes an hour, and the slot
@@ -933,7 +1056,7 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
 
         let planner = store::load(&conn).unwrap();
         // Everything M3 wrote is still there, untouched.
@@ -954,6 +1077,14 @@ mod tests {
         assert!(planner.parent_appointments.is_empty());
         assert!(planner.staff_meetings.is_empty());
         assert!(planner.meeting_agreements.is_empty());
+        // And M6's.
+        assert!(planner.units.is_empty());
+        assert!(planner.exams.is_empty());
+        assert!(planner.lesson_reflections.is_empty());
+        assert!(planner.trips.is_empty());
+        assert!(planner.trip_consents.is_empty());
+        assert!(planner.textbooks.is_empty());
+        assert!(planner.resources.is_empty());
 
         for table in [
             "attendance_mark",
@@ -965,6 +1096,13 @@ mod tests {
             "parent_appointment",
             "staff_meeting",
             "meeting_agreement",
+            "unit",
+            "exam",
+            "lesson_reflection",
+            "trip",
+            "trip_consent",
+            "textbook",
+            "resource",
         ] {
             let present: i64 = conn
                 .query_row(
@@ -978,14 +1116,15 @@ mod tests {
     }
 
     /// A data file as the **signed-off M4.5 build** left it — `user_version =
-    /// 5`, with real M4 rows on it — climbs to 6 and keeps every one of them.
+    /// 5`, with real M4 rows on it — climbs to the current schema and keeps
+    /// every one of them.
     ///
     /// This is the case the teacher actually meets: she has been using the last
     /// shipped build and her file has data in it. The M3 test above proves the
     /// whole ladder still runs; this proves the top rung does not disturb the
     /// records the previous milestone wrote.
     #[test]
-    fn an_m4_file_with_data_on_it_climbs_to_6_and_keeps_every_row() {
+    fn an_m4_file_with_data_on_it_climbs_to_the_current_schema_and_keeps_every_row() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("planner.sqlite");
 
@@ -1018,7 +1157,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, SCHEMA_VERSION);
 
         let planner = store::load(&conn).unwrap();
         // Every M4 row, exactly as it was written.
@@ -1044,5 +1183,118 @@ mod tests {
         assert!(planner.parent_appointments.is_empty());
         assert!(planner.staff_meetings.is_empty());
         assert!(planner.meeting_agreements.is_empty());
+    }
+
+    /// A data file as the **signed-off M5 build** left it — `user_version = 6`,
+    /// with real M5 rows on it — climbs to 7 and keeps every one of them.
+    ///
+    /// The M5-era equivalent of the test above, added because M6 is the first
+    /// milestone to write a migration on top of what M5 wrote. Together the
+    /// three cover the ladder from the oldest shipped file to the newest.
+    #[test]
+    fn an_m5_file_with_data_on_it_climbs_to_7_and_keeps_every_row() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+
+        let conn = Connection::open(&path).unwrap();
+        migrate_to_1(&conn).unwrap();
+        migrate_to_2(&conn).unwrap();
+        migrate_to_3(&conn).unwrap();
+        migrate_to_4(&conn).unwrap();
+        migrate_to_5(&conn).unwrap();
+        migrate_to_6(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 6).unwrap();
+        conn.execute_batch(
+            "INSERT INTO class (id, name, subject) VALUES (1, 'Α1', 'Μαθηματικά');
+             INSERT INTO student (id, full_name) VALUES (1, 'Ελένη Παπαδοπούλου');
+             INSERT INTO enrollment (class_id, student_id, roster_no) VALUES (1, 1, 1);
+             INSERT INTO lesson_plan (class_id, week_monday, notes, assessment)
+             VALUES (1, '2026-11-02', 'Κεφάλαιο 4', 'Ολιγόλεπτο διαγώνισμα');
+             INSERT INTO parent_contact (student_id, date, guardian, format, reason)
+             VALUES (1, '2026-11-05', 'Μαρία Παπαδοπούλου', 'phone', 'Απουσίες');
+             INSERT INTO parent_appointment (date, clock_time, student_id, guardian, status)
+             VALUES ('2026-11-05', '13:00', 1, 'Μαρία Παπαδοπούλου', 'confirmed');
+             INSERT INTO staff_meeting (id, kind, date, clock_time, agenda)
+             VALUES (1, 'council', '2026-11-09', '14:30', 'Πρόοδος τμήματος');
+             INSERT INTO meeting_agreement (meeting_id, position, who, what, deadline)
+             VALUES (1, 0, 'Ελένη', 'Να ενημερώσει τους γονείς', '2026-11-16');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let conn = open_at(&path).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        assert_eq!(version, 7);
+
+        let planner = store::load(&conn).unwrap();
+        // Every M5 row, exactly as written.
+        assert_eq!(planner.parent_contacts.len(), 1);
+        assert_eq!(planner.parent_contacts[0].reason, "Απουσίες");
+        assert_eq!(planner.parent_appointments.len(), 1);
+        assert_eq!(planner.parent_appointments[0].status, "confirmed");
+        assert_eq!(planner.staff_meetings[0].agenda, "Πρόοδος τμήματος");
+        assert_eq!(
+            planner.meeting_agreements[0].what,
+            "Να ενημερώσει τους γονείς"
+        );
+        // And M3's weekly plan, which M6's progress matrix is a *view* over:
+        // the migration adds no table that could shadow it and changes not one
+        // byte of what the teacher typed.
+        assert_eq!(planner.lesson_plans.len(), 1);
+        assert_eq!(planner.lesson_plans[0].notes, "Κεφάλαιο 4");
+        assert_eq!(planner.lesson_plans[0].assessment, "Ολιγόλεπτο διαγώνισμα");
+
+        // M6's seven tables exist and are empty — invented from nothing on the
+        // file, as a purely additive migration must be.
+        assert!(planner.units.is_empty());
+        assert!(planner.exams.is_empty());
+        assert!(planner.lesson_reflections.is_empty());
+        assert!(planner.trips.is_empty());
+        assert!(planner.trip_consents.is_empty());
+        assert!(planner.textbooks.is_empty());
+        assert!(planner.resources.is_empty());
+    }
+
+    /// **No table anywhere carries a week index**, which is the rule M1 set and
+    /// the reason correcting the school year's start date re-labels the
+    /// progress matrix's rows and moves nothing. M6 is the milestone most at
+    /// risk of breaking it, because the surface it builds has `Εβδομάδα` as its
+    /// own axis.
+    #[test]
+    fn no_table_is_keyed_by_a_week_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = open_at(&dir.path().join("planner.sqlite")).unwrap();
+
+        let tables: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .unwrap();
+            let rows = stmt.query_map([], |r| r.get::<_, String>(0)).unwrap();
+            rows.map(|r| r.unwrap()).collect()
+        };
+
+        for table in tables {
+            if table.starts_with("sqlite_") {
+                continue;
+            }
+            let mut stmt = conn
+                .prepare(&format!("PRAGMA table_info({table})"))
+                .unwrap();
+            let columns: Vec<String> = stmt
+                .query_map([], |r| r.get::<_, String>(1))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
+            for column in columns {
+                let lowered = column.to_ascii_lowercase();
+                assert!(
+                    lowered != "week" && lowered != "week_no" && lowered != "week_number",
+                    "{table}.{column} looks like a stored week index"
+                );
+            }
+        }
     }
 }

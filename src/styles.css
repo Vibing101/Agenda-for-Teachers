@@ -493,3 +493,74 @@ table.overview td {
   font-size: 0.9rem;
 }
 table.overview ul.plain { list-style: none; padding: 0; margin: 0; }
+
+/* --- M6: the annual plan, the progress matrix and the rest of teaching --- */
+
+/*
+ * The generic register table M6's annual plan uses. Deliberately plain: the
+ * gradebook and the timetable have their own because their cells are inputs,
+ * and this one only ever shows text.
+ */
+table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
+table.grid th {
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 6px 10px 6px 0;
+  vertical-align: top;
+}
+table.grid td {
+  padding: 6px 10px 6px 0;
+  vertical-align: top;
+  border-top: 1px solid var(--line);
+}
+
+/*
+ * The week-by-class progress matrix. `table-layout: fixed` keeps a class with a
+ * long week's plan from starving the others of width — the same reason the
+ * printed sheets set explicit column widths.
+ */
+table.progress { table-layout: fixed; }
+table.progress thead th { border-bottom: 1px solid var(--line); }
+table.progress tbody th {
+  font-weight: 400;
+  padding-right: 12px;
+  border-top: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.progress tbody th strong { display: block; }
+table.progress tbody th .muted { font-size: 0.78rem; }
+table.progress tr.current > * { background: var(--accent-soft, rgba(127, 127, 127, 0.08)); }
+
+/*
+ * A matrix cell. It is a button because the whole cell opens that week's plan —
+ * the one place the week is written. Nothing on this grid is an input.
+ */
+.cell-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.cell-link:hover { border-color: var(--line); }
+.cell-link .cell-text {
+  display: block;
+  /* Three lines of the teacher's own words, then an ellipsis: the full plan is
+     one click away and is never truncated where it is edited. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cell-link .tag { margin-top: 4px; display: inline-block; }
+
+/* The annual plan's derived header — subject, class, hours per week. */
+dl.meta { display: flex; flex-wrap: wrap; gap: 4px 24px; margin: 12px 0 0; }
+dl.meta dt { font-size: 0.8rem; color: var(--muted); }
+dl.meta dd { margin: 0 24px 0 0; font-weight: 600; }

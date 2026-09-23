@@ -400,6 +400,112 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     )
     .unwrap();
 
+    // M6 — the annual plan and the rest of teaching. The unit is the annual
+    // plan's row and the unit card at once; the exam, the trip, the reflection,
+    // the textbook and the resource are the five lists that grow all year.
+    //
+    // **No progress-matrix row is written here, and none exists.** The matrix
+    // is a view over the lesson plan above, so what proves it survives a quit
+    // is that the *plan* does.
+    store::save_unit(
+        &conn,
+        &Unit {
+            id: 0,
+            class_id: class_a,
+            position: 0,
+            title: "Εξισώσεις πρώτου βαθμού".into(),
+            period: "Α΄ τρίμηνο".into(),
+            hours: "12".into(),
+            deadlines: "Παράδοση εργασιών 20.11.2026".into(),
+            objectives: "Να λύνουν εξίσωση με έναν άγνωστο".into(),
+            skills: "Αλγεβρικός χειρισμός · έλεγχος λύσης".into(),
+            methods: "Ομαδοσυνεργατική · φύλλα εργασίας".into(),
+            assessment: "Ολιγόλεπτο διαγώνισμα και εργασία".into(),
+            content: "Κεφάλαιο 4, ενότητες 4.1–4.4".into(),
+            materials: "Διαδραστικός πίνακας, φυλλάδια".into(),
+            differentiation: "Επιπλέον χρόνος · φύλλο με βήματα".into(),
+            review: "Πήγε καλά· χρειάζεται μία ώρα παραπάνω".into(),
+        },
+    )
+    .unwrap();
+    store::save_exam(
+        &conn,
+        &Exam {
+            id: 0,
+            class_id: Some(class_a),
+            date: "2026-11-19".into(),
+            kind: "Ολιγόλεπτο διαγώνισμα".into(),
+            scope: "Κεφάλαιο 4, ενότητες 4.1–4.3".into(),
+            weight: "20%".into(),
+            collaboration: "Κοινό θέμα με τη Μ. Νικολάου".into(),
+        },
+    )
+    .unwrap();
+    store::save_lesson_reflection(
+        &conn,
+        &LessonReflection {
+            id: 0,
+            class_id: Some(class_a),
+            date: "2026-11-05".into(),
+            notes: "Το παιχνίδι ρόλων δούλεψε· λιγότερη θεωρία στην αρχή".into(),
+        },
+    )
+    .unwrap();
+    let trip_id = store::save_trip(
+        &conn,
+        &Trip {
+            id: 0,
+            position: 0,
+            date: "2026-12-04".into(),
+            activity: "Επίσκεψη στο Αρχαιολογικό Μουσείο".into(),
+            class_id: Some(class_a),
+            responsible: "Μ. Νικολάου".into(),
+            transport: "Λεωφορείο του σχολείου".into(),
+            cost: "5 ευρώ ανά μαθητή".into(),
+            checklist: "Συγκαταθέσεις · φαγητό · φαρμακείο".into(),
+            evaluation: "Πολύ καλή ανταπόκριση".into(),
+        },
+    )
+    .unwrap();
+    store::set_trip_consent(
+        &conn,
+        &TripConsent {
+            trip_id,
+            student_id: student,
+            state: "given".into(),
+            note: "Παραδόθηκε 28.11".into(),
+        },
+    )
+    .unwrap();
+    store::save_textbook(
+        &conn,
+        &Textbook {
+            id: 0,
+            position: 0,
+            subject: "Μαθηματικά".into(),
+            title: "Μαθηματικά Β΄ Γυμνασίου".into(),
+            publisher: "ΥΑΠ".into(),
+            isbn: "978-9963-0-0000-1".into(),
+            level: "Β΄ Γυμνασίου".into(),
+            price: "δωρεάν".into(),
+            status: "Σε χρήση".into(),
+            remarks: "Δύο αντίτυπα λείπουν".into(),
+        },
+    )
+    .unwrap();
+    store::save_resource(
+        &conn,
+        &Resource {
+            id: 0,
+            category: "websites".into(),
+            position: 0,
+            title: "GeoGebra".into(),
+            detail: "https://www.geogebra.org".into(),
+            notes: "Για τη γεωμετρία".into(),
+        },
+    )
+    .unwrap();
+
     let saved = store::load(&conn).unwrap();
     drop(conn); // the app quits
     let after_write = Fingerprint::of(&paths::db_path()).unwrap();
@@ -603,6 +709,69 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert_eq!(reloaded.meeting_agreements[0].who, "Μ. Νικολάου");
     assert_eq!(reloaded.meeting_agreements[0].deadline, "2026-11-16");
 
+    // M6, read back after the quit. **Every field of the four records the
+    // milestone's second acceptance criterion names**, plus the unit, which is
+    // the annual plan's row as well as the unit card.
+    assert_eq!(reloaded.units.len(), 1);
+    let unit = &reloaded.units[0];
+    assert_eq!(unit.title, "Εξισώσεις πρώτου βαθμού");
+    assert_eq!(unit.period, "Α΄ τρίμηνο");
+    assert_eq!(unit.hours, "12");
+    assert_eq!(unit.deadlines, "Παράδοση εργασιών 20.11.2026");
+    assert_eq!(unit.objectives, "Να λύνουν εξίσωση με έναν άγνωστο");
+    assert_eq!(unit.skills, "Αλγεβρικός χειρισμός · έλεγχος λύσης");
+    assert_eq!(unit.methods, "Ομαδοσυνεργατική · φύλλα εργασίας");
+    assert_eq!(unit.assessment, "Ολιγόλεπτο διαγώνισμα και εργασία");
+    assert_eq!(unit.content, "Κεφάλαιο 4, ενότητες 4.1–4.4");
+    assert_eq!(unit.materials, "Διαδραστικός πίνακας, φυλλάδια");
+    assert_eq!(unit.differentiation, "Επιπλέον χρόνος · φύλλο με βήματα");
+    assert_eq!(unit.review, "Πήγε καλά· χρειάζεται μία ώρα παραπάνω");
+
+    assert_eq!(reloaded.exams.len(), 1);
+    let exam = &reloaded.exams[0];
+    assert_eq!(exam.date, "2026-11-19");
+    assert_eq!(exam.kind, "Ολιγόλεπτο διαγώνισμα");
+    assert_eq!(exam.scope, "Κεφάλαιο 4, ενότητες 4.1–4.3");
+    assert_eq!(exam.weight, "20%");
+    assert_eq!(exam.collaboration, "Κοινό θέμα με τη Μ. Νικολάου");
+
+    assert_eq!(reloaded.lesson_reflections.len(), 1);
+    assert_eq!(
+        reloaded.lesson_reflections[0].notes,
+        "Το παιχνίδι ρόλων δούλεψε· λιγότερη θεωρία στην αρχή"
+    );
+
+    assert_eq!(reloaded.trips.len(), 1);
+    let trip = &reloaded.trips[0];
+    assert_eq!(trip.date, "2026-12-04");
+    assert_eq!(trip.activity, "Επίσκεψη στο Αρχαιολογικό Μουσείο");
+    assert_eq!(trip.responsible, "Μ. Νικολάου");
+    assert_eq!(trip.transport, "Λεωφορείο του σχολείου");
+    assert_eq!(trip.cost, "5 ευρώ ανά μαθητή");
+    assert_eq!(trip.checklist, "Συγκαταθέσεις · φαγητό · φαρμακείο");
+    assert_eq!(trip.evaluation, "Πολύ καλή ανταπόκριση");
+    assert_eq!(reloaded.trip_consents.len(), 1);
+    assert_eq!(reloaded.trip_consents[0].state, "given");
+    assert_eq!(reloaded.trip_consents[0].note, "Παραδόθηκε 28.11");
+
+    assert_eq!(reloaded.textbooks.len(), 1);
+    let book = &reloaded.textbooks[0];
+    assert_eq!(book.subject, "Μαθηματικά");
+    assert_eq!(book.title, "Μαθηματικά Β΄ Γυμνασίου");
+    assert_eq!(book.publisher, "ΥΑΠ");
+    assert_eq!(book.isbn, "978-9963-0-0000-1");
+    assert_eq!(book.level, "Β΄ Γυμνασίου");
+    assert_eq!(book.price, "δωρεάν");
+    assert_eq!(book.status, "Σε χρήση");
+    assert_eq!(book.remarks, "Δύο αντίτυπα λείπουν");
+
+    assert_eq!(reloaded.resources.len(), 1);
+    let resource = &reloaded.resources[0];
+    assert_eq!(resource.category, "websites");
+    assert_eq!(resource.title, "GeoGebra");
+    assert_eq!(resource.detail, "https://www.geogebra.org");
+    assert_eq!(resource.notes, "Για τη γεωμετρία");
+
     assert_eq!(moved.classes, reloaded.classes);
     assert_eq!(moved.students, reloaded.students);
     assert_eq!(moved.enrollments, reloaded.enrollments);
@@ -636,6 +805,18 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert_eq!(moved.parent_appointments, reloaded.parent_appointments);
     assert_eq!(moved.staff_meetings, reloaded.staff_meetings);
     assert_eq!(moved.meeting_agreements, reloaded.meeting_agreements);
+    // M6's records carry actual dates too, and its units carry no date at all,
+    // so moving the school year leaves every one of them alone. **This is the
+    // end-to-end half of M6's "the matrix's rows are derived" claim**: the week
+    // of 2 November is now called a different number, and neither the lesson
+    // plan the matrix reads nor anything M6 stores has moved.
+    assert_eq!(moved.units, reloaded.units);
+    assert_eq!(moved.exams, reloaded.exams);
+    assert_eq!(moved.lesson_reflections, reloaded.lesson_reflections);
+    assert_eq!(moved.trips, reloaded.trips);
+    assert_eq!(moved.trip_consents, reloaded.trip_consents);
+    assert_eq!(moved.textbooks, reloaded.textbooks);
+    assert_eq!(moved.resources, reloaded.resources);
     drop(conn);
 
     // Opening and reading must not disturb the file, or every session would

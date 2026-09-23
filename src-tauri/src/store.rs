@@ -41,6 +41,13 @@ pub fn load(conn: &Connection) -> AppResult<Planner> {
         parent_appointments: parent_appointments(conn)?,
         staff_meetings: staff_meetings(conn)?,
         meeting_agreements: meeting_agreements(conn)?,
+        units: units(conn)?,
+        exams: exams(conn)?,
+        lesson_reflections: lesson_reflections(conn)?,
+        trips: trips(conn)?,
+        trip_consents: trip_consents(conn)?,
+        textbooks: textbooks(conn)?,
+        resources: resources(conn)?,
     })
 }
 
@@ -1552,6 +1559,454 @@ pub fn save_meeting_agreement(conn: &Connection, a: &MeetingAgreement) -> AppRes
 
 pub fn delete_meeting_agreement(conn: &Connection, id: i64) -> AppResult<()> {
     conn.execute("DELETE FROM meeting_agreement WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+// ------------------------------- M6: annual planning & the rest of teaching ---
+
+/// Every unit of every class, in the order the teacher put them in.
+///
+/// **There is no progress-matrix loader below this one, and that is
+/// deliberate.** The week-by-class matrix is a view over `lesson_plan`, which
+/// M3 already loads; a table of its own would be a second place to type what
+/// happened in a class that week. See `migrate_to_7`.
+fn units(conn: &Connection) -> AppResult<Vec<Unit>> {
+    collect(
+        conn,
+        "SELECT id, class_id, position, title, period, hours, deadlines, objectives,
+                skills, methods, assessment, content, materials, differentiation, review
+           FROM unit ORDER BY class_id, position, id",
+        |r| {
+            Ok(Unit {
+                id: r.get(0)?,
+                class_id: r.get(1)?,
+                position: r.get(2)?,
+                title: r.get(3)?,
+                period: r.get(4)?,
+                hours: r.get(5)?,
+                deadlines: r.get(6)?,
+                objectives: r.get(7)?,
+                skills: r.get(8)?,
+                methods: r.get(9)?,
+                assessment: r.get(10)?,
+                content: r.get(11)?,
+                materials: r.get(12)?,
+                differentiation: r.get(13)?,
+                review: r.get(14)?,
+            })
+        },
+    )
+}
+
+fn exams(conn: &Connection) -> AppResult<Vec<Exam>> {
+    collect(
+        conn,
+        "SELECT id, class_id, date, kind, scope, weight, collaboration
+           FROM exam ORDER BY date, id",
+        |r| {
+            Ok(Exam {
+                id: r.get(0)?,
+                // NULL stays None: an exam whose class has been deleted is not
+                // an exam for class zero.
+                class_id: r.get(1)?,
+                date: r.get(2)?,
+                kind: r.get(3)?,
+                scope: r.get(4)?,
+                weight: r.get(5)?,
+                collaboration: r.get(6)?,
+            })
+        },
+    )
+}
+
+fn lesson_reflections(conn: &Connection) -> AppResult<Vec<LessonReflection>> {
+    collect(
+        conn,
+        "SELECT id, class_id, date, notes FROM lesson_reflection ORDER BY date, id",
+        |r| {
+            Ok(LessonReflection {
+                id: r.get(0)?,
+                class_id: r.get(1)?,
+                date: r.get(2)?,
+                notes: r.get(3)?,
+            })
+        },
+    )
+}
+
+fn trips(conn: &Connection) -> AppResult<Vec<Trip>> {
+    collect(
+        conn,
+        "SELECT id, position, date, activity, class_id, responsible, transport,
+                cost, checklist, evaluation
+           FROM trip ORDER BY date, position, id",
+        |r| {
+            Ok(Trip {
+                id: r.get(0)?,
+                position: r.get(1)?,
+                date: r.get(2)?,
+                activity: r.get(3)?,
+                class_id: r.get(4)?,
+                responsible: r.get(5)?,
+                transport: r.get(6)?,
+                cost: r.get(7)?,
+                checklist: r.get(8)?,
+                evaluation: r.get(9)?,
+            })
+        },
+    )
+}
+
+/// Every recorded consent. The register's `Συγκαταθέσεις` column is counted
+/// from these at display time and is never stored — see [`Trip`].
+fn trip_consents(conn: &Connection) -> AppResult<Vec<TripConsent>> {
+    collect(
+        conn,
+        "SELECT trip_id, student_id, state, note
+           FROM trip_consent ORDER BY trip_id, student_id",
+        |r| {
+            Ok(TripConsent {
+                trip_id: r.get(0)?,
+                student_id: r.get(1)?,
+                state: r.get(2)?,
+                note: r.get(3)?,
+            })
+        },
+    )
+}
+
+fn textbooks(conn: &Connection) -> AppResult<Vec<Textbook>> {
+    collect(
+        conn,
+        "SELECT id, position, subject, title, publisher, isbn, level, price, status, remarks
+           FROM textbook ORDER BY position, id",
+        |r| {
+            Ok(Textbook {
+                id: r.get(0)?,
+                position: r.get(1)?,
+                subject: r.get(2)?,
+                title: r.get(3)?,
+                publisher: r.get(4)?,
+                isbn: r.get(5)?,
+                level: r.get(6)?,
+                price: r.get(7)?,
+                status: r.get(8)?,
+                remarks: r.get(9)?,
+            })
+        },
+    )
+}
+
+fn resources(conn: &Connection) -> AppResult<Vec<Resource>> {
+    collect(
+        conn,
+        "SELECT id, category, position, title, detail, notes
+           FROM resource ORDER BY category, position, id",
+        |r| {
+            Ok(Resource {
+                id: r.get(0)?,
+                category: r.get(1)?,
+                position: r.get(2)?,
+                title: r.get(3)?,
+                detail: r.get(4)?,
+                notes: r.get(5)?,
+            })
+        },
+    )
+}
+
+/// Inserts or updates one unit — which is one row of the annual plan and one
+/// unit card, because they are the same record.
+pub fn save_unit(conn: &Connection, u: &Unit) -> AppResult<i64> {
+    if u.id == 0 {
+        let position: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM unit WHERE class_id = ?1",
+            [u.class_id],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO unit (class_id, position, title, period, hours, deadlines,
+                               objectives, skills, methods, assessment, content,
+                               materials, differentiation, review)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            params![
+                u.class_id,
+                position,
+                u.title,
+                u.period,
+                u.hours,
+                u.deadlines,
+                u.objectives,
+                u.skills,
+                u.methods,
+                u.assessment,
+                u.content,
+                u.materials,
+                u.differentiation,
+                u.review
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE unit
+                SET class_id = ?2, position = ?3, title = ?4, period = ?5, hours = ?6,
+                    deadlines = ?7, objectives = ?8, skills = ?9, methods = ?10,
+                    assessment = ?11, content = ?12, materials = ?13,
+                    differentiation = ?14, review = ?15
+              WHERE id = ?1",
+            params![
+                u.id,
+                u.class_id,
+                u.position,
+                u.title,
+                u.period,
+                u.hours,
+                u.deadlines,
+                u.objectives,
+                u.skills,
+                u.methods,
+                u.assessment,
+                u.content,
+                u.materials,
+                u.differentiation,
+                u.review
+            ],
+        )?;
+        Ok(u.id)
+    }
+}
+
+pub fn delete_unit(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM unit WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one planned assessment.
+///
+/// **This statement cannot reach `grade_column`.** An exam's `weight` is the
+/// teacher's plan for how much it should count; M2's percentage weights are
+/// what actually compute an average, and nothing here writes them.
+pub fn save_exam(conn: &Connection, e: &Exam) -> AppResult<i64> {
+    if e.id == 0 {
+        conn.execute(
+            "INSERT INTO exam (class_id, date, kind, scope, weight, collaboration)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                e.class_id,
+                e.date,
+                e.kind,
+                e.scope,
+                e.weight,
+                e.collaboration
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE exam
+                SET class_id = ?2, date = ?3, kind = ?4, scope = ?5, weight = ?6,
+                    collaboration = ?7
+              WHERE id = ?1",
+            params![
+                e.id,
+                e.class_id,
+                e.date,
+                e.kind,
+                e.scope,
+                e.weight,
+                e.collaboration
+            ],
+        )?;
+        Ok(e.id)
+    }
+}
+
+pub fn delete_exam(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM exam WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one lesson reflection.
+///
+/// **This statement cannot reach `lesson_plan`.** A reflection is what the
+/// teacher thought afterwards; the weekly plan is what she meant to do. The
+/// progress matrix reads the plan and never this.
+pub fn save_lesson_reflection(conn: &Connection, r: &LessonReflection) -> AppResult<i64> {
+    if r.id == 0 {
+        conn.execute(
+            "INSERT INTO lesson_reflection (class_id, date, notes) VALUES (?1, ?2, ?3)",
+            params![r.class_id, r.date, r.notes],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE lesson_reflection SET class_id = ?2, date = ?3, notes = ?4 WHERE id = ?1",
+            params![r.id, r.class_id, r.date, r.notes],
+        )?;
+        Ok(r.id)
+    }
+}
+
+pub fn delete_lesson_reflection(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM lesson_reflection WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+pub fn save_trip(conn: &Connection, t: &Trip) -> AppResult<i64> {
+    if t.id == 0 {
+        let position: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM trip",
+            [],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO trip (position, date, activity, class_id, responsible,
+                               transport, cost, checklist, evaluation)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                position,
+                t.date,
+                t.activity,
+                t.class_id,
+                t.responsible,
+                t.transport,
+                t.cost,
+                t.checklist,
+                t.evaluation
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE trip
+                SET position = ?2, date = ?3, activity = ?4, class_id = ?5,
+                    responsible = ?6, transport = ?7, cost = ?8, checklist = ?9,
+                    evaluation = ?10
+              WHERE id = ?1",
+            params![
+                t.id,
+                t.position,
+                t.date,
+                t.activity,
+                t.class_id,
+                t.responsible,
+                t.transport,
+                t.cost,
+                t.checklist,
+                t.evaluation
+            ],
+        )?;
+        Ok(t.id)
+    }
+}
+
+pub fn delete_trip(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM trip WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Records one student's consent for one trip, or **removes it** when the state
+/// is blank.
+///
+/// Deleting rather than storing a third state is M4's rule for an attendance
+/// cell restated: an unrecorded consent is the absence of a row, so clearing one
+/// leaves exactly the blank the paper form has.
+pub fn set_trip_consent(conn: &Connection, c: &TripConsent) -> AppResult<()> {
+    if c.state.is_empty() && c.note.is_empty() {
+        conn.execute(
+            "DELETE FROM trip_consent WHERE trip_id = ?1 AND student_id = ?2",
+            params![c.trip_id, c.student_id],
+        )?;
+        return Ok(());
+    }
+    conn.execute(
+        "INSERT INTO trip_consent (trip_id, student_id, state, note)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(trip_id, student_id) DO UPDATE SET state = ?3, note = ?4",
+        params![c.trip_id, c.student_id, c.state, c.note],
+    )?;
+    Ok(())
+}
+
+pub fn save_textbook(conn: &Connection, b: &Textbook) -> AppResult<i64> {
+    if b.id == 0 {
+        let position: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM textbook",
+            [],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO textbook (position, subject, title, publisher, isbn, level,
+                                   price, status, remarks)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                position,
+                b.subject,
+                b.title,
+                b.publisher,
+                b.isbn,
+                b.level,
+                b.price,
+                b.status,
+                b.remarks
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE textbook
+                SET position = ?2, subject = ?3, title = ?4, publisher = ?5, isbn = ?6,
+                    level = ?7, price = ?8, status = ?9, remarks = ?10
+              WHERE id = ?1",
+            params![
+                b.id,
+                b.position,
+                b.subject,
+                b.title,
+                b.publisher,
+                b.isbn,
+                b.level,
+                b.price,
+                b.status,
+                b.remarks
+            ],
+        )?;
+        Ok(b.id)
+    }
+}
+
+pub fn delete_textbook(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM textbook WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+pub fn save_resource(conn: &Connection, r: &Resource) -> AppResult<i64> {
+    if r.id == 0 {
+        let position: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM resource WHERE category = ?1",
+            [&r.category],
+            |row| row.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO resource (category, position, title, detail, notes)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![r.category, position, r.title, r.detail, r.notes],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE resource
+                SET category = ?2, position = ?3, title = ?4, detail = ?5, notes = ?6
+              WHERE id = ?1",
+            params![r.id, r.category, r.position, r.title, r.detail, r.notes],
+        )?;
+        Ok(r.id)
+    }
+}
+
+pub fn delete_resource(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM resource WHERE id = ?1", [id])?;
     Ok(())
 }
 
@@ -3563,5 +4018,395 @@ mod tests {
         let positions: Vec<i64> = planner.staff_meetings.iter().map(|m| m.position).collect();
         assert_eq!(positions, vec![0, 1]);
         assert_ne!(first, second);
+    }
+    // --------------------- M6: annual planning & the rest of teaching ---
+
+    /// The fixture M6's second acceptance criterion is checked against: **every
+    /// field filled**, so a column dropped from an `INSERT` or a `SELECT` shows
+    /// up as a mismatch rather than as a quietly empty box.
+    fn sample_unit(class_id: i64) -> Unit {
+        Unit {
+            id: 0,
+            class_id,
+            position: 0,
+            title: "Εξισώσεις πρώτου βαθμού".into(),
+            period: "Α΄ τρίμηνο".into(),
+            hours: "12".into(),
+            deadlines: "Παράδοση εργασιών 20.11.2026".into(),
+            objectives: "Να λύνουν εξίσωση με έναν άγνωστο".into(),
+            skills: "Αλγεβρικός χειρισμός · έλεγχος λύσης".into(),
+            methods: "Ομαδοσυνεργατική · φύλλα εργασίας".into(),
+            assessment: "Ολιγόλεπτο διαγώνισμα και εργασία".into(),
+            content: "Κεφάλαιο 4, ενότητες 4.1–4.4".into(),
+            materials: "Διαδραστικός πίνακας, φυλλάδια".into(),
+            differentiation: "Επιπλέον χρόνος · φύλλο με βήματα".into(),
+            review: "Πήγε καλά· χρειάζεται μία ώρα παραπάνω".into(),
+        }
+    }
+
+    fn sample_exam(class_id: i64) -> Exam {
+        Exam {
+            id: 0,
+            class_id: Some(class_id),
+            date: "2026-11-19".into(),
+            kind: "Ολιγόλεπτο διαγώνισμα".into(),
+            scope: "Κεφάλαιο 4, ενότητες 4.1–4.3".into(),
+            weight: "20%".into(),
+            collaboration: "Συνεννόηση με τη Μ. Νικολάου για κοινό θέμα".into(),
+        }
+    }
+
+    fn sample_trip(class_id: i64) -> Trip {
+        Trip {
+            id: 0,
+            position: 0,
+            date: "2026-12-04".into(),
+            activity: "Επίσκεψη στο Αρχαιολογικό Μουσείο".into(),
+            class_id: Some(class_id),
+            responsible: "Μ. Νικολάου".into(),
+            transport: "Λεωφορείο του σχολείου".into(),
+            cost: "5 ευρώ ανά μαθητή".into(),
+            checklist: "Συγκαταθέσεις · φαγητό · φαρμακείο".into(),
+            evaluation: "Πολύ καλή ανταπόκριση· να κρατηθεί περισσότερος χρόνος".into(),
+        }
+    }
+
+    fn sample_textbook() -> Textbook {
+        Textbook {
+            id: 0,
+            position: 0,
+            subject: "Μαθηματικά".into(),
+            title: "Μαθηματικά Β΄ Γυμνασίου".into(),
+            publisher: "ΥΑΠ".into(),
+            isbn: "978-9963-0-0000-1".into(),
+            level: "Β΄ Γυμνασίου".into(),
+            price: "δωρεάν".into(),
+            status: "Σε χρήση".into(),
+            remarks: "Δύο αντίτυπα λείπουν από το τμήμα".into(),
+        }
+    }
+
+    fn sample_resource() -> Resource {
+        Resource {
+            id: 0,
+            category: "websites".into(),
+            position: 0,
+            title: "GeoGebra".into(),
+            detail: "https://www.geogebra.org".into(),
+            notes: "Για τη γεωμετρία· δουλεύει και στα tablet".into(),
+        }
+    }
+
+    /// **M6's second acceptance criterion**, at the storage layer: an exam, a
+    /// trip, a textbook and a resource entry each round-trip through
+    /// save/reload with every field intact.
+    ///
+    /// Compared as **whole records** rather than field by field, so a column
+    /// added later and forgotten in one of the two statements fails this.
+    #[test]
+    fn an_exam_a_trip_a_textbook_and_a_resource_round_trip_with_every_field_intact() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+
+        let exam_id = save_exam(&conn, &sample_exam(class_id)).unwrap();
+        let trip_id = save_trip(&conn, &sample_trip(class_id)).unwrap();
+        let book_id = save_textbook(&conn, &sample_textbook()).unwrap();
+        let resource_id = save_resource(&conn, &sample_resource()).unwrap();
+        let unit_id = save_unit(&conn, &sample_unit(class_id)).unwrap();
+
+        let planner = load(&conn).unwrap();
+
+        assert_eq!(
+            planner.exams,
+            vec![Exam {
+                id: exam_id,
+                ..sample_exam(class_id)
+            }]
+        );
+        assert_eq!(
+            planner.trips,
+            vec![Trip {
+                id: trip_id,
+                ..sample_trip(class_id)
+            }]
+        );
+        assert_eq!(
+            planner.textbooks,
+            vec![Textbook {
+                id: book_id,
+                ..sample_textbook()
+            }]
+        );
+        assert_eq!(
+            planner.resources,
+            vec![Resource {
+                id: resource_id,
+                ..sample_resource()
+            }]
+        );
+        // The unit is the annual plan's row as well as the unit card, so it is
+        // held to the same standard although the criterion does not name it.
+        assert_eq!(
+            planner.units,
+            vec![Unit {
+                id: unit_id,
+                ..sample_unit(class_id)
+            }]
+        );
+    }
+
+    /// The same four, re-read after an **edit**, since a criterion about
+    /// save/reload is about the `UPDATE` statement as much as the `INSERT`.
+    #[test]
+    fn editing_one_of_m6s_records_rewrites_every_field_rather_than_some() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let exam_id = save_exam(&conn, &sample_exam(class_id)).unwrap();
+
+        let edited = Exam {
+            id: exam_id,
+            class_id: None,
+            date: "2027-01-14".into(),
+            kind: "Προφορική εξέταση".into(),
+            scope: "Όλο το Α΄ τρίμηνο".into(),
+            weight: "30%".into(),
+            collaboration: "Χωρίς συνεργασία φέτος".into(),
+        };
+        save_exam(&conn, &edited).unwrap();
+
+        assert_eq!(load(&conn).unwrap().exams, vec![edited]);
+    }
+
+    /// **A blank new record is kept**, as M4 settled for the four surfaces that
+    /// have a "new record" button. The teacher pressed something to make the
+    /// row and is about to type into it; deleting it on save would make it
+    /// vanish as it appeared.
+    #[test]
+    fn a_blank_exam_trip_textbook_or_resource_is_kept_rather_than_dropped() {
+        let (_dir, conn) = open();
+
+        save_exam(
+            &conn,
+            &Exam {
+                id: 0,
+                class_id: None,
+                date: String::new(),
+                kind: String::new(),
+                scope: String::new(),
+                weight: String::new(),
+                collaboration: String::new(),
+            },
+        )
+        .unwrap();
+        save_textbook(
+            &conn,
+            &Textbook {
+                id: 0,
+                position: 0,
+                subject: String::new(),
+                title: String::new(),
+                publisher: String::new(),
+                isbn: String::new(),
+                level: String::new(),
+                price: String::new(),
+                status: String::new(),
+                remarks: String::new(),
+            },
+        )
+        .unwrap();
+
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.exams.len(), 1);
+        assert_eq!(planner.textbooks.len(), 1);
+    }
+
+    /// A consent is keyed by `(trip, student)` and **cleared by removal**, the
+    /// rule M4 set for an attendance cell: an unrecorded consent is the absence
+    /// of a row, not a third code.
+    #[test]
+    fn a_trip_consent_round_trips_and_clearing_one_removes_its_row() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let student_id = save_student(&conn, &sample_student()).unwrap();
+        let trip_id = save_trip(&conn, &sample_trip(class_id)).unwrap();
+
+        let consent = TripConsent {
+            trip_id,
+            student_id,
+            state: "given".into(),
+            note: "Υπογεγραμμένο, παραδόθηκε 28.11".into(),
+        };
+        set_trip_consent(&conn, &consent).unwrap();
+        assert_eq!(load(&conn).unwrap().trip_consents, vec![consent.clone()]);
+
+        // Changing the state rewrites the one row rather than adding a second.
+        set_trip_consent(
+            &conn,
+            &TripConsent {
+                state: "refused".into(),
+                ..consent.clone()
+            },
+        )
+        .unwrap();
+        let after = load(&conn).unwrap().trip_consents;
+        assert_eq!(after.len(), 1);
+        assert_eq!(after[0].state, "refused");
+
+        // Cleared: the row goes, leaving the blank the paper form has.
+        set_trip_consent(
+            &conn,
+            &TripConsent {
+                trip_id,
+                student_id,
+                state: String::new(),
+                note: String::new(),
+            },
+        )
+        .unwrap();
+        assert!(load(&conn).unwrap().trip_consents.is_empty());
+    }
+
+    /// The file refuses a consent state it does not know, rather than reading
+    /// it back as a third kind — the same guard the agenda scopes have.
+    #[test]
+    fn the_file_refuses_a_consent_state_it_does_not_know() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let student_id = save_student(&conn, &sample_student()).unwrap();
+        let trip_id = save_trip(&conn, &sample_trip(class_id)).unwrap();
+
+        let bad = conn.execute(
+            "INSERT INTO trip_consent (trip_id, student_id, state) VALUES (?1, ?2, 'maybe')",
+            params![trip_id, student_id],
+        );
+        assert!(bad.is_err());
+    }
+
+    /// **M6's first acceptance criterion at the storage layer: there is nowhere
+    /// else to type it.**
+    ///
+    /// The progress matrix is week × class, and the obvious implementation — a
+    /// table with a cell per pair — would give the teacher a second place to
+    /// write what she did that week. So no such table exists, and this asserts
+    /// it: the only row a week's work is stored in is M3's `lesson_plan`.
+    #[test]
+    fn nothing_m6_adds_can_hold_a_weeks_work_for_a_class() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        save_lesson_plan(
+            &conn,
+            &LessonPlan {
+                class_id,
+                week_monday: "2026-11-02".into(),
+                notes: "Κεφάλαιο 4: εξισώσεις".into(),
+                assessment: "Ολιγόλεπτο διαγώνισμα την Πέμπτη".into(),
+            },
+        )
+        .unwrap();
+
+        // No table added by M6 mentions a week at all.
+        let tables: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect()
+        };
+        for table in ["unit", "exam", "lesson_reflection", "trip", "trip_consent"] {
+            assert!(tables.contains(&table.to_string()));
+            let mut stmt = conn
+                .prepare(&format!("PRAGMA table_info({table})"))
+                .unwrap();
+            let columns: Vec<String> = stmt
+                .query_map([], |r| r.get::<_, String>(1))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
+            assert!(
+                !columns.iter().any(|c| c.contains("week")),
+                "{table} must not carry a week of its own — the matrix is a view"
+            );
+        }
+
+        // And exactly one row in the whole file holds that week's work.
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.lesson_plans.len(), 1);
+        assert_eq!(planner.lesson_plans[0].notes, "Κεφάλαιο 4: εξισώσεις");
+    }
+
+    /// Deleting a class takes its units with it — they are the class's own
+    /// annual plan — but leaves the exams, trips and reflections that record
+    /// something that was *planned* or *happened*, with their link emptied.
+    #[test]
+    fn deleting_a_class_drops_its_units_and_keeps_its_dated_records() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        save_unit(&conn, &sample_unit(class_id)).unwrap();
+        save_exam(&conn, &sample_exam(class_id)).unwrap();
+        save_trip(&conn, &sample_trip(class_id)).unwrap();
+        save_lesson_reflection(
+            &conn,
+            &LessonReflection {
+                id: 0,
+                class_id: Some(class_id),
+                date: "2026-11-05".into(),
+                notes: "Το παιχνίδι ρόλων δούλεψε".into(),
+            },
+        )
+        .unwrap();
+
+        delete_class(&conn, class_id).unwrap();
+        let planner = load(&conn).unwrap();
+
+        assert!(planner.units.is_empty(), "a unit belongs to its class");
+        assert_eq!(planner.exams.len(), 1);
+        assert_eq!(planner.exams[0].class_id, None);
+        assert_eq!(planner.trips.len(), 1);
+        assert_eq!(planner.trips[0].class_id, None);
+        assert_eq!(planner.lesson_reflections.len(), 1);
+        assert_eq!(planner.lesson_reflections[0].class_id, None);
+    }
+
+    /// Two units of the same class keep the order the teacher put them in, and
+    /// editing one does not disturb the other — the annual plan is a list she
+    /// reads top to bottom.
+    #[test]
+    fn units_keep_their_order_and_do_not_overwrite_each_other() {
+        let (_dir, conn) = open();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let first = save_unit(&conn, &sample_unit(class_id)).unwrap();
+        let second = save_unit(
+            &conn,
+            &Unit {
+                title: "Γεωμετρία: τρίγωνα".into(),
+                ..sample_unit(class_id)
+            },
+        )
+        .unwrap();
+
+        let before = load(&conn).unwrap();
+        assert_eq!(before.units[0].id, first);
+        assert_eq!(before.units[1].id, second);
+        assert_eq!(before.units[1].position, 1);
+
+        save_unit(
+            &conn,
+            &Unit {
+                id: second,
+                position: 1,
+                title: "Γεωμετρία: τρίγωνα και τετράπλευρα".into(),
+                ..sample_unit(class_id)
+            },
+        )
+        .unwrap();
+
+        let after = load(&conn).unwrap();
+        assert_eq!(
+            after.units[0], before.units[0],
+            "editing the second unit must leave the first byte-for-byte"
+        );
+        assert_eq!(after.units[1].title, "Γεωμετρία: τρίγωνα και τετράπλευρα");
     }
 }

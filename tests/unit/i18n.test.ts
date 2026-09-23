@@ -13,9 +13,19 @@ import { el, translate, translatorFor, type StringId } from "../../src/i18n";
 import {
   ABSENCE_KINDS,
   absenceKindLabel,
+  APPOINTMENT_MODES,
+  appointmentModeLabel,
+  APPOINTMENT_STATUSES,
+  appointmentStatusLabel,
   ATTENDANCE_STATES,
   attendanceStateLabel,
   attendanceSymbolLabel,
+  CONDUCT_LEVELS,
+  conductLabel,
+  CONSENT_STATES,
+  consentStateLabel,
+  CONTACT_FORMATS,
+  contactFormatLabel,
   FOLLOW_UP_STATUSES,
   followUpLabel,
   GOAL_AREAS,
@@ -26,8 +36,12 @@ import {
   holidaySourceLabel,
   IMPORTANT_DATE_KINDS,
   importantDateKindLabel,
+  MEETING_KINDS,
+  meetingKindLabel,
   MONTHS,
   monthLabel,
+  RESOURCE_CATEGORIES,
+  resourceCategoryLabel,
   SEN_STATUSES,
   senStatusLabel,
   WEEKDAYS,
@@ -77,6 +91,16 @@ describe("the fixed reference vocabularies", () => {
     [ABSENCE_KINDS, absenceKindLabel as (c: never) => StringId],
     [FOLLOW_UP_STATUSES, followUpLabel as (c: never) => StringId],
     [GOAL_PROGRESS, goalProgressLabel as (c: never) => StringId],
+    [CONDUCT_LEVELS, conductLabel as (c: never) => StringId],
+    // M5's four. They were not in this list until M6 added its own and noticed
+    // the gap: the lookup was complete, but nothing was holding it so.
+    [CONTACT_FORMATS, contactFormatLabel as (c: never) => StringId],
+    [APPOINTMENT_MODES, appointmentModeLabel as (c: never) => StringId],
+    [APPOINTMENT_STATUSES, appointmentStatusLabel as (c: never) => StringId],
+    [MEETING_KINDS, meetingKindLabel as (c: never) => StringId],
+    // M6's two.
+    [CONSENT_STATES, consentStateLabel as (c: never) => StringId],
+    [RESOURCE_CATEGORIES, resourceCategoryLabel as (c: never) => StringId],
   ];
 
   it("label every code through the translation table, with nothing missing", () => {
@@ -114,6 +138,28 @@ describe("the fixed reference vocabularies", () => {
 
   it("keeps the absence kinds to the two the source register has columns for", () => {
     expect(ABSENCE_KINDS).toEqual(["absence", "late"]);
+  });
+
+  /**
+   * **The resource categories are the source page's own six captioned boxes**,
+   * not the rebuild spec's own/school/shared/borrowed/digital/other, which the
+   * page contradicts. Pinned here so a later agent reading the spec does not
+   * "correct" them back without reading the release note first.
+   */
+  it("keeps the six resource categories the source page prints", () => {
+    expect(RESOURCE_CATEGORIES).toEqual([
+      "websites",
+      "apps",
+      "books",
+      "video",
+      "classroom",
+      "other",
+    ]);
+  });
+
+  /** A consent has two codes; an unrecorded one is the absence of a row. */
+  it("keeps the consent states to the two the register can show", () => {
+    expect(CONSENT_STATES).toEqual(["given", "refused"]);
   });
 });
 

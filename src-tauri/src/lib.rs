@@ -461,6 +461,89 @@ fn delete_meeting_agreement(state: tauri::State<'_, AppState>, id: i64) -> AppRe
     mutate(&state, |tx| store::delete_meeting_agreement(tx, id))
 }
 
+// ------------------------------- M6: annual planning & the rest of teaching ---
+
+/// Saves one unit — which is one row of the annual plan *and* one unit card,
+/// because the source's two pages are two views of one record.
+#[tauri::command]
+fn save_unit(state: tauri::State<'_, AppState>, unit: Unit) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_unit(tx, &unit).map(|_| ()))
+}
+
+#[tauri::command]
+fn delete_unit(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_unit(tx, id))
+}
+
+/// Note what this cannot do: `store::save_exam` names only `exam`, so planning
+/// an assessment has no path to the gradebook's own percentage weights.
+#[tauri::command]
+fn save_exam(state: tauri::State<'_, AppState>, exam: Exam) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_exam(tx, &exam).map(|_| ()))
+}
+
+#[tauri::command]
+fn delete_exam(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_exam(tx, id))
+}
+
+/// A reflection is written after the lesson. **There is deliberately no command
+/// that writes both this and a lesson plan**, which is what keeps the progress
+/// matrix a view over what the teacher planned rather than a merge of two
+/// things she typed.
+#[tauri::command]
+fn save_lesson_reflection(
+    state: tauri::State<'_, AppState>,
+    reflection: LessonReflection,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_lesson_reflection(tx, &reflection).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_lesson_reflection(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_lesson_reflection(tx, id))
+}
+
+#[tauri::command]
+fn save_trip(state: tauri::State<'_, AppState>, trip: Trip) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_trip(tx, &trip).map(|_| ()))
+}
+
+#[tauri::command]
+fn delete_trip(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_trip(tx, id))
+}
+
+/// One student's consent for one trip. A blank one is removed rather than
+/// stored, so the register's derived count never includes a cell the teacher
+/// cleared.
+#[tauri::command]
+fn set_trip_consent(state: tauri::State<'_, AppState>, consent: TripConsent) -> AppResult<Planner> {
+    mutate(&state, |tx| store::set_trip_consent(tx, &consent))
+}
+
+#[tauri::command]
+fn save_textbook(state: tauri::State<'_, AppState>, textbook: Textbook) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_textbook(tx, &textbook).map(|_| ()))
+}
+
+#[tauri::command]
+fn delete_textbook(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_textbook(tx, id))
+}
+
+#[tauri::command]
+fn save_resource(state: tauri::State<'_, AppState>, resource: Resource) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_resource(tx, &resource).map(|_| ()))
+}
+
+#[tauri::command]
+fn delete_resource(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_resource(tx, id))
+}
+
 // ------------------------------------------------------------ PDF export ---
 
 /// Writes one document to `exports/` as a real PDF and returns its path.
@@ -788,6 +871,19 @@ pub fn run() {
             delete_staff_meeting,
             save_meeting_agreement,
             delete_meeting_agreement,
+            save_unit,
+            delete_unit,
+            save_exam,
+            delete_exam,
+            save_lesson_reflection,
+            delete_lesson_reflection,
+            save_trip,
+            delete_trip,
+            set_trip_consent,
+            save_textbook,
+            delete_textbook,
+            save_resource,
+            delete_resource,
             export_pdf,
             print_job,
             print_ready,

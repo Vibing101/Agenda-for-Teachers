@@ -191,6 +191,13 @@ pub struct Planner {
     pub parent_appointments: Vec<ParentAppointment>,
     pub staff_meetings: Vec<StaffMeeting>,
     pub meeting_agreements: Vec<MeetingAgreement>,
+    pub units: Vec<Unit>,
+    pub exams: Vec<Exam>,
+    pub lesson_reflections: Vec<LessonReflection>,
+    pub trips: Vec<Trip>,
+    pub trip_consents: Vec<TripConsent>,
+    pub textbooks: Vec<Textbook>,
+    pub resources: Vec<Resource>,
 }
 
 // ------------------------------------------------------------- M2: grades ---
@@ -650,3 +657,236 @@ pub struct MeetingAgreement {
     pub what: String,
     pub deadline: String,
 }
+
+// ------------------------------- M6: annual planning & the rest of teaching ---
+
+/// One teaching unit of a class — the source's *Ενότητες · Αναλυτικά για κάθε
+/// ενότητα* card, whose fields are `ΤΙΤΛΟΣ ΕΝΟΤΗΤΑΣ / ΜΑΘΗΜΑ / ΤΑΞΗ / ΑΡΙΘΜΟΣ
+/// ΩΡΩΝ / ΠΡΟΘΕΣΜΙΕΣ`, then `ΔΙΔΑΚΤΙΚΟΙ ΣΤΟΧΟΙ`, `ΜΕΘΟΔΟΙ ΚΑΙ ΜΟΡΦΕΣ ΕΡΓΑΣΙΑΣ`,
+/// `ΒΑΘΜΟΙ`, `ΠΕΡΙΕΧΟΜΕΝΟ`, `ΥΛΙΚΑ`, `ΕΞΑΤΟΜΙΚΕΥΣΗ` and `ΑΝΑΚΕΦΑΛΑΙΩΣΗ
+/// ΕΝΟΤΗΤΑΣ`.
+///
+/// **This is also the annual plan.** The source keeps two pages — *Ετήσιο
+/// πλάνο*, a table whose columns are `Περίοδος | Θεματική ενότητα | Δεξιότητες
+/// / Κριτήρια | Ώρες | Αξιολόγηση`, and the unit cards above — and every column
+/// of the first is a field of the second. Storing them apart would make the
+/// teacher type a unit's title and its hours twice, which is precisely what
+/// M6's first acceptance criterion forbids for the progress matrix and is no
+/// better here. So there is **one register**: the annual plan is a *view* of a
+/// class's units in order, and the unit card is the full record.
+///
+/// `ΜΑΘΗΜΑ` and `ΤΑΞΗ` are not stored: they are the class's own, looked up at
+/// display time the way a timetable cell looks up its class's subject and room.
+/// `ΩΡΕΣ/ΕΒΔ.` on the annual plan's header is derived from the master
+/// timetable for the same reason.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Unit {
+    #[serde(default)]
+    pub id: i64,
+    pub class_id: i64,
+    #[serde(default)]
+    pub position: i64,
+    /// `ΤΙΤΛΟΣ ΕΝΟΤΗΤΑΣ`, and the annual plan's `Θεματική ενότητα`.
+    pub title: String,
+    /// The annual plan's `Περίοδος`. Free text — a unit may straddle two of the
+    /// school year's grading periods, and the source's cell is a blank box.
+    pub period: String,
+    /// `ΑΡΙΘΜΟΣ ΩΡΩΝ`, and the annual plan's `Ώρες`.
+    pub hours: String,
+    /// `ΠΡΟΘΕΣΜΙΕΣ`.
+    pub deadlines: String,
+    /// `ΔΙΔΑΚΤΙΚΟΙ ΣΤΟΧΟΙ`.
+    pub objectives: String,
+    /// The annual plan's `Δεξιότητες / Κριτήρια`. Kept apart from
+    /// [`Unit::objectives`] because the two source pages head them differently
+    /// and merging would lose a distinction the teacher made — the same call
+    /// M4 took on a support plan's strengths and needs.
+    pub skills: String,
+    /// `ΜΕΘΟΔΟΙ ΚΑΙ ΜΟΡΦΕΣ ΕΡΓΑΣΙΑΣ`.
+    pub methods: String,
+    /// `ΒΑΘΜΟΙ` on the card and `Αξιολόγηση` on the annual plan — one field,
+    /// because both ask how this unit is assessed.
+    pub assessment: String,
+    /// `ΠΕΡΙΕΧΟΜΕΝΟ`.
+    pub content: String,
+    /// `ΥΛΙΚΑ`. The unit's own list, distinct from [`Resource`], which is the
+    /// teacher's standing library rather than one unit's materials.
+    pub materials: String,
+    /// `ΕΞΑΤΟΜΙΚΕΥΣΗ`.
+    pub differentiation: String,
+    /// `ΑΝΑΚΕΦΑΛΑΙΩΣΗ ΕΝΟΤΗΤΑΣ` — the spec's "review".
+    pub review: String,
+}
+
+/// One planned assessment — the source's *Προγραμματισμένες εξετάσεις ·
+/// Εξετάσεις κατανεμημένες σε όλη τη χρονιά*, whose columns are `Ημερομηνία |
+/// Τάξη | Μάθημα | Είδος εξέτασης | Τι εξετάζεται | Βαρύτητα` over a page-level
+/// `ΣΥΝΕΡΓΑΣΙΑ ΚΑΙ ΣΥΜΒΟΥΛΕΥΤΙΚΗ` box.
+///
+/// **This is a plan, not a mark.** `weight` is the teacher's note of how much
+/// this assessment is meant to count, written while she is spreading the year's
+/// exams out; it is deliberately *not* wired to M2's percentage-weighted
+/// gradebook, whose weights live on `grade_column` and are what actually
+/// computes an average. Nothing here reaches that table.
+///
+/// `Μάθημα` is not stored — it is the linked class's own subject, looked up at
+/// display time, as a timetable cell's is.
+///
+/// `kind` is free text rather than a fixed vocabulary: the source page is a
+/// blank form that enumerates nothing, and what counts as a kind of assessment
+/// differs by subject. This app does not invent a category the source does not
+/// have — the rule M4 followed on absence kinds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Exam {
+    #[serde(default)]
+    pub id: i64,
+    /// `ON DELETE SET NULL`: a scheduled assessment is still a thing that was
+    /// planned after the class it was planned for is gone, exactly as an
+    /// incident and a meeting are.
+    pub class_id: Option<i64>,
+    pub date: String,
+    /// `Είδος εξέτασης`.
+    pub kind: String,
+    /// `Τι εξετάζεται`.
+    pub scope: String,
+    /// `Βαρύτητα`, as the teacher writes it. See this type's own note.
+    pub weight: String,
+    /// The page's `ΣΥΝΕΡΓΑΣΙΑ ΚΑΙ ΣΥΜΒΟΥΛΕΥΤΙΚΗ` box, stored per record and
+    /// printed attributed — the shape M4.5 resolved for a captioned box.
+    pub collaboration: String,
+}
+
+/// One dated reflection on a lesson — the source's *Αναστοχασμός μαθημάτων ·
+/// Σημειώσεις για μαθήματα, μεθόδους και ιδέες*, whose cards carry
+/// `ΗΜΕΡΟΜΗΝΙΑ / ΜΑΘΗΜΑ / ΤΑΞΗ` over one box captioned `ΤΙ ΛΕΙΤΟΥΡΓΗΣΕ · ΤΙ ΘΑ
+/// ΑΛΛΑΞΩ`.
+///
+/// One text field, because the source has one box — the two halves of its
+/// caption are a prompt to the teacher, not two stored things.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LessonReflection {
+    #[serde(default)]
+    pub id: i64,
+    /// `ON DELETE SET NULL`. The lesson happened; the class may since be gone.
+    pub class_id: Option<i64>,
+    pub date: String,
+    pub notes: String,
+}
+
+/// One trip or visit — the source's *Εκδρομές και επισκέψεις*, whose columns
+/// are `Ημερομηνία | Στόχος / Δραστηριότητα | Τάξη | Υπεύθυνος | Μεταφορά |
+/// Έξοδο | Συγκαταθέσεις` over `ΛΙΣΤΑ ΕΛΕΓΧΟΥ` and `ΣΗΜΕΙΩΣΕΙΣ ΚΑΙ
+/// ΑΞΙΟΛΟΓΗΣΗ`.
+///
+/// **`Συγκαταθέσεις` is not a field here.** The spec asks for per-student
+/// consent tracking, so the consents are rows of [`TripConsent`] and the
+/// register's column is *derived* from them — the same construction as every
+/// other grid in this app. A number the teacher typed could disagree with the
+/// list she ticked; a derived one cannot.
+///
+/// The checklist and the evaluation are per trip rather than per page, because
+/// the spec puts them on the trip and one page-level box cannot serve a year's
+/// worth of visits.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Trip {
+    #[serde(default)]
+    pub id: i64,
+    #[serde(default)]
+    pub position: i64,
+    pub date: String,
+    /// `Στόχος / Δραστηριότητα`.
+    pub activity: String,
+    /// `ON DELETE SET NULL`, as an incident's is.
+    pub class_id: Option<i64>,
+    /// `Υπεύθυνος` — free text, since it may be a colleague this app has no
+    /// record of until M8 builds the staff directory.
+    pub responsible: String,
+    pub transport: String,
+    /// `Έξοδο`, as the teacher writes it.
+    pub cost: String,
+    /// `ΛΙΣΤΑ ΕΛΕΓΧΟΥ`.
+    pub checklist: String,
+    /// `ΣΗΜΕΙΩΣΕΙΣ ΚΑΙ ΑΞΙΟΛΟΓΗΣΗ` — the spec's post-trip evaluation.
+    pub evaluation: String,
+}
+
+/// One student's consent for one trip.
+///
+/// **Two states, and no row means "not recorded yet."** That is M4's rule for
+/// the attendance grid restated: an unmarked cell is the absence of a row, not
+/// a third code. Clearing a consent deletes it, so "she has not answered" and
+/// "I have not asked" are the same blank the paper form has.
+///
+/// The first join between a trip-like record and the roster since M1's
+/// `enrollment`, and it is keyed the same way: by the pair, with no generated
+/// id and therefore no create-then-edit selection to get wrong.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TripConsent {
+    pub trip_id: i64,
+    pub student_id: i64,
+    /// `given` | `refused`
+    pub state: String,
+    pub note: String,
+}
+
+pub const CONSENT_STATES: [&str; 2] = ["given", "refused"];
+
+/// One line of the source's *Σχολικά βιβλία και υλικά*, whose columns are
+/// `Μάθημα | Τίτλος | Εκδόσεις | ISBN | Επίπεδο | Τιμή | Κατάσταση` over a
+/// `ΠΑΡΑΤΗΡΗΣΕΙΣ` box.
+///
+/// A reference list the teacher maintains, closer to M1's holidays than to a
+/// lesson plan: it hangs off no class and no week. `subject` is therefore free
+/// text rather than a link — a textbook belongs to a subject, and the same book
+/// serves every class that is taught it.
+///
+/// `status` and `price` are free text, for the reason given on [`Exam::kind`]:
+/// the source page enumerates nothing, and a teacher writes "δωρεάν" in a price
+/// box as readily as a number.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Textbook {
+    #[serde(default)]
+    pub id: i64,
+    #[serde(default)]
+    pub position: i64,
+    pub subject: String,
+    pub title: String,
+    /// `Εκδόσεις` — the spec's "publisher".
+    pub publisher: String,
+    pub isbn: String,
+    /// `Επίπεδο`.
+    pub level: String,
+    pub price: String,
+    /// `Κατάσταση`.
+    pub status: String,
+    /// The page's `ΠΑΡΑΤΗΡΗΣΕΙΣ` box, stored per line and printed attributed.
+    pub remarks: String,
+}
+
+/// One entry in the teacher's standing library — the source's *Υλικά και πηγές
+/// · Ιστότοποι, εφαρμογές, βιβλία και ταινίες*.
+///
+/// **The six categories are the source page's own six boxes**, which are about
+/// what a resource *is*: `ΙΣΤΟΤΟΠΟΙ ΚΑΙ ΠΛΑΤΦΟΡΜΕΣ`, `ΕΦΑΡΜΟΓΕΣ`, `ΒΙΒΛΙΑ ΚΑΙ
+/// ΚΕΙΜΕΝΑ`, `ΒΙΝΤΕΟ ΚΑΙ ΗΧΟΣ`, `ΒΟΗΘΗΜΑΤΑ ΣΤΗΝ ΤΑΞΗ`, `ΑΛΛΕΣ ΠΗΓΕΣ`. The
+/// rebuild spec names a different six — own / school / shared / borrowed /
+/// digital / other, which are about who a resource *belongs to* — and calls
+/// them "the six source categories", which the source page contradicts. The
+/// page wins on a question of what is on the page. **Raised for the product
+/// owner rather than settled quietly; see the release note.**
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Resource {
+    #[serde(default)]
+    pub id: i64,
+    /// One of [`RESOURCE_CATEGORIES`].
+    pub category: String,
+    #[serde(default)]
+    pub position: i64,
+    pub title: String,
+    /// Where it is — a link, a shelf, a cupboard.
+    pub detail: String,
+    pub notes: String,
+}
+
+pub const RESOURCE_CATEGORIES: [&str; 6] =
+    ["websites", "apps", "books", "video", "classroom", "other"];

@@ -22,20 +22,26 @@ import type { Planner } from "./domain/types";
 import { DEFAULT_LOCALE, translatorFor, type StringId } from "./i18n";
 import { LocaleContext, useTranslate } from "./i18n/useTranslate";
 import AgendaScreen from "./screens/AgendaScreen";
+import AnnualPlanScreen from "./screens/AnnualPlanScreen";
 import AppointmentsScreen from "./screens/AppointmentsScreen";
 import AttendanceScreen from "./screens/AttendanceScreen";
 import BehaviourScreen from "./screens/BehaviourScreen";
 import ClassesScreen from "./screens/ClassesScreen";
 import ContactsScreen from "./screens/ContactsScreen";
+import ExamsScreen from "./screens/ExamsScreen";
 import GradesScreen from "./screens/GradesScreen";
+import LibraryScreen from "./screens/LibraryScreen";
 import LettersScreen from "./screens/LettersScreen";
 import MeetingsScreen from "./screens/MeetingsScreen";
 import MessagesScreen from "./screens/MessagesScreen";
 import PlanScreen, { type PlanFocus } from "./screens/PlanScreen";
+import ProgressScreen from "./screens/ProgressScreen";
+import ReflectionsScreen from "./screens/ReflectionsScreen";
 import StudentsScreen from "./screens/StudentsScreen";
 import SupportScreen from "./screens/SupportScreen";
 import TimetableScreen from "./screens/TimetableScreen";
 import TodayScreen from "./screens/TodayScreen";
+import TripsScreen from "./screens/TripsScreen";
 import YearScreen from "./screens/YearScreen";
 import type { Run } from "./screens/types";
 
@@ -72,6 +78,16 @@ type Section =
  * M5's surfaces under it as sub-pages. That keeps M4's shape — sub-pages inside
  * a section, the top row as small as the spec allows — while keeping the label
  * honest about holding the staff meetings as well as the parent ones.
+ *
+ * **M6 adds seven sub-pages and no top-level tab, so the row stays at nine.**
+ * The spec files every one of its eight surfaces under module 3, and `Πλάνο`
+ * was already that module's section — it simply had no sub-pages, because M3
+ * built only the weekly plan. The source product reaches all eight from its own
+ * ΠΛΑΝΟ index page, so this is that index. The eight become seven because two
+ * pairs collapse: *Ετήσιο πλάνο* and *Ενότητες* are two views of one record and
+ * share a page, and the two reference lists — *Σχολικά βιβλία* and *Υλικά και
+ * πηγές* — are the two surfaces that hang off no class and no week, so they
+ * share one too.
  */
 type Page =
   | "gradebook"
@@ -83,7 +99,14 @@ type Page =
   | "appointments"
   | "meetings"
   | "letters"
-  | "messages";
+  | "messages"
+  | "weekPlan"
+  | "annual"
+  | "progress"
+  | "exams"
+  | "reflections"
+  | "trips"
+  | "library";
 
 const SECTIONS: { key: Section; labelId: StringId; pages?: { key: Page; labelId: StringId }[] }[] = [
   { key: "year", labelId: "nav.year" },
@@ -106,7 +129,19 @@ const SECTIONS: { key: Section; labelId: StringId; pages?: { key: Page; labelId:
     ],
   },
   { key: "timetable", labelId: "nav.timetable" },
-  { key: "plan", labelId: "nav.plan" },
+  {
+    key: "plan",
+    labelId: "nav.plan",
+    pages: [
+      { key: "weekPlan", labelId: "nav.weekPlan" },
+      { key: "annual", labelId: "nav.annual" },
+      { key: "progress", labelId: "nav.progress" },
+      { key: "exams", labelId: "nav.exams" },
+      { key: "reflections", labelId: "nav.reflections" },
+      { key: "trips", labelId: "nav.trips" },
+      { key: "library", labelId: "nav.library" },
+    ],
+  },
   { key: "agenda", labelId: "nav.agenda" },
   {
     key: "parents",
@@ -345,8 +380,33 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
           {section === "parents" && page === "letters" && <LettersScreen today={today} />}
           {section === "parents" && page === "messages" && <MessagesScreen today={today} />}
           {section === "timetable" && <TimetableScreen planner={planner} run={run} />}
-          {section === "plan" && (
+          {section === "plan" && (page ?? "weekPlan") === "weekPlan" && (
             <PlanScreen planner={planner} run={run} today={today} focus={planFocus} />
+          )}
+          {section === "plan" && page === "annual" && (
+            <AnnualPlanScreen planner={planner} run={run} />
+          )}
+          {section === "plan" && page === "progress" && (
+            // Takes no `run`: the matrix is a view over the weekly plans, so
+            // there is nothing on it to save. M6's first acceptance criterion.
+            <ProgressScreen
+              planner={planner}
+              today={today}
+              onOpenPlan={(focus) => {
+                setPlanFocus(focus);
+                setPage("weekPlan");
+              }}
+            />
+          )}
+          {section === "plan" && page === "exams" && (
+            <ExamsScreen planner={planner} run={run} today={today} />
+          )}
+          {section === "plan" && page === "reflections" && (
+            <ReflectionsScreen planner={planner} run={run} />
+          )}
+          {section === "plan" && page === "trips" && <TripsScreen planner={planner} run={run} />}
+          {section === "plan" && page === "library" && (
+            <LibraryScreen planner={planner} run={run} />
           )}
           {section === "agenda" && (
             <AgendaScreen planner={planner} run={run} today={today} />
@@ -358,6 +418,9 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
               onOpenPlan={(focus) => {
                 setPlanFocus(focus);
                 setSection("plan");
+                // Πλάνο has sub-pages since M6, so name the one the plan is on
+                // rather than letting the section open on its first.
+                setPage("weekPlan");
               }}
             />
           )}

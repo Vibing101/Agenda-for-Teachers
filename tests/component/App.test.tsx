@@ -44,10 +44,10 @@ describe("the app shell", () => {
   it("shows where the data lives, including the schema version", async () => {
     mount();
     expect(await screen.findByText("/Drive/Ατζέντα/data/planner.sqlite")).toBeInTheDocument();
-    // M5's forward migration: `user_version = 6`. This line is also the
+    // M6's forward migration: `user_version = 7`. This line is also the
     // cheapest check that a manual pass is looking at the build under test —
     // see the bundle-identifier hazard in `docs/MILESTONE_PROMPT.md`.
-    expect(screen.getByText("6")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
   });
 
   it("reaches the four M3 sections", async () => {
@@ -161,7 +161,15 @@ describe("the app shell", () => {
    * as sub-pages. So the number moved by one, once, for a module that had
    * nowhere else to go — not because the rule was relaxed.
    */
-  it("keeps the top row to nine sections after M5", async () => {
+  /**
+   * **Still nine after M6**, and this is the deliberate check the M5 note asked
+   * the next agent to make. M6 adds seven surfaces and no tab: the spec files
+   * every one of them under module 3, which the app already had as `Πλάνο`, so
+   * they went in as sub-pages — M4's shape. The number moved from eight to nine
+   * at M5, because that module had no section to belong to; nothing about M6
+   * moves it again.
+   */
+  it("keeps the top row to nine sections after M6", async () => {
     mount();
     await screen.findByRole("heading", { name: "Σχολικό έτος" });
     const top = screen.getAllByRole("navigation")[0];
@@ -209,6 +217,44 @@ describe("the app shell", () => {
 
     await user.click(within(sub).getByRole("button", { name: "Μηνύματα" }));
     expect(await screen.findByRole("heading", { name: "Τράπεζα μηνυμάτων" })).toBeInTheDocument();
+  });
+
+  /**
+   * M6's seven surfaces are sub-pages of `Πλάνο`, which had none before: M3
+   * built only the weekly plan. The source product reaches all of them from its
+   * own ΠΛΑΝΟ index page, so this row is that index.
+   */
+  it("files all seven M6 surfaces under Πλάνο, which keeps its weekly plan first", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+
+    await user.click(screen.getByRole("button", { name: "Πλάνο" }));
+    // It opens on the weekly plan — M3's screen, unmoved.
+    expect(await screen.findByRole("heading", { name: "Εβδομαδιαίο πλάνο" })).toBeInTheDocument();
+
+    const sub = screen.getAllByRole("navigation")[1];
+    expect(within(sub).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Εβδομάδα",
+      "Ετήσιο πλάνο",
+      "Πρόοδος τμημάτων",
+      "Εξετάσεις",
+      "Αναστοχασμός",
+      "Εκδρομές",
+      "Βιβλία & υλικά",
+    ]);
+
+    for (const [tab, heading] of [
+      ["Ετήσιο πλάνο", "Ετήσιο πλάνο"],
+      ["Πρόοδος τμημάτων", "Ανάπτυξη ανά τμήμα"],
+      ["Εξετάσεις", "Προγραμματισμένες εξετάσεις"],
+      ["Αναστοχασμός", "Αναστοχασμός μαθημάτων"],
+      ["Εκδρομές", "Εκδρομές και επισκέψεις"],
+      ["Βιβλία & υλικά", "Σχολικά βιβλία και υλικά"],
+    ]) {
+      await user.click(within(sub).getByRole("button", { name: tab }));
+      expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+    }
   });
 
   it("files attendance under Βαθμοί, as the spec and the source product do", async () => {
