@@ -487,11 +487,15 @@ sequence.
   (`git filter-repo`) and force-pushing, which invalidates every existing clone.
 
   **Deferred deliberately, and it is cheap to defer**: the repository is private
-  and the product owner is its only user, so there are no clones to break today.
-  That is exactly what makes it expensive later. **The trigger is publication or
-  a second collaborator, whichever comes first** — not M9. If the repo is ever
-  to be made public, shared, or handed to another developer, the history rewrite
-  happens *before* that, not after.
+  and the product owner is its only user — it sits under an organisation he
+  owns, and the second account listed against it is also his — so there are no
+  clones to break today. That is exactly what makes it expensive later.
+
+  **The trigger is publication, or anyone else gaining access — whichever comes
+  first.** Not M9. Note that on an org-owned repository "anyone else" is wider
+  than the collaborator list: access can also arrive through org membership or a
+  team. If the repo is ever made public, shared, or handed to another developer,
+  the history rewrite happens *before* that, not after.
 
   Nothing in `src/`, `src-tauri/`, `tests/`, the build or CI reads from
   `reference/` — checked, not assumed — and the content the app actually needs
