@@ -8,8 +8,15 @@
  *
  * **The agreements are rows, not a paragraph.** The spec asks for "agreements
  * (who/what/deadline)" — three named parts, one of them a date — so they are a
- * table of their own. A deadline that is a stored date is what lets the
- * upcoming panel show an action falling due, which a paragraph could not.
+ * table of their own, and a deadline is a stored date rather than prose buried
+ * in one.
+ *
+ * **That does not mean the panel shows them.** [`upcomingOverview`] reads
+ * appointments and meetings only; an agreement's deadline is visible by opening
+ * its meeting. Storing it as a date makes surfacing it later a selector change
+ * and nothing else, but nobody has asked for it yet — M5 raised it, and it is
+ * in the user-facing workflow doc's "not yet" list so the teacher is not told
+ * to expect a reminder that does not come.
  *
  * **"Today" is an argument here, never a clock read.** [`upcomingOverview`] is
  * a pure function of the planner and the day, which is the only way the panel
