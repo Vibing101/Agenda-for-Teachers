@@ -12,6 +12,7 @@
  * is what this project stores and labels everywhere else.
  */
 import { placeholdersIn } from "./placeholders";
+import { foldForSearch } from "./search";
 import type { StringId, Translate } from "../i18n";
 
 /** The 15 categories, in the order the source's index page lists them. */
@@ -96,26 +97,11 @@ export function messageBank(t: Translate): BankMessage[] {
 }
 
 /**
- * Folds accents and case so a search for "απουσιες" finds "Απουσίες".
- *
- * A Greek teacher typing quickly does not reach for the accent key, and a
- * search that only matched the accented form would look broken. `NFD` splits a
- * letter from its diacritic so the diacritic can be dropped.
- *
- * **Final sigma needs the round trip through upper case.** It is a distinct
- * letter rather than an accent, so `toLowerCase` leaves it alone and a search
- * for a word ending in one would not match the same word mid-sentence. Upper
- * case has no final form, so uppercasing and lowercasing again folds the two
- * sigmas together — and, unlike replacing one with the other, it needs no Greek
- * character in this file, which is a rule this project enforces at the build.
+ * The accent- and case-folding rule, which lives in `search.ts` since M8 so
+ * the staff directory searches by the same rule. Re-exported so nothing that
+ * imported it from here has to change.
  */
-export function foldForSearch(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .toLowerCase();
-}
+export { foldForSearch };
 
 /**
  * What the bank shows for a query and a category.

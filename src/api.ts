@@ -4,6 +4,9 @@ import type {
   AgendaNote,
   AnnualGoal,
   AttendanceMark,
+  CoverRecord,
+  DevelopmentBudget,
+  DevelopmentGoal,
   ClassGrading,
   Enrollment,
   Exam,
@@ -14,6 +17,7 @@ import type {
   Holiday,
   ImportantDate,
   Incident,
+  LeaveRecord,
   LessonPlan,
   LessonReflection,
   MeetingAgreement,
@@ -25,6 +29,7 @@ import type {
   SchoolClass,
   SchoolYear,
   Seat,
+  StaffContact,
   StaffMeeting,
   Student,
   SupportGoal,
@@ -32,9 +37,12 @@ import type {
   Textbook,
   TimetableCell,
   TimetablePeriod,
+  TrainingEntry,
   Trip,
   TripConsent,
   Unit,
+  WellbeingEntry,
+  WellbeingNote,
 } from "./domain/types";
 
 export interface Status {
@@ -234,6 +242,47 @@ export const api = {
     invoke<Planner>("set_substitute_text", { classId, field, value }),
   resetSubstituteText: (classId: number | null, field: string) =>
     invoke<Planner>("reset_substitute_text", { classId, field }),
+
+  /** One person in the school directory. */
+  saveStaffContact: (contact: StaffContact) => invoke<Planner>("save_staff_contact", { contact }),
+  deleteStaffContact: (id: number) => invoke<Planner>("delete_staff_contact", { id }),
+
+  /**
+   * One cover the teacher taught for a colleague — a record of what happened.
+   *
+   * **This reaches the covers register and nothing else.** Her own leave below
+   * is a separate register by the spec's own words, so — as with M4's two
+   * attendance registers and M5's booking and log — there is deliberately no
+   * call here that writes both. Nor does it reach the timetable's duty cells,
+   * which are her planned week.
+   */
+  saveCoverRecord: (record: CoverRecord) => invoke<Planner>("save_cover_record", { record }),
+  deleteCoverRecord: (id: number) => invoke<Planner>("delete_cover_record", { id }),
+
+  /** One of her own leaves. Independent of the covers above and of the folder. */
+  saveLeaveRecord: (record: LeaveRecord) => invoke<Planner>("save_leave_record", { record }),
+  deleteLeaveRecord: (id: number) => invoke<Planner>("delete_leave_record", { id }),
+
+  /**
+   * One open-ended development goal. **Not** one of M1's six annual goals —
+   * `saveAnnualGoal` above writes those, and neither call reaches the other.
+   */
+  saveDevelopmentGoal: (goal: DevelopmentGoal) =>
+    invoke<Planner>("save_development_goal", { goal }),
+  deleteDevelopmentGoal: (id: number) => invoke<Planner>("delete_development_goal", { id }),
+
+  /** One line of the training log. A `null` cost or hours is "not entered". */
+  saveTrainingEntry: (entry: TrainingEntry) => invoke<Planner>("save_training_entry", { entry }),
+  deleteTrainingEntry: (id: number) => invoke<Planner>("delete_training_entry", { id }),
+  saveDevelopmentBudget: (budget: DevelopmentBudget) =>
+    invoke<Planner>("save_development_budget", { budget }),
+
+  /** One dated wellbeing reflection — free text, with no rating of any kind. */
+  saveWellbeingEntry: (entry: WellbeingEntry) =>
+    invoke<Planner>("save_wellbeing_entry", { entry }),
+  deleteWellbeingEntry: (id: number) => invoke<Planner>("delete_wellbeing_entry", { id }),
+  /** The wellbeing page's two standing boxes. */
+  saveWellbeingNote: (note: WellbeingNote) => invoke<Planner>("save_wellbeing_note", { note }),
 
   /**
    * Writes one document into `exports/` as a real PDF and resolves with its

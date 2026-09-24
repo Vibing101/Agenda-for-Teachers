@@ -540,6 +540,98 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     store::set_substitute_text(&conn, None, "contact.principal", "Α. Νικολάου · 22 123456")
         .unwrap();
 
+    // M8 — one of everything: a staff contact, a cover and a leave **on the
+    // same date**, a development goal, a training line with a comma-typed cost
+    // already parsed to 12.5 and a blank one left as "not entered", the
+    // budget, a wellbeing reflection and the page's two standing boxes.
+    store::save_staff_contact(
+        &conn,
+        &StaffContact {
+            id: 0,
+            position: 0,
+            full_name: "Άννα Παπαδοπούλου".into(),
+            role: "Υποδιευθύντρια".into(),
+            phone: "22 123456".into(),
+            email: "anna@school.example".into(),
+        },
+    )
+    .unwrap();
+    store::save_cover_record(
+        &conn,
+        &CoverRecord {
+            id: 0,
+            date: "2026-11-12".into(),
+            class_name: "Γ2".into(),
+            covered: "Ιστορία, κεφ. 3".into(),
+            teacher: "Κ. Γεωργίου".into(),
+            notes: "Υπέγραψε ο υποδιευθυντής".into(),
+        },
+    )
+    .unwrap();
+    store::save_leave_record(
+        &conn,
+        &LeaveRecord {
+            id: 0,
+            date: "2026-11-12".into(),
+            reason: "Άδεια ασθενείας".into(),
+            documents: "Ιατρικό πιστοποιητικό".into(),
+        },
+    )
+    .unwrap();
+    store::save_development_goal(
+        &conn,
+        &DevelopmentGoal {
+            id: 0,
+            position: 0,
+            goal: "Πιστοποίηση ΤΠΕ Β".into(),
+            status: "Σε εξέλιξη".into(),
+            progress: "2 από 4 ενότητες".into(),
+            notes: "Εξετάσεις τον Μάρτιο".into(),
+        },
+    )
+    .unwrap();
+    for (cost, hours) in [(Some(12.5), Some(1.5)), (None, None)] {
+        store::save_training_entry(
+            &conn,
+            &TrainingEntry {
+                id: 0,
+                date: "2026-10-17".into(),
+                activity: "Διαφοροποιημένη διδασκαλία".into(),
+                organiser: "Παιδαγωγικό Ινστιτούτο".into(),
+                hours,
+                format: "Διαδικτυακό".into(),
+                cost,
+                certificate: "Αναμένεται".into(),
+            },
+        )
+        .unwrap();
+    }
+    store::save_development_budget(
+        &conn,
+        &DevelopmentBudget {
+            amount: Some(300.0),
+            notes: "Καλύπτει το σχολείο το μισό".into(),
+        },
+    )
+    .unwrap();
+    store::save_wellbeing_entry(
+        &conn,
+        &WellbeingEntry {
+            id: 0,
+            date: "2026-11-13".into(),
+            notes: "Βοήθησε το περπάτημα".into(),
+        },
+    )
+    .unwrap();
+    store::save_wellbeing_note(
+        &conn,
+        &WellbeingNote {
+            sustains: "Κολύμπι".into(),
+            boundaries: "Όχι email μετά τις 8".into(),
+        },
+    )
+    .unwrap();
+
     let saved = store::load(&conn).unwrap();
     drop(conn); // the app quits
     let after_write = Fingerprint::of(&paths::db_path()).unwrap();
@@ -833,6 +925,26 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
         "Α. Νικολάου · 22 123456"
     );
 
+    // M8, read back after the quit. The cover and the leave on 12.11 are both
+    // there, each in its own register; the blank cost came back blank, not 0.
+    assert_eq!(reloaded.staff_contacts[0].full_name, "Άννα Παπαδοπούλου");
+    assert_eq!(reloaded.staff_contacts[0].role, "Υποδιευθύντρια");
+    assert_eq!(reloaded.cover_records.len(), 1);
+    assert_eq!(reloaded.cover_records[0].date, "2026-11-12");
+    assert_eq!(reloaded.cover_records[0].covered, "Ιστορία, κεφ. 3");
+    assert_eq!(reloaded.leave_records.len(), 1);
+    assert_eq!(reloaded.leave_records[0].date, "2026-11-12");
+    assert_eq!(reloaded.leave_records[0].documents, "Ιατρικό πιστοποιητικό");
+    assert_eq!(reloaded.development_goals[0].progress, "2 από 4 ενότητες");
+    assert_eq!(reloaded.training_entries.len(), 2);
+    assert_eq!(reloaded.training_entries[0].cost, Some(12.5));
+    assert_eq!(reloaded.training_entries[0].hours, Some(1.5));
+    assert_eq!(reloaded.training_entries[1].cost, None);
+    assert_eq!(reloaded.training_entries[1].hours, None);
+    assert_eq!(reloaded.development_budget.amount, Some(300.0));
+    assert_eq!(reloaded.wellbeing_entries[0].notes, "Βοήθησε το περπάτημα");
+    assert_eq!(reloaded.wellbeing_note.boundaries, "Όχι email μετά τις 8");
+
     assert_eq!(moved.classes, reloaded.classes);
     assert_eq!(moved.students, reloaded.students);
     assert_eq!(moved.enrollments, reloaded.enrollments);
@@ -887,6 +999,16 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
         moved.substitute_school_texts,
         reloaded.substitute_school_texts
     );
+    // M8's dated records carry actual dates, so moving the school year moves
+    // none of them — a wellbeing reflection's week number is derived at display.
+    assert_eq!(moved.staff_contacts, reloaded.staff_contacts);
+    assert_eq!(moved.cover_records, reloaded.cover_records);
+    assert_eq!(moved.leave_records, reloaded.leave_records);
+    assert_eq!(moved.development_goals, reloaded.development_goals);
+    assert_eq!(moved.training_entries, reloaded.training_entries);
+    assert_eq!(moved.development_budget, reloaded.development_budget);
+    assert_eq!(moved.wellbeing_entries, reloaded.wellbeing_entries);
+    assert_eq!(moved.wellbeing_note, reloaded.wellbeing_note);
     drop(conn);
 
     // Opening and reading must not disturb the file, or every session would

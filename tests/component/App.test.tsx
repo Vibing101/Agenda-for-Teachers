@@ -47,7 +47,7 @@ describe("the app shell", () => {
     // M7's forward migration: `user_version = 8`. This line is also the
     // cheapest check that a manual pass is looking at the build under test —
     // see the bundle-identifier hazard in `docs/MILESTONE_PROMPT.md`.
-    expect(screen.getByText("8")).toBeInTheDocument();
+    expect(screen.getByText("9")).toBeInTheDocument();
   });
 
   it("reaches the four M3 sections", async () => {
@@ -183,7 +183,22 @@ describe("the app shell", () => {
    * a live view of a class's seating beside a blank room plan with nothing
    * behind it, which is the confusion M7 is built to avoid.
    */
-  it("keeps the top row to ten sections after M7", async () => {
+  /**
+   * **Eleven after M8 — moved by one, deliberately, and only by one.** M8's
+   * four surfaces come from two spec modules and are filed apart:
+   *
+   * * the **staff directory** and the **covers/leave registers** are module 1,
+   *   and the source's own ΕΤΟΣ index lists them — so they are sub-pages of
+   *   `Έτος`, which gets its first sub-row (M6's move on `Πλάνο`), no new tab;
+   * * **development** and **wellbeing** are module 7, which had no section —
+   *   M5's situation — so they take **one** new section, `Ανάπτυξη & Ευεξία`,
+   *   where the source puts ΕΥΕΞΙΑ and ΑΝΑΠΤΥΞΗ: just before ΣΗΜΕΡΙΝΟ.
+   *
+   * Filing development goals under `Έτος` instead would have cost no tab and
+   * put them beside the annual area called "Επαγγελματική ανάπτυξη" — the
+   * very pair M8's first criterion says must stay visibly separate.
+   */
+  it("keeps the top row to eleven sections after M8", async () => {
     mount();
     await screen.findByRole("heading", { name: "Σχολικό έτος" });
     const top = screen.getAllByRole("navigation")[0];
@@ -197,6 +212,7 @@ describe("the app shell", () => {
       "Ατζέντα",
       "Γονείς & Ομάδα",
       "Πρότυπα",
+      "Ανάπτυξη & Ευεξία",
       "Σημερινό",
     ]);
   });
@@ -363,10 +379,20 @@ describe("the app shell", () => {
     );
     await screen.findByRole("heading", { name: "Πλάνα στήριξης" });
 
+    // Έτος has had sub-pages since M8, so it too opens on its first — the
+    // school year — rather than on whichever one was left open.
     await user.click(screen.getByRole("button", { name: "Έτος" }));
-    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+    await user.click(
+      within(screen.getAllByRole("navigation")[1]).getByRole("button", {
+        name: "Αναπληρώσεις & άδειες",
+      }),
+    );
+    await screen.findByRole("heading", { name: "Οι άδειές μου" });
+    await user.click(screen.getByRole("button", { name: "Πρότυπα" }));
     // A section with no sub-pages shows no second row at all.
     expect(screen.getAllByRole("navigation")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Έτος" }));
+    expect(await screen.findByRole("heading", { name: "Στόχοι για τη χρονιά" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Μαθητές" }));
     expect(await screen.findByRole("heading", { name: "Ευρετήριο μαθητών" })).toBeInTheDocument();
