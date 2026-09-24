@@ -605,35 +605,35 @@ sequence.
 
 ### Carried risks
 
-- **The source package is a third party's copyrighted work and is still in the
-  repository — including in its history.** It is kept deliberately: it is the
-  authority on wording, field lists and layout for every milestone, and **M9's
-  own acceptance criteria require a side-by-side check of generated PDFs against
-  the source product's equivalent pages**, so it is needed right to the end.
-  The plan, decided by the product owner on 2026-09-23: **`reference/` is
-  deleted once the final milestone is complete** and the product owner is
-  satisfied everything needed has been taken from it.
+- **The source package: RESOLVED on 2026-09-24, ahead of publishing the
+  repository.** The product owner decided to make the repository public and to
+  work only from the development Mac. So:
 
-  **Deleting the folder then will not be enough on its own.** A `git rm` removes
-  it from the working tree but not from history — the bytes stay in the pack and
-  any clone still receives them. A genuine removal means rewriting history
-  (`git filter-repo`) and force-pushing, which invalidates every existing clone.
+  - `reference/` is **git-ignored and untracked**; it remains on the dev Mac as
+    the working authority, and agents there keep reading it when a decision
+    turns on a source page (see `docs/MILESTONE_PROMPT.md` §2).
+  - **The history was rewritten** with `git filter-repo` to remove `reference/`
+    from every commit — all ten files had arrived in a single commit on
+    2026-09-19 and were never removed — and **pushed to a new repository**, not
+    force-pushed over the old one: GitHub keeps each pull request's head commit
+    under a read-only `refs/pull/N/head` that a force-push cannot reach, so the
+    old repository would still have served the files. The old repository is
+    kept private as an archive; it holds PRs #1–#13 and every CI run the
+    release notes link to.
+  - **What is copyrighted, per the product owner (2026-09-24): the planner PDF
+    only.** The transcribed letters and message bank in `src/i18n/`, and the
+    forms' fixed text, are **not** a copyright concern and are published. That
+    is the product owner's call, recorded here because the previous version of
+    this entry treated the whole package as third-party work.
+  - Nothing in `src/`, `src-tauri/`, `tests/`, the build or CI reads from
+    `reference/` — checked again before the rewrite — so a clone without it
+    builds and passes every test.
 
-  **Deferred deliberately, and it is cheap to defer**: the repository is private
-  and the product owner is its only user — it sits under an organisation he
-  owns, and the second account listed against it is also his — so there are no
-  clones to break today. That is exactly what makes it expensive later.
-
-  **The trigger is publication, or anyone else gaining access — whichever comes
-  first.** Not M9. Note that on an org-owned repository "anyone else" is wider
-  than the collaborator list: access can also arrive through org membership or a
-  team. If the repo is ever made public, shared, or handed to another developer,
-  the history rewrite happens *before* that, not after.
-
-  Nothing in `src/`, `src-tauri/`, `tests/`, the build or CI reads from
-  `reference/` — checked, not assumed — and the content the app actually needs
-  (the 7 letters, the 150-message bank) was transcribed into `src/i18n/` at M5.
-  So the deletion itself is a one-line change that breaks no build.
+  The original entry, kept for the reasoning: the package was deliberately kept
+  in a private repository because it was the authority on wording and layout
+  for every milestone, with the history rewrite deferred until "publication, or
+  anyone else gaining access — whichever comes first". Publication is that
+  trigger, and this is the rewrite it called for.
 
 - **An unsigned Windows build tagged with Mark of the Web will not start without
   the teacher clicking through SmartScreen.** Anything downloaded, emailed, or in

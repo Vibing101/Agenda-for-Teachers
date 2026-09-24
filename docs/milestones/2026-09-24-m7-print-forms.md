@@ -1,8 +1,21 @@
 # M7 — Print forms & substitute folder
 
+> **Archived evidence (added 2026-09-24).** This repository's history was
+> rewritten on 2026-09-24 to remove the third-party source package before it was
+> made public. The pull requests, CI runs and commit hashes this note cites
+> belong to the pre-rewrite repository, kept private as
+> `Vibing101/Agenda-for-Teachers-archive`: links to them will not resolve here,
+> and the hashes differ from this repository's. The note is otherwise left as
+> it was written.
+
 **Date:** 2026-09-24
 **Branch:** `m7-print-forms`
-**Signed off by:** <product owner, once reviewed>
+**Signed off by:** Product owner, 2026-09-24 — squash-merged to `main` as
+`dfac8f6` (pre-rewrite hash). The merge's tree hash was
+`ee0dc093b0ecbbe52a815c0a8dd453d6229f2c73`, identical to the branch head's, so
+the squash lost nothing; the branch was deleted in the same step. **Signed off
+with the Windows half of the gate still unperformed** (see below) — it remains
+outstanding against this milestone.
 
 **The Windows half of this gate was not run locally, and this note says so
 everywhere it matters.** The `MilestoneTesting` VM went through a Windows Update

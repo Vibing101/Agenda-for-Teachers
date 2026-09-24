@@ -1,5 +1,13 @@
 # M6 — Annual planning & the rest of teaching
 
+> **Archived evidence (added 2026-09-24).** This repository's history was
+> rewritten on 2026-09-24 to remove the third-party source package before it was
+> made public. The pull requests, CI runs and commit hashes this note cites
+> belong to the pre-rewrite repository, kept private as
+> `Vibing101/Agenda-for-Teachers-archive`: links to them will not resolve here,
+> and the hashes differ from this repository's. The note is otherwise left as
+> it was written.
+
 **Date:** 2026-09-23
 **Branch:** `m6-annual-planning`
 **Signed off by:** <product owner, once reviewed>

@@ -55,27 +55,32 @@ gate result to the machine that produced it.
   `docs/milestones/`. They record decisions and patterns you are expected to
   follow rather than reinvent, and traps already paid for.
 - **`reference/`** — the original source material, and the authority on wording,
-  field lists and layout while a module is being built. Read-only: never edit
-  it; never generate into it.
+  field lists and layout while a module is being built. **It exists only on the
+  dev Mac**: it is git-ignored, was removed from the repository's history on
+  2026-09-24, and the repository is public.
 
-  **Use it.** It is the working authority for every milestone up to and
-  including M9, whose own criteria include a side-by-side check of generated
-  PDFs against the source product's pages — so it is needed right to the end.
+  **On the dev Mac, use it whenever a decision turns on what a source page
+  says** — render the page and look, as M5 and M7 did. It is needed right up to
+  M9, whose criteria include a side-by-side check of generated PDFs against the
+  source's pages. It is read-only: never edit it, never generate into it.
 
-  **It is also a third party's copyrighted work, and it leaves the repository
-  once the last milestone is done** and the product owner is satisfied nothing
-  more is needed from it. Two rules follow from that, and they apply now rather
-  than at M9:
+  **Anywhere else — a fresh clone, the Windows VM, CI — it is not there.** Say so
+  rather than guessing, and work from what is already in the repo: the content
+  transcribed into `src/i18n/`, and the source pages quoted in the release notes.
 
-  - **Build no dependency on it.** Nothing in `src/`, `src-tauri/` or `tests/`
-    reads from it at build time or run time, and nothing may start. Content
-    that the app needs is *transcribed into the repo* — the 7 letters and the
-    150-message bank live in `src/i18n/`, and the app reads them from there.
-    That is what will let the folder be deleted without breaking a build.
+  Three rules, all enforced by nothing but you:
+
+  - **Never commit it, or any file from it.** The ignore rule stops `git add -A`;
+    it does not stop `git add -f`. The planner PDF is a third party's copyrighted
+    work and this repository is public. If a source file seems to be needed in
+    the repo, ask the product owner.
+  - **Build no dependency on it.** Nothing in `src/`, `src-tauri/`, `tests/` or CI
+    reads from it at build time or run time, and nothing may start. Content the
+    app needs is *transcribed into the repo* — the letters, the message bank and
+    the forms' fixed text live in `src/i18n/`.
   - **Quote it in a release note rather than pointing at it.** When a decision
     turns on what a source page says, copy the sentence or the field list into
-    the note. A citation of a path that will not exist is a decision nobody can
-    check later.
+    the note. Nobody reading the public repository can open the folder.
 
 ## 3. Language — settled, not reopenable
 

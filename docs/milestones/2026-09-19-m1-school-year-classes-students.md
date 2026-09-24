@@ -1,5 +1,13 @@
 # M1 — School year, classes, students
 
+> **Archived evidence (added 2026-09-24).** This repository's history was
+> rewritten on 2026-09-24 to remove the third-party source package before it was
+> made public. The pull requests, CI runs and commit hashes this note cites
+> belong to the pre-rewrite repository, kept private as
+> `Vibing101/Agenda-for-Teachers-archive`: links to them will not resolve here,
+> and the hashes differ from this repository's. The note is otherwise left as
+> it was written.
+
 **Date:** 2026-09-19
 **Branch:** `m1-school-year-classes-students`
 **Signed off by:** Product owner, 2026-09-20 — reviewed on a Windows machine
