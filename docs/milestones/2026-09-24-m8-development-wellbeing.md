@@ -315,5 +315,12 @@ form. **With the VM down, CI's `windows-latest` job is the only Windows
 evidence for steps 1–4**, stated rather than blurred, and it is not a
 substitute for step 5.
 
+**CI was green on both runners on the first run.** That was run
+[36045460325](https://github.com/Vibing101/Agenda-for-Teachers/actions/runs/36045460325)
+at `98653b8`: `macos-latest` 5m53s and `windows-latest` 9m21s, both `success`,
+with no retries. PR #1 on the public repository reported `mergeStateStatus:
+CLEAN`. This commit, which records that, is docs-only and runs CI again rather
+than skipping it.
+
 The `paths-ignore: docs/**` / ubuntu-for-frontend proposal is noted a seventh
 time and left alone. With free minutes it matters less than it did.
