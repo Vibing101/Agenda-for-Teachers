@@ -28,6 +28,8 @@ import AttendanceScreen from "./screens/AttendanceScreen";
 import BehaviourScreen from "./screens/BehaviourScreen";
 import ClassesScreen from "./screens/ClassesScreen";
 import ContactsScreen from "./screens/ContactsScreen";
+import CoversScreen from "./screens/CoversScreen";
+import DevelopmentScreen from "./screens/DevelopmentScreen";
 import ExamsScreen from "./screens/ExamsScreen";
 import FormsScreen from "./screens/FormsScreen";
 import GradesScreen from "./screens/GradesScreen";
@@ -38,12 +40,14 @@ import MessagesScreen from "./screens/MessagesScreen";
 import PlanScreen, { type PlanFocus } from "./screens/PlanScreen";
 import ProgressScreen from "./screens/ProgressScreen";
 import ReflectionsScreen from "./screens/ReflectionsScreen";
+import StaffScreen from "./screens/StaffScreen";
 import StudentsScreen from "./screens/StudentsScreen";
 import SubstituteScreen from "./screens/SubstituteScreen";
 import SupportScreen from "./screens/SupportScreen";
 import TimetableScreen from "./screens/TimetableScreen";
 import TodayScreen from "./screens/TodayScreen";
 import TripsScreen from "./screens/TripsScreen";
+import WellbeingScreen from "./screens/WellbeingScreen";
 import YearScreen from "./screens/YearScreen";
 import type { Run } from "./screens/types";
 
@@ -57,6 +61,7 @@ type Section =
   | "plan"
   | "parents"
   | "forms"
+  | "growth"
   | "today";
 
 /**
@@ -110,8 +115,36 @@ type Section =
  * Filing both under one new "print" tab would have cost the same one place
  * and put a live view of a class's seating next to a blank room plan with no
  * class behind it — the one confusion M7 exists to avoid.
+ *
+ * **M8 does both of those things again, for the same reasons, and the row
+ * goes from ten to eleven.**
+ *
+ * * **The staff directory and the covers/leave registers go under Έτος**,
+ *   which gets its first sub-pages — *Σχολικό έτος / Επαφές σχολείου /
+ *   Αναπληρώσεις & άδειες*. The spec files both under module 1, and the
+ *   source's own ΕΤΟΣ index lists "Άνθρωποι στο σχολείο" and "Αναπληρώσεις
+ *   και άδειες" beside the calendar and the annual goals. M1's screen, unmoved
+ *   and unchanged, is the first tab — M6's move on Πλάνο.
+ * * **Development and wellbeing get one new section, `Ανάπτυξη & Ευεξία`.**
+ *   The spec's module 7 has no home in the app — nothing else is about the
+ *   teacher herself — and the source carries ΕΥΕΞΙΑ and ΑΝΑΠΤΥΞΗ as two
+ *   top-level items; one tab named after the spec's module keeps the label
+ *   honest about holding both, as M5 did for ΓΟΝΕΙΣ and ΟΜΑΔΑ.
+ *
+ * **This is also what keeps M8's first criterion visible.** The six annual
+ * goals stay on Έτος → Σχολικό έτος; the open-ended development goals are on
+ * Ανάπτυξη & Ευεξία → Ανάπτυξη και καριέρα. They never share a screen, let
+ * alone a list — which is how the source keeps them too (*Στόχοι για τη
+ * χρονιά* under ΕΤΟΣ, `ΣΤΟΧΟΙ ΑΝΑΠΤΥΞΗΣ` on the ΑΝΑΠΤΥΞΗ register's page).
+ * Putting development goals on Έτος would have put them beside the annual
+ * area called "Επαγγελματική ανάπτυξη", which is the one confusion to avoid.
  */
 type Page =
+  | "yearSetup"
+  | "staff"
+  | "covers"
+  | "development"
+  | "wellbeing"
   | "classList"
   | "substitute"
   | "gradebook"
@@ -133,7 +166,15 @@ type Page =
   | "library";
 
 const SECTIONS: { key: Section; labelId: StringId; pages?: { key: Page; labelId: StringId }[] }[] = [
-  { key: "year", labelId: "nav.year" },
+  {
+    key: "year",
+    labelId: "nav.year",
+    pages: [
+      { key: "yearSetup", labelId: "nav.yearSetup" },
+      { key: "staff", labelId: "nav.staff" },
+      { key: "covers", labelId: "nav.covers" },
+    ],
+  },
   {
     key: "classes",
     labelId: "nav.classes",
@@ -187,6 +228,16 @@ const SECTIONS: { key: Section; labelId: StringId; pages?: { key: Page; labelId:
   },
   // M7's: the eleven loose print forms, which belong to no other section.
   { key: "forms", labelId: "nav.forms" },
+  // M8's: module 7, which had no section. Where the source puts ΕΥΕΞΙΑ and
+  // ΑΝΑΠΤΥΞΗ — just before ΣΗΜΕΡΙΝΟ ΜΑΘΗΜΑ.
+  {
+    key: "growth",
+    labelId: "nav.growth",
+    pages: [
+      { key: "development", labelId: "nav.development" },
+      { key: "wellbeing", labelId: "nav.wellbeing" },
+    ],
+  },
   // Last, as the source product puts "ΣΗΜΕΡΙΝΟ ΜΑΘΗΜΑ" at the right of its nav.
   { key: "today", labelId: "nav.today" },
 ];
@@ -376,7 +427,22 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
         <p>{t("common.loading")}</p>
       ) : (
         <fieldset className="sections" disabled={blocked}>
-          {section === "year" && <YearScreen planner={planner} run={run} />}
+          {section === "year" && (page ?? "yearSetup") === "yearSetup" && (
+            <YearScreen planner={planner} run={run} />
+          )}
+          {section === "year" && page === "staff" && <StaffScreen planner={planner} run={run} />}
+          {section === "year" && page === "covers" && (
+            // Two registers, each reading only its own records — M8's second
+            // acceptance criterion. Nothing here reads the timetable or the
+            // substitute folder.
+            <CoversScreen planner={planner} run={run} />
+          )}
+          {section === "growth" && (page ?? "development") === "development" && (
+            <DevelopmentScreen planner={planner} run={run} />
+          )}
+          {section === "growth" && page === "wellbeing" && (
+            <WellbeingScreen planner={planner} run={run} today={today} />
+          )}
           {section === "classes" && (page ?? "classList") === "classList" && (
             <ClassesScreen planner={planner} run={run} />
           )}

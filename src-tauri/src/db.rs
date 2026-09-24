@@ -19,7 +19,7 @@ use crate::model::GOAL_AREAS;
 use rusqlite::{params, Connection};
 use std::path::Path;
 
-pub const SCHEMA_VERSION: i64 = 8;
+pub const SCHEMA_VERSION: i64 = 9;
 
 pub fn open_at(db_path: &Path) -> AppResult<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -82,6 +82,11 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     if current < 8 {
         migrate_to_8(conn)?;
         conn.pragma_update(None, "user_version", 8)?;
+        current = 8;
+    }
+    if current < 9 {
+        migrate_to_9(conn)?;
+        conn.pragma_update(None, "user_version", 9)?;
     }
     Ok(())
 }
@@ -740,6 +745,111 @@ fn migrate_to_8(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
+/// M8: the staff directory, the covers and leave registers, development and
+/// wellbeing. Eight tables, purely additive; nothing earlier is touched.
+///
+/// **No M8 table has a foreign key to anything outside M8, and none to each
+/// other.** Each of these is the place one thing is written, and the two pairs
+/// the spec is most careful about are kept apart by construction:
+///
+/// * `cover_record` (a lesson she taught for someone else) and `leave_record`
+///   (her own absence) are two tables with no key between them, so a cover
+///   and a leave on the same date cannot see each other. A cover's `Τάξη` is
+///   **text**, not a link to `class`: the class she covered is usually someone
+///   else's and not in her class list, and a link would make her create one.
+/// * `development_goal` has no link to M1's `annual_goal` — not even to the
+///   `development` area — and nothing links to it. The spec says neither is
+///   generated from the other.
+///
+/// `training_entry.cost` and `.hours` are the schema's third and fourth
+/// nullable numbers, for the reason `grade_column.weight` is: `NULL` is "not
+/// entered", which the budget roll-up leaves out and counts, and `0` is a real
+/// zero she typed. A cost is summed, so unlike M6's free-text textbook price it
+/// is a number; `CHECK` refuses a negative one.
+///
+/// `development_budget` and `wellbeing_note` are single rows, like
+/// `school_year`: the year's budget with the page's `ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΚΑΙ ΣΥΝΟΨΗ`
+/// notes, and the wellbeing page's two standing boxes.
+///
+/// Every dated table carries an actual date. Nothing is keyed by a week.
+fn migrate_to_9(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "BEGIN;
+
+         CREATE TABLE staff_contact (
+             id        INTEGER PRIMARY KEY,
+             position  INTEGER NOT NULL DEFAULT 0,
+             full_name TEXT NOT NULL DEFAULT '',
+             role      TEXT NOT NULL DEFAULT '',
+             phone     TEXT NOT NULL DEFAULT '',
+             email     TEXT NOT NULL DEFAULT ''
+         );
+
+         CREATE TABLE cover_record (
+             id         INTEGER PRIMARY KEY,
+             date       TEXT NOT NULL DEFAULT '',
+             class_name TEXT NOT NULL DEFAULT '',
+             covered    TEXT NOT NULL DEFAULT '',
+             teacher    TEXT NOT NULL DEFAULT '',
+             notes      TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX cover_record_by_date ON cover_record(date);
+
+         CREATE TABLE leave_record (
+             id        INTEGER PRIMARY KEY,
+             date      TEXT NOT NULL DEFAULT '',
+             reason    TEXT NOT NULL DEFAULT '',
+             documents TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX leave_record_by_date ON leave_record(date);
+
+         CREATE TABLE development_goal (
+             id       INTEGER PRIMARY KEY,
+             position INTEGER NOT NULL DEFAULT 0,
+             goal     TEXT NOT NULL DEFAULT '',
+             status   TEXT NOT NULL DEFAULT '',
+             progress TEXT NOT NULL DEFAULT '',
+             notes    TEXT NOT NULL DEFAULT ''
+         );
+
+         CREATE TABLE training_entry (
+             id          INTEGER PRIMARY KEY,
+             date        TEXT NOT NULL DEFAULT '',
+             activity    TEXT NOT NULL DEFAULT '',
+             organiser   TEXT NOT NULL DEFAULT '',
+             hours       REAL CHECK (hours IS NULL OR hours >= 0),
+             format      TEXT NOT NULL DEFAULT '',
+             cost        REAL CHECK (cost IS NULL OR cost >= 0),
+             certificate TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX training_entry_by_date ON training_entry(date);
+
+         CREATE TABLE development_budget (
+             id     INTEGER PRIMARY KEY CHECK (id = 1),
+             amount REAL CHECK (amount IS NULL OR amount >= 0),
+             notes  TEXT NOT NULL DEFAULT ''
+         );
+         INSERT OR IGNORE INTO development_budget (id) VALUES (1);
+
+         CREATE TABLE wellbeing_entry (
+             id    INTEGER PRIMARY KEY,
+             date  TEXT NOT NULL DEFAULT '',
+             notes TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX wellbeing_entry_by_date ON wellbeing_entry(date);
+
+         CREATE TABLE wellbeing_note (
+             id         INTEGER PRIMARY KEY CHECK (id = 1),
+             sustains   TEXT NOT NULL DEFAULT '',
+             boundaries TEXT NOT NULL DEFAULT ''
+         );
+         INSERT OR IGNORE INTO wellbeing_note (id) VALUES (1);
+
+         COMMIT;",
+    )?;
+    Ok(())
+}
+
 /// Folds every M1 `class_slot` row into the master timetable, losing none.
 ///
 /// A slot's `(period_label, start_time, end_time)` becomes an hour, and the slot
@@ -873,6 +983,9 @@ mod tests {
         assert_eq!(planner.school_year.year_model, "sep_aug");
         assert!(planner.classes.is_empty());
         assert!(planner.students.is_empty());
+        // M8's two single rows exist from the start, blank.
+        assert_eq!(planner.development_budget.amount, None);
+        assert_eq!(planner.wellbeing_note.sustains, "");
     }
 
     #[test]
@@ -1117,7 +1230,7 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
-        assert_eq!(version, 8);
+        assert_eq!(version, 9);
 
         let planner = store::load(&conn).unwrap();
         // Everything M3 wrote is still there, untouched.
@@ -1321,14 +1434,16 @@ mod tests {
     }
 
     /// A data file as the **signed-off M6 build** left it — `user_version = 7`,
-    /// with real M6 rows on it — climbs to 8 and keeps every one of them.
+    /// with real M6 rows on it — climbs to the current schema and keeps every
+    /// one of them. (Written at M7 as "climbs to 8"; renamed at M8, the way M6
+    /// and M7 renamed theirs.)
     ///
     /// The M6-era rung of the ladder the three tests above started: M7 is the
     /// first milestone to write a migration on top of what M6 wrote. It also
     /// carries a class with a seating plan, because the substitute folder reads
     /// that seating live and the migration must neither move it nor copy it.
     #[test]
-    fn an_m6_file_with_data_on_it_climbs_to_8_and_keeps_every_row() {
+    fn an_m6_file_with_data_on_it_climbs_to_the_current_schema_and_keeps_every_row() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("planner.sqlite");
 
@@ -1368,7 +1483,6 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
-        assert_eq!(version, 8);
 
         let planner = store::load(&conn).unwrap();
         // Every M6 row, exactly as written.
@@ -1389,6 +1503,108 @@ mod tests {
         assert!(planner.print_forms.is_empty());
         assert!(planner.substitute_texts.is_empty());
         assert!(planner.substitute_school_texts.is_empty());
+    }
+
+    /// A data file as the **signed-off M7 build** left it — `user_version = 8`,
+    /// with real M7 rows on it — climbs to 9 and keeps every one of them.
+    ///
+    /// The M7-era rung: M8 is the first milestone to write a migration on top
+    /// of what M7 wrote. It carries a saved print form with values, and the
+    /// substitute folder's texts in **all three states** — written, cleared
+    /// (a row with an empty value) and untouched (no row) — because "she
+    /// cleared it" and "she never touched it" must still be told apart after
+    /// the climb. It also carries M1's `development` annual goal filled in and
+    /// a saved M7 goals form, and asserts the climb invents no development goal
+    /// from either of them.
+    #[test]
+    fn an_m7_file_with_data_on_it_climbs_to_9_and_keeps_every_row() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+
+        let conn = Connection::open(&path).unwrap();
+        migrate_to_1(&conn).unwrap();
+        migrate_to_2(&conn).unwrap();
+        migrate_to_3(&conn).unwrap();
+        migrate_to_4(&conn).unwrap();
+        migrate_to_5(&conn).unwrap();
+        migrate_to_6(&conn).unwrap();
+        migrate_to_7(&conn).unwrap();
+        migrate_to_8(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 8).unwrap();
+        conn.execute_batch(
+            "INSERT INTO class (id, name, subject) VALUES (1, 'Α1', 'Μαθηματικά');
+             UPDATE annual_goal SET goal = 'Επιμόρφωση στις ΤΠΕ', status = 'Ξεκίνησε'
+              WHERE area = 'development';
+             INSERT INTO timetable_period (id, position, name) VALUES (1, 0, '3η');
+             INSERT INTO timetable_cell (period_id, weekday, duty)
+             VALUES (1, 4, 'Αναπλήρωση Γ2');
+             INSERT INTO print_form (id, kind, name, created, updated)
+             VALUES (1, 'goals', 'Στόχοι 2026-27', '2026-10-01', '2026-10-02');
+             INSERT INTO print_form_value (form_id, field, value)
+             VALUES (1, 'goal.1.goal', 'Μεταπτυχιακό');
+             INSERT INTO print_form (id, kind, name, created, updated)
+             VALUES (2, 'roomPlan', 'Αίθουσα 12', '2026-10-01', '2026-10-01');
+             INSERT INTO print_form_value (form_id, field, value) VALUES (2, 'desk.1.1', 'Νίκος');
+             INSERT INTO substitute_text (class_id, field, value)
+             VALUES (1, 'rules', 'Σηκώνουμε χέρι');
+             INSERT INTO substitute_text (class_id, field, value) VALUES (1, 'materials', '');
+             INSERT INTO substitute_school_text (field, value)
+             VALUES ('contact.principal', 'Κ. Ιωάννου, 22 123456');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let conn = open_at(&path).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        assert_eq!(version, 9);
+
+        let planner = store::load(&conn).unwrap();
+        // Every M7 row, exactly as written.
+        assert_eq!(planner.print_forms.len(), 2);
+        assert_eq!(planner.print_forms[0].name, "Στόχοι 2026-27");
+        assert_eq!(planner.print_forms[0].values["goal.1.goal"], "Μεταπτυχιακό");
+        assert_eq!(planner.print_forms[1].values["desk.1.1"], "Νίκος");
+        // The folder's three states survive: written, cleared, untouched.
+        let text = |field: &str| {
+            planner
+                .substitute_texts
+                .iter()
+                .find(|t| t.class_id == 1 && t.field == field)
+                .map(|t| t.value.clone())
+        };
+        assert_eq!(text("rules").as_deref(), Some("Σηκώνουμε χέρι"));
+        assert_eq!(text("materials").as_deref(), Some(""));
+        assert_eq!(text("problem"), None);
+        assert_eq!(planner.substitute_school_texts.len(), 1);
+        assert_eq!(
+            planner.substitute_school_texts[0].value,
+            "Κ. Ιωάννου, 22 123456"
+        );
+        // M1's `development` area and M3's duty cell are untouched…
+        let dev = planner
+            .annual_goals
+            .iter()
+            .find(|g| g.area == "development")
+            .unwrap();
+        assert_eq!(dev.goal, "Επιμόρφωση στις ΤΠΕ");
+        assert_eq!(planner.timetable_cells[0].duty, "Αναπλήρωση Γ2");
+
+        // …and M8's tables exist and are empty: the climb seeds no development
+        // goal from the annual area or the goals form, and no cover from the
+        // duty cell.
+        assert!(planner.staff_contacts.is_empty());
+        assert!(planner.cover_records.is_empty());
+        assert!(planner.leave_records.is_empty());
+        assert!(planner.development_goals.is_empty());
+        assert!(planner.training_entries.is_empty());
+        assert!(planner.wellbeing_entries.is_empty());
+        assert_eq!(planner.development_budget.amount, None);
+        assert_eq!(planner.development_budget.notes, "");
+        assert_eq!(planner.wellbeing_note.sustains, "");
+        assert_eq!(planner.wellbeing_note.boundaries, "");
     }
 
     /// **No table anywhere carries a week index**, which is the rule M1 set and

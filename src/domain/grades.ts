@@ -27,6 +27,7 @@
  *   and that is a field-level check, not a gate on the sheet.
  */
 import type { ConductLevel, GradeColumnKind } from "../i18n/vocabularies";
+import { parseDecimal } from "./numbers";
 
 export interface GradeColumn {
   id: number;
@@ -121,12 +122,9 @@ export function parseNumericGrade(value: string): number | null {
  * opposite things to the teacher.
  */
 export function parseWeight(value: string): number | null | undefined {
-  const trimmed = value.trim().replace(",", ".");
-  if (trimmed === "") return null;
-  if (!/^\d+(\.\d+)?$/.test(trimmed)) return undefined;
-  const n = Number(trimmed);
-  if (!Number.isFinite(n) || n > 100) return undefined;
-  return n;
+  const n = parseDecimal(value);
+  if (n === null || n === undefined) return n;
+  return n > 100 ? undefined : n;
 }
 
 /** Whether a column's marks are numbers, and so can be averaged at all. */

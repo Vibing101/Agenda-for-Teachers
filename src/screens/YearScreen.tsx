@@ -326,6 +326,8 @@ function Goals({ goals, run }: { goals: AnnualGoal[]; run: Run }) {
 
   return (
     <Panel headingId="year.goals" introId="year.goalsIntro">
+      {/* M8: the open-ended development goals are elsewhere, on purpose. */}
+      <p className="note">{t("year.goalsSeparate")}</p>
       <div className="columns">
         {draft.map((g) => (
           <div key={g.area} className="card">

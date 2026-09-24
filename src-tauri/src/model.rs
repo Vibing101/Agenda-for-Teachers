@@ -202,6 +202,14 @@ pub struct Planner {
     pub print_forms: Vec<PrintForm>,
     pub substitute_texts: Vec<SubstituteText>,
     pub substitute_school_texts: Vec<SubstituteSchoolText>,
+    pub staff_contacts: Vec<StaffContact>,
+    pub cover_records: Vec<CoverRecord>,
+    pub leave_records: Vec<LeaveRecord>,
+    pub development_goals: Vec<DevelopmentGoal>,
+    pub training_entries: Vec<TrainingEntry>,
+    pub development_budget: DevelopmentBudget,
+    pub wellbeing_entries: Vec<WellbeingEntry>,
+    pub wellbeing_note: WellbeingNote,
 }
 
 // ------------------------------------------------------------- M2: grades ---
@@ -976,4 +984,160 @@ pub struct SubstituteText {
 pub struct SubstituteSchoolText {
     pub field: String,
     pub value: String,
+}
+
+// ------------------------------- M8: staff, covers & leave, development ---
+
+/// One person in the school directory — the source's *Επαφές στο σχολείο ·
+/// Γρήγορη αναζήτηση: διεύθυνση, γραμματεία, συνάδελφοι*, whose columns are
+/// `Ονοματεπώνυμο | Θέση / Τομέας | Τηλέφωνο | Email`.
+///
+/// **`role` is one field**, because the source heads `Θέση / Τομέας` as one
+/// column and the spec's data model writes "role/area" as one phrase. A
+/// secretary has a position and no subject area; a colleague's area usually is
+/// her position.
+///
+/// Nothing links here yet. Whether the substitute folder's contacts, a
+/// meeting's attendees or a cover's teacher should point into this list is the
+/// product owner's open question, not a conversion M8 makes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StaffContact {
+    #[serde(default)]
+    pub id: i64,
+    #[serde(default)]
+    pub position: i64,
+    pub full_name: String,
+    /// `Θέση / Τομέας`.
+    pub role: String,
+    pub phone: String,
+    pub email: String,
+}
+
+/// One lesson the teacher covered for a colleague — a line of the source's
+/// *Αναπλήρωση και άδειες*, whose columns are `Ημερομηνία | Τάξη | Μάθημα /
+/// Ύλη που καλύφθηκε | Εκπαιδευτικός που αναπληρώθηκε | Υπογραφή /
+/// Παρατηρήσεις`.
+///
+/// **A record of what happened, not a plan.** The master timetable's duty
+/// cells are her planned week; this is dated and written afterwards, and
+/// neither is derived from the other.
+///
+/// **`class_name` is text, not a link to a class.** The class she covered is
+/// usually a colleague's and not in her own class list; a link would make her
+/// create a class she does not teach, which would then appear in her
+/// gradebook, her timetable's class picker and her substitute folder.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CoverRecord {
+    #[serde(default)]
+    pub id: i64,
+    pub date: String,
+    /// `Τάξη`, as she writes it.
+    pub class_name: String,
+    /// `Μάθημα / Ύλη που καλύφθηκε` — one column on the source, one field here.
+    pub covered: String,
+    /// `Εκπαιδευτικός που αναπληρώθηκε`.
+    pub teacher: String,
+    /// `Υπογραφή / Παρατηρήσεις`.
+    pub notes: String,
+}
+
+/// One of the teacher's own absences — the source page's `ΟΙ ΑΔΕΙΕΣ ΜΟΥ`, with
+/// `ΕΓΓΡΑΦΑ ΠΟΥ ΚΑΤΑΤΕΘΗΚΑΝ` stored against the leave it belongs to.
+///
+/// **A separate register from [`CoverRecord`]**, with no key between them: a
+/// cover she taught and a leave she took on the same date are two unrelated
+/// facts. Nothing here opens, fills or changes a substitute folder either.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LeaveRecord {
+    #[serde(default)]
+    pub id: i64,
+    pub date: String,
+    pub reason: String,
+    /// The documents she submitted for it.
+    pub documents: String,
+}
+
+/// One open-ended professional-development goal — the source's `ΣΤΟΧΟΙ
+/// ΑΝΑΠΤΥΞΗΣ` box on *Ανάπτυξη και καριέρα*.
+///
+/// **Not one of M1's six annual-goal areas, and not derived from them** — not
+/// even from the one called `development`. The spec says neither is generated
+/// from the other, and the source keeps them on different pages in different
+/// sections. `status` is free text, like an annual goal's and a support
+/// plan's: the source's box enumerates nothing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevelopmentGoal {
+    #[serde(default)]
+    pub id: i64,
+    #[serde(default)]
+    pub position: i64,
+    pub goal: String,
+    pub status: String,
+    pub progress: String,
+    pub notes: String,
+}
+
+/// One line of the training and activity log — the source's *Ανάπτυξη και
+/// καριέρα · Μητρώο επιμορφώσεων, εξόδων και επαγγελματικών στόχων*, whose
+/// columns are `Ημερομηνία | Επιμόρφωση / Δραστηριότητα | Διοργανωτής | Ώρες |
+/// Μορφή | Έξοδο | Βεβαίωση`.
+///
+/// **`hours` and `cost` are numbers, and `None` is not zero.** The budget
+/// roll-up sums them, so — unlike M6's textbook price, which nothing adds up —
+/// they cannot be free text. `None` means she has not entered it, and the
+/// roll-up leaves it out and says how many it left out; `Some(0.0)` is a free
+/// course, which counts. The same distinction as a grade column's weight.
+///
+/// `format` and `certificate` are free text: the source's columns enumerate
+/// nothing, and a certificate is as often "αναμένεται" or a number as a yes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TrainingEntry {
+    #[serde(default)]
+    pub id: i64,
+    pub date: String,
+    /// `Επιμόρφωση / Δραστηριότητα`.
+    pub activity: String,
+    /// `Διοργανωτής`.
+    pub organiser: String,
+    pub hours: Option<f64>,
+    /// `Μορφή`.
+    pub format: String,
+    /// `Έξοδο`, in euro.
+    pub cost: Option<f64>,
+    /// `Βεβαίωση`.
+    pub certificate: String,
+}
+
+/// The year's development budget and the page's `ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΚΑΙ ΣΥΝΟΨΗ`
+/// notes. One row. `amount` is `None` until she enters one, and the summary
+/// then shows what was spent without inventing what is left.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DevelopmentBudget {
+    pub amount: Option<f64>,
+    pub notes: String,
+}
+
+/// One dated wellbeing reflection — a line of the source's *Ευεξία
+/// εκπαιδευτικού · Κάθε Παρασκευή κοιτάξτε πίσω*.
+///
+/// **Free text only.** The source page has five rating columns — `Ενέργεια`,
+/// `Φόρτος`, `Διάθεση`, `Ύπνος`, `Ισορροπία` — and the spec's Resolved table
+/// rules them out: "no structured mood/energy/workload dropdowns". This is the
+/// page's one free column, `Τι βοήθησε · τι να αλλάξω`.
+///
+/// Keyed by an actual date. The source's `Εβδομάδα` is derived for display.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WellbeingEntry {
+    #[serde(default)]
+    pub id: i64,
+    pub date: String,
+    pub notes: String,
+}
+
+/// The wellbeing page's two standing boxes — `ΤΙ ΜΕ ΚΡΑΤΑΕΙ ΣΕ ΦΟΡΜΑ` and
+/// `ΟΡΙΑ ΠΟΥ ΘΕΛΩ ΝΑ ΚΡΑΤΗΣΩ`. One row: they belong to the page, not to a week.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WellbeingNote {
+    pub sustains: String,
+    pub boundaries: String,
 }

@@ -8,6 +8,7 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { useTranslate } from "../i18n/useTranslate";
 import type { Params, StringId } from "../i18n";
+import { parseDecimal } from "../domain/numbers";
 
 interface FieldProps {
   labelId: StringId;
@@ -136,6 +137,75 @@ export function DeferredTextArea({
             if (draft !== value) onCommit(draft);
           }}
         />
+      )}
+    </Field>
+  );
+}
+
+/**
+ * A number the teacher types, committing when the field loses focus — added at
+ * M8 for the training log's hours and cost and the year's budget.
+ *
+ * It accepts `12,50` as readily as `12.50`, because that is what a Greek
+ * keyboard types, and shows the stored value back with a dot, which is how
+ * this app writes every number. **Blank commits `null`, never 0** — "not
+ * entered" and "free" are different answers. Anything that is not a single
+ * non-negative number is **not saved**: the text stays in the box with a note
+ * saying so, rather than being guessed at or silently dropped (M2's rule for a
+ * weight).
+ */
+export function DeferredNumberField({
+  labelId,
+  labelParams,
+  value,
+  format,
+  onCommit,
+}: {
+  labelId: StringId;
+  labelParams?: Params;
+  value: number | null;
+  /** How the stored value is written back — `formatMoney` or `formatDecimal`. */
+  format: (value: number) => string;
+  onCommit: (value: number | null) => void;
+}) {
+  const t = useTranslate();
+  const shown = value === null ? "" : format(value);
+  const [draft, setDraft] = useState(shown);
+  const [invalid, setInvalid] = useState(false);
+  useEffect(() => {
+    setDraft(shown);
+    setInvalid(false);
+  }, [shown]);
+  return (
+    <Field labelId={labelId} labelParams={labelParams}>
+      {(id) => (
+        <>
+          <input
+            id={id}
+            type="text"
+            inputMode="decimal"
+            value={draft}
+            aria-invalid={invalid || undefined}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => {
+              const parsed = parseDecimal(draft);
+              if (parsed === undefined) {
+                setInvalid(true);
+                return;
+              }
+              setInvalid(false);
+              if (parsed !== value) onCommit(parsed);
+              // The same number typed another way — `12,5` for a stored 12.5 —
+              // is no change; show it back the way the app writes it.
+              else setDraft(shown);
+            }}
+          />
+          {invalid && (
+            <p className="warning-box" role="alert">
+              {t("common.invalidNumber", { value: draft.trim() })}
+            </p>
+          )}
+        </>
       )}
     </Field>
   );

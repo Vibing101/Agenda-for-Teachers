@@ -14,6 +14,10 @@ import type { Trip, TripConsent } from "./trips";
 import type { Unit } from "./units";
 import type { PrintForm } from "./printForms";
 import type { SubstituteSchoolText, SubstituteText } from "./substitute";
+import type { StaffContact } from "./staff";
+import type { CoverRecord, LeaveRecord } from "./covers";
+import type { DevelopmentBudget, DevelopmentGoal, TrainingEntry } from "./development";
+import type { WellbeingEntry, WellbeingNote } from "./wellbeing";
 import type { SupportGoal, SupportPlan } from "./support";
 import type { ClassGrading, GradeColumn, GradeRow, GradeValue } from "./grades";
 import type { AgendaNote } from "./agenda";
@@ -167,6 +171,14 @@ export interface Planner {
   print_forms: PrintForm[];
   substitute_texts: SubstituteText[];
   substitute_school_texts: SubstituteSchoolText[];
+  staff_contacts: StaffContact[];
+  cover_records: CoverRecord[];
+  leave_records: LeaveRecord[];
+  development_goals: DevelopmentGoal[];
+  training_entries: TrainingEntry[];
+  development_budget: DevelopmentBudget;
+  wellbeing_entries: WellbeingEntry[];
+  wellbeing_note: WellbeingNote;
 }
 
 /** A blank card, so "new student" and "loaded student" are the same shape. */
@@ -257,6 +269,22 @@ export type { Resource, Textbook } from "./resources";
  */
 export type { PrintForm, PrintFormValue } from "./printForms";
 export type { SubstituteSchoolText, SubstituteText } from "./substitute";
+
+/**
+ * M8's records live beside their own rules too — the staff contact next to the
+ * search, the cover and the leave next to the two selectors that each read
+ * only their own register, the development goal and the training line next to
+ * the budget roll-up, and the wellbeing entry next to the rule that makes its
+ * week a derived label.
+ *
+ * **No M8 record points at another, or at anything earlier.** A development
+ * goal is not an annual goal; a cover is not a leave, a timetable duty or a
+ * substitute folder.
+ */
+export type { StaffContact } from "./staff";
+export type { CoverRecord, LeaveRecord } from "./covers";
+export type { DevelopmentBudget, DevelopmentGoal, TrainingEntry } from "./development";
+export type { WellbeingEntry, WellbeingNote } from "./wellbeing";
 
 export function emptyClass(): SchoolClass {
   return {

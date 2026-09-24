@@ -51,6 +51,14 @@ import type {
   Trip,
   TripConsent,
   Unit,
+  StaffContact,
+  CoverRecord,
+  LeaveRecord,
+  DevelopmentGoal,
+  TrainingEntry,
+  DevelopmentBudget,
+  WellbeingEntry,
+  WellbeingNote,
 } from "../../src/domain/types";
 import { GOAL_AREAS } from "../../src/i18n/vocabularies";
 
@@ -106,6 +114,14 @@ export function emptyPlanner(): Planner {
     print_forms: [],
     substitute_texts: [],
     substitute_school_texts: [],
+    staff_contacts: [],
+    cover_records: [],
+    leave_records: [],
+    development_goals: [],
+    training_entries: [],
+    development_budget: { amount: null, notes: "" },
+    wellbeing_entries: [],
+    wellbeing_note: { sustains: "", boundaries: "" },
   };
 }
 
@@ -141,7 +157,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           app_folder: "/Drive/Ατζέντα",
           db_path: "/Drive/Ατζέντα/data/planner.sqlite",
           db_exists: true,
-          schema_version: 8,
+          schema_version: 9,
           backup_count: 2,
           last_backup: "2026-09-19T07:30:00+03:00",
           disk_changed: diskChanged,
@@ -647,6 +663,74 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           }
           break;
         }
+        case "save_staff_contact": {
+          const c = { ...(args.contact as StaffContact) };
+          if (c.id === 0) {
+            c.id = nextId++;
+            c.position = planner.staff_contacts.length;
+          }
+          planner.staff_contacts = upsert(planner.staff_contacts, c, (x) => x.id);
+          break;
+        }
+        case "delete_staff_contact":
+          planner.staff_contacts = planner.staff_contacts.filter((c) => c.id !== args.id);
+          break;
+        // The two registers of *Αναπλήρωση και άδειες*: each command touches
+        // its own array and nothing else, as the Rust side does.
+        case "save_cover_record": {
+          const r = { ...(args.record as CoverRecord) };
+          if (r.id === 0) r.id = nextId++;
+          planner.cover_records = upsert(planner.cover_records, r, (x) => x.id);
+          break;
+        }
+        case "delete_cover_record":
+          planner.cover_records = planner.cover_records.filter((r) => r.id !== args.id);
+          break;
+        case "save_leave_record": {
+          const r = { ...(args.record as LeaveRecord) };
+          if (r.id === 0) r.id = nextId++;
+          planner.leave_records = upsert(planner.leave_records, r, (x) => x.id);
+          break;
+        }
+        case "delete_leave_record":
+          planner.leave_records = planner.leave_records.filter((r) => r.id !== args.id);
+          break;
+        case "save_development_goal": {
+          const g = { ...(args.goal as DevelopmentGoal) };
+          if (g.id === 0) {
+            g.id = nextId++;
+            g.position = planner.development_goals.length;
+          }
+          planner.development_goals = upsert(planner.development_goals, g, (x) => x.id);
+          break;
+        }
+        case "delete_development_goal":
+          planner.development_goals = planner.development_goals.filter((g) => g.id !== args.id);
+          break;
+        case "save_training_entry": {
+          const e = { ...(args.entry as TrainingEntry) };
+          if (e.id === 0) e.id = nextId++;
+          planner.training_entries = upsert(planner.training_entries, e, (x) => x.id);
+          break;
+        }
+        case "delete_training_entry":
+          planner.training_entries = planner.training_entries.filter((e) => e.id !== args.id);
+          break;
+        case "save_development_budget":
+          planner.development_budget = { ...(args.budget as DevelopmentBudget) };
+          break;
+        case "save_wellbeing_entry": {
+          const e = { ...(args.entry as WellbeingEntry) };
+          if (e.id === 0) e.id = nextId++;
+          planner.wellbeing_entries = upsert(planner.wellbeing_entries, e, (x) => x.id);
+          break;
+        }
+        case "delete_wellbeing_entry":
+          planner.wellbeing_entries = planner.wellbeing_entries.filter((e) => e.id !== args.id);
+          break;
+        case "save_wellbeing_note":
+          planner.wellbeing_note = { ...(args.note as WellbeingNote) };
+          break;
         case "export_pdf":
           // The real export opens a hidden window and drives the platform's
           // print pipeline; there is no webview here, so the fake only records

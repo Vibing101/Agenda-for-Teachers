@@ -51,6 +51,14 @@ pub fn load(conn: &Connection) -> AppResult<Planner> {
         print_forms: print_forms(conn)?,
         substitute_texts: substitute_texts(conn)?,
         substitute_school_texts: substitute_school_texts(conn)?,
+        staff_contacts: staff_contacts(conn)?,
+        cover_records: cover_records(conn)?,
+        leave_records: leave_records(conn)?,
+        development_goals: development_goals(conn)?,
+        training_entries: training_entries(conn)?,
+        development_budget: development_budget(conn)?,
+        wellbeing_entries: wellbeing_entries(conn)?,
+        wellbeing_note: wellbeing_note(conn)?,
     })
 }
 
@@ -2198,6 +2206,331 @@ pub fn reset_substitute_text(
             params![field],
         )?,
     };
+    Ok(())
+}
+
+// ------------------------------- M8: staff, covers & leave, development ---
+
+fn staff_contacts(conn: &Connection) -> AppResult<Vec<StaffContact>> {
+    collect(
+        conn,
+        "SELECT id, position, full_name, role, phone, email
+           FROM staff_contact ORDER BY position, id",
+        |r| {
+            Ok(StaffContact {
+                id: r.get(0)?,
+                position: r.get(1)?,
+                full_name: r.get(2)?,
+                role: r.get(3)?,
+                phone: r.get(4)?,
+                email: r.get(5)?,
+            })
+        },
+    )
+}
+
+fn cover_records(conn: &Connection) -> AppResult<Vec<CoverRecord>> {
+    collect(
+        conn,
+        "SELECT id, date, class_name, covered, teacher, notes
+           FROM cover_record ORDER BY date, id",
+        |r| {
+            Ok(CoverRecord {
+                id: r.get(0)?,
+                date: r.get(1)?,
+                class_name: r.get(2)?,
+                covered: r.get(3)?,
+                teacher: r.get(4)?,
+                notes: r.get(5)?,
+            })
+        },
+    )
+}
+
+fn leave_records(conn: &Connection) -> AppResult<Vec<LeaveRecord>> {
+    collect(
+        conn,
+        "SELECT id, date, reason, documents FROM leave_record ORDER BY date, id",
+        |r| {
+            Ok(LeaveRecord {
+                id: r.get(0)?,
+                date: r.get(1)?,
+                reason: r.get(2)?,
+                documents: r.get(3)?,
+            })
+        },
+    )
+}
+
+fn development_goals(conn: &Connection) -> AppResult<Vec<DevelopmentGoal>> {
+    collect(
+        conn,
+        "SELECT id, position, goal, status, progress, notes
+           FROM development_goal ORDER BY position, id",
+        |r| {
+            Ok(DevelopmentGoal {
+                id: r.get(0)?,
+                position: r.get(1)?,
+                goal: r.get(2)?,
+                status: r.get(3)?,
+                progress: r.get(4)?,
+                notes: r.get(5)?,
+            })
+        },
+    )
+}
+
+fn training_entries(conn: &Connection) -> AppResult<Vec<TrainingEntry>> {
+    collect(
+        conn,
+        "SELECT id, date, activity, organiser, hours, format, cost, certificate
+           FROM training_entry ORDER BY date, id",
+        |r| {
+            Ok(TrainingEntry {
+                id: r.get(0)?,
+                date: r.get(1)?,
+                activity: r.get(2)?,
+                organiser: r.get(3)?,
+                // NULL stays None: "not entered" is not zero.
+                hours: r.get(4)?,
+                format: r.get(5)?,
+                cost: r.get(6)?,
+                certificate: r.get(7)?,
+            })
+        },
+    )
+}
+
+fn development_budget(conn: &Connection) -> AppResult<DevelopmentBudget> {
+    Ok(conn.query_row(
+        "SELECT amount, notes FROM development_budget WHERE id = 1",
+        [],
+        |r| {
+            Ok(DevelopmentBudget {
+                amount: r.get(0)?,
+                notes: r.get(1)?,
+            })
+        },
+    )?)
+}
+
+fn wellbeing_entries(conn: &Connection) -> AppResult<Vec<WellbeingEntry>> {
+    collect(
+        conn,
+        "SELECT id, date, notes FROM wellbeing_entry ORDER BY date, id",
+        |r| {
+            Ok(WellbeingEntry {
+                id: r.get(0)?,
+                date: r.get(1)?,
+                notes: r.get(2)?,
+            })
+        },
+    )
+}
+
+fn wellbeing_note(conn: &Connection) -> AppResult<WellbeingNote> {
+    Ok(conn.query_row(
+        "SELECT sustains, boundaries FROM wellbeing_note WHERE id = 1",
+        [],
+        |r| {
+            Ok(WellbeingNote {
+                sustains: r.get(0)?,
+                boundaries: r.get(1)?,
+            })
+        },
+    )?)
+}
+
+pub fn save_staff_contact(conn: &Connection, c: &StaffContact) -> AppResult<i64> {
+    if c.id == 0 {
+        let position: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM staff_contact",
+            [],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO staff_contact (position, full_name, role, phone, email)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![position, c.full_name, c.role, c.phone, c.email],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE staff_contact
+                SET position = ?2, full_name = ?3, role = ?4, phone = ?5, email = ?6
+              WHERE id = ?1",
+            params![c.id, c.position, c.full_name, c.role, c.phone, c.email],
+        )?;
+        Ok(c.id)
+    }
+}
+
+pub fn delete_staff_contact(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM staff_contact WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one cover the teacher taught.
+///
+/// **This statement cannot reach `leave_record`**, nor the timetable's duty
+/// cells: a cover is its own register.
+pub fn save_cover_record(conn: &Connection, c: &CoverRecord) -> AppResult<i64> {
+    if c.id == 0 {
+        conn.execute(
+            "INSERT INTO cover_record (date, class_name, covered, teacher, notes)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![c.date, c.class_name, c.covered, c.teacher, c.notes],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE cover_record
+                SET date = ?2, class_name = ?3, covered = ?4, teacher = ?5, notes = ?6
+              WHERE id = ?1",
+            params![c.id, c.date, c.class_name, c.covered, c.teacher, c.notes],
+        )?;
+        Ok(c.id)
+    }
+}
+
+pub fn delete_cover_record(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM cover_record WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one of the teacher's own leaves.
+///
+/// **This statement cannot reach `cover_record`**, and nothing here touches
+/// the substitute folder's texts.
+pub fn save_leave_record(conn: &Connection, l: &LeaveRecord) -> AppResult<i64> {
+    if l.id == 0 {
+        conn.execute(
+            "INSERT INTO leave_record (date, reason, documents) VALUES (?1, ?2, ?3)",
+            params![l.date, l.reason, l.documents],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE leave_record SET date = ?2, reason = ?3, documents = ?4 WHERE id = ?1",
+            params![l.id, l.date, l.reason, l.documents],
+        )?;
+        Ok(l.id)
+    }
+}
+
+pub fn delete_leave_record(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM leave_record WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Inserts or updates one development goal. **It cannot reach `annual_goal`**,
+/// and [`save_annual_goal`] cannot reach it.
+pub fn save_development_goal(conn: &Connection, g: &DevelopmentGoal) -> AppResult<i64> {
+    if g.id == 0 {
+        let position: i64 = conn.query_row(
+            "SELECT coalesce(max(position), -1) + 1 FROM development_goal",
+            [],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT INTO development_goal (position, goal, status, progress, notes)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![position, g.goal, g.status, g.progress, g.notes],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE development_goal
+                SET position = ?2, goal = ?3, status = ?4, progress = ?5, notes = ?6
+              WHERE id = ?1",
+            params![g.id, g.position, g.goal, g.status, g.progress, g.notes],
+        )?;
+        Ok(g.id)
+    }
+}
+
+pub fn delete_development_goal(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM development_goal WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+pub fn save_training_entry(conn: &Connection, e: &TrainingEntry) -> AppResult<i64> {
+    if e.id == 0 {
+        conn.execute(
+            "INSERT INTO training_entry (date, activity, organiser, hours, format, cost,
+                                         certificate)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                e.date,
+                e.activity,
+                e.organiser,
+                e.hours,
+                e.format,
+                e.cost,
+                e.certificate
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE training_entry
+                SET date = ?2, activity = ?3, organiser = ?4, hours = ?5, format = ?6,
+                    cost = ?7, certificate = ?8
+              WHERE id = ?1",
+            params![
+                e.id,
+                e.date,
+                e.activity,
+                e.organiser,
+                e.hours,
+                e.format,
+                e.cost,
+                e.certificate
+            ],
+        )?;
+        Ok(e.id)
+    }
+}
+
+pub fn delete_training_entry(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM training_entry WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+pub fn save_development_budget(conn: &Connection, b: &DevelopmentBudget) -> AppResult<()> {
+    conn.execute(
+        "UPDATE development_budget SET amount = ?1, notes = ?2 WHERE id = 1",
+        params![b.amount, b.notes],
+    )?;
+    Ok(())
+}
+
+pub fn save_wellbeing_entry(conn: &Connection, e: &WellbeingEntry) -> AppResult<i64> {
+    if e.id == 0 {
+        conn.execute(
+            "INSERT INTO wellbeing_entry (date, notes) VALUES (?1, ?2)",
+            params![e.date, e.notes],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE wellbeing_entry SET date = ?2, notes = ?3 WHERE id = ?1",
+            params![e.id, e.date, e.notes],
+        )?;
+        Ok(e.id)
+    }
+}
+
+pub fn delete_wellbeing_entry(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM wellbeing_entry WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+pub fn save_wellbeing_note(conn: &Connection, n: &WellbeingNote) -> AppResult<()> {
+    conn.execute(
+        "UPDATE wellbeing_note SET sustains = ?1, boundaries = ?2 WHERE id = 1",
+        params![n.sustains, n.boundaries],
+    )?;
     Ok(())
 }
 
@@ -4862,5 +5195,611 @@ mod tests {
                 );
             }
         }
+    }
+
+    // ------------------------------------------------------------- M8 ---
+
+    /// The date the fixture puts a cover *and* a leave on — M8's second
+    /// acceptance criterion is about exactly this collision.
+    const SAME_DAY: &str = "2026-11-12";
+
+    fn sample_staff_contact() -> StaffContact {
+        StaffContact {
+            id: 0,
+            position: 0,
+            full_name: "Άννα Παπαδοπούλου".into(),
+            role: "Υποδιευθύντρια / Φιλόλογος".into(),
+            phone: "+357 22 123456".into(),
+            email: "anna.p@school.example".into(),
+        }
+    }
+
+    fn sample_cover() -> CoverRecord {
+        CoverRecord {
+            id: 0,
+            date: SAME_DAY.into(),
+            class_name: "Γ2".into(),
+            covered: "Ιστορία — κεφ. 3, ασκήσεις".into(),
+            teacher: "Κ. Γεωργίου".into(),
+            notes: "Υπέγραψε ο υποδιευθυντής".into(),
+        }
+    }
+
+    fn sample_leave() -> LeaveRecord {
+        LeaveRecord {
+            id: 0,
+            date: SAME_DAY.into(),
+            reason: "Άδεια ασθενείας, 1 ημέρα".into(),
+            documents: "Ιατρικό πιστοποιητικό, κατατέθηκε 13.11".into(),
+        }
+    }
+
+    fn sample_development_goal() -> DevelopmentGoal {
+        DevelopmentGoal {
+            id: 0,
+            position: 0,
+            goal: "Πιστοποίηση στις ΤΠΕ, επίπεδο Β".into(),
+            status: "Σε εξέλιξη".into(),
+            progress: "Ολοκληρώθηκαν 2 από 4 ενότητες".into(),
+            notes: "Εξετάσεις τον Μάρτιο".into(),
+        }
+    }
+
+    fn sample_training(cost: Option<f64>, hours: Option<f64>) -> TrainingEntry {
+        TrainingEntry {
+            id: 0,
+            date: "2026-10-17".into(),
+            activity: "Διαφοροποιημένη διδασκαλία".into(),
+            organiser: "Παιδαγωγικό Ινστιτούτο".into(),
+            hours,
+            format: "Διαδικτυακό".into(),
+            cost,
+            certificate: "Αναμένεται".into(),
+        }
+    }
+
+    fn filled_annual_goal(area: &str) -> AnnualGoal {
+        AnnualGoal {
+            area: area.into(),
+            goal: format!("Στόχος {area}"),
+            actions: "Ενέργειες".into(),
+            success_indicators: "Δείκτες".into(),
+            deadline: "2027-06-15".into(),
+            status: "Ξεκίνησε".into(),
+            review: "Ανασκόπηση".into(),
+        }
+    }
+
+    /// Every M8 record comes back with every field it was saved with, compared
+    /// as whole values so a column dropped from either statement fails here.
+    #[test]
+    fn every_m8_record_round_trips_with_every_field_intact() {
+        let (_dir, conn) = open();
+        save_staff_contact(&conn, &sample_staff_contact()).unwrap();
+        save_cover_record(&conn, &sample_cover()).unwrap();
+        save_leave_record(&conn, &sample_leave()).unwrap();
+        save_development_goal(&conn, &sample_development_goal()).unwrap();
+        save_training_entry(&conn, &sample_training(Some(12.5), Some(1.5))).unwrap();
+        save_development_budget(
+            &conn,
+            &DevelopmentBudget {
+                amount: Some(300.0),
+                notes: "Το σχολείο καλύπτει το μισό".into(),
+            },
+        )
+        .unwrap();
+        save_wellbeing_entry(
+            &conn,
+            &WellbeingEntry {
+                id: 0,
+                date: "2026-11-13".into(),
+                notes: "Βοήθησε το περπάτημα.\nΝα κλείνω το email στις 8.".into(),
+            },
+        )
+        .unwrap();
+        save_wellbeing_note(
+            &conn,
+            &WellbeingNote {
+                sustains: "Κολύμπι την Τετάρτη".into(),
+                boundaries: "Όχι διόρθωση γραπτών την Κυριακή".into(),
+            },
+        )
+        .unwrap();
+
+        let planner = load(&conn).unwrap();
+        let with_id = |id: i64| id > 0;
+
+        let c = &planner.staff_contacts[0];
+        assert!(with_id(c.id));
+        assert_eq!(StaffContact { id: 0, ..c.clone() }, sample_staff_contact());
+        let cover = &planner.cover_records[0];
+        assert_eq!(
+            CoverRecord {
+                id: 0,
+                ..cover.clone()
+            },
+            sample_cover()
+        );
+        let leave = &planner.leave_records[0];
+        assert_eq!(
+            LeaveRecord {
+                id: 0,
+                ..leave.clone()
+            },
+            sample_leave()
+        );
+        let goal = &planner.development_goals[0];
+        assert_eq!(
+            DevelopmentGoal {
+                id: 0,
+                ..goal.clone()
+            },
+            sample_development_goal()
+        );
+        let entry = &planner.training_entries[0];
+        assert_eq!(
+            TrainingEntry {
+                id: 0,
+                ..entry.clone()
+            },
+            sample_training(Some(12.5), Some(1.5))
+        );
+        assert_eq!(planner.development_budget.amount, Some(300.0));
+        assert_eq!(
+            planner.development_budget.notes,
+            "Το σχολείο καλύπτει το μισό"
+        );
+        assert_eq!(
+            planner.wellbeing_entries[0].notes,
+            "Βοήθησε το περπάτημα.\nΝα κλείνω το email στις 8."
+        );
+        assert_eq!(planner.wellbeing_entries[0].date, "2026-11-13");
+        assert_eq!(planner.wellbeing_note.sustains, "Κολύμπι την Τετάρτη");
+        assert_eq!(
+            planner.wellbeing_note.boundaries,
+            "Όχι διόρθωση γραπτών την Κυριακή"
+        );
+    }
+
+    /// An `UPDATE` rewrites every field too — a round-trip criterion is about
+    /// that statement as much as the `INSERT`.
+    #[test]
+    fn editing_an_m8_record_rewrites_every_field() {
+        let (_dir, conn) = open();
+        let id = save_cover_record(&conn, &CoverRecord { ..sample_cover() }).unwrap();
+        let edited = CoverRecord {
+            id,
+            date: "2026-11-19".into(),
+            class_name: "Β1".into(),
+            covered: "Γεωγραφία".into(),
+            teacher: "Μ. Νικολάου".into(),
+            notes: "—".into(),
+        };
+        save_cover_record(&conn, &edited).unwrap();
+        assert_eq!(load(&conn).unwrap().cover_records, vec![edited]);
+
+        let id = save_training_entry(&conn, &sample_training(None, None)).unwrap();
+        let edited = TrainingEntry {
+            id,
+            date: "2026-12-01".into(),
+            activity: "Σεμινάριο".into(),
+            organiser: "Σύλλογος".into(),
+            hours: Some(3.0),
+            format: "Δια ζώσης".into(),
+            cost: Some(0.0),
+            certificate: "Ναι, αρ. 1234".into(),
+        };
+        save_training_entry(&conn, &edited).unwrap();
+        assert_eq!(load(&conn).unwrap().training_entries, vec![edited]);
+    }
+
+    /// **M8's second acceptance criterion, at the storage layer.** A cover she
+    /// taught and a leave she took on the same date are two entries, and each
+    /// register reads the same whether the other table is empty or full.
+    ///
+    /// Tested as insensitivity, not as a count: two files are built with the
+    /// same covers, one with no leaves at all and one with a full leave table —
+    /// including a leave on the cover's own date — and the covers must compare
+    /// equal. Then the same the other way round.
+    #[test]
+    fn a_cover_and_a_leave_on_the_same_date_are_separate_and_blind_to_each_other() {
+        let covers = || {
+            vec![
+                sample_cover(),
+                CoverRecord {
+                    date: "2026-11-20".into(),
+                    class_name: "Α3".into(),
+                    ..sample_cover()
+                },
+            ]
+        };
+        let leaves = || {
+            vec![
+                sample_leave(),
+                LeaveRecord {
+                    id: 0,
+                    date: "2026-12-03".into(),
+                    reason: "Επιμόρφωση".into(),
+                    documents: "".into(),
+                },
+            ]
+        };
+
+        let (_a, only_covers) = open();
+        for c in covers() {
+            save_cover_record(&only_covers, &c).unwrap();
+        }
+        let (_b, only_leaves) = open();
+        for l in leaves() {
+            save_leave_record(&only_leaves, &l).unwrap();
+        }
+        let (_c, both) = open();
+        // Interleaved on purpose, so an id shared between the two tables would
+        // show.
+        for (c, l) in covers().into_iter().zip(leaves()) {
+            save_leave_record(&both, &l).unwrap();
+            save_cover_record(&both, &c).unwrap();
+        }
+
+        let both = load(&both).unwrap();
+        assert_eq!(
+            both.cover_records,
+            load(&only_covers).unwrap().cover_records
+        );
+        assert_eq!(
+            both.leave_records,
+            load(&only_leaves).unwrap().leave_records
+        );
+
+        // They coexist as two entries on the one date, each in its own register.
+        let on = |d: &str| d == SAME_DAY;
+        assert_eq!(both.cover_records.iter().filter(|c| on(&c.date)).count(), 1);
+        assert_eq!(both.leave_records.iter().filter(|l| on(&l.date)).count(), 1);
+    }
+
+    /// Deleting one of the same-date pair leaves the other exactly as it was.
+    #[test]
+    fn deleting_a_cover_or_a_leave_leaves_the_other_register_alone() {
+        let (_dir, conn) = open();
+        let cover = save_cover_record(&conn, &sample_cover()).unwrap();
+        let leave = save_leave_record(&conn, &sample_leave()).unwrap();
+        let before = load(&conn).unwrap();
+
+        delete_cover_record(&conn, cover).unwrap();
+        let after = load(&conn).unwrap();
+        assert!(after.cover_records.is_empty());
+        assert_eq!(after.leave_records, before.leave_records);
+
+        save_cover_record(&conn, &sample_cover()).unwrap();
+        let before = load(&conn).unwrap();
+        delete_leave_record(&conn, leave).unwrap();
+        let after = load(&conn).unwrap();
+        assert!(after.leave_records.is_empty());
+        assert_eq!(after.cover_records, before.cover_records);
+    }
+
+    /// A cover is a record of what happened; the timetable's duty cell is the
+    /// planned week. Neither is written from the other, and a leave touches
+    /// neither of them nor the substitute folder.
+    #[test]
+    fn covers_and_leave_are_not_the_timetable_or_the_substitute_folder() {
+        let (_dir, conn) = open();
+        let period = save_timetable_period(&conn, &sample_period()).unwrap();
+        save_timetable_cell(
+            &conn,
+            &TimetableCell {
+                period_id: period,
+                weekday: 4,
+                class_id: None,
+                subject: "".into(),
+                room: "".into(),
+                duty: "Αναπλήρωση Γ2".into(),
+                notes: "".into(),
+            },
+        )
+        .unwrap();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        set_substitute_text(&conn, Some(class_id), "rules", "Σηκώνουμε χέρι").unwrap();
+        set_substitute_text(&conn, None, "contact.principal", "Κ. Ιωάννου").unwrap();
+
+        // A duty in the timetable writes no cover.
+        assert!(load(&conn).unwrap().cover_records.is_empty());
+
+        let before = load(&conn).unwrap();
+        save_cover_record(&conn, &sample_cover()).unwrap();
+        save_leave_record(&conn, &sample_leave()).unwrap();
+        let after = load(&conn).unwrap();
+
+        assert_eq!(after.timetable_cells, before.timetable_cells);
+        assert_eq!(after.timetable_periods, before.timetable_periods);
+        assert_eq!(after.substitute_texts, before.substitute_texts);
+        assert_eq!(
+            after.substitute_school_texts,
+            before.substitute_school_texts
+        );
+        assert_eq!(after.classes, before.classes);
+        assert_eq!(after.lesson_plans, before.lesson_plans);
+    }
+
+    /// **M8's first acceptance criterion, at the storage layer, in both
+    /// directions.** Filling all six annual goals — including the area called
+    /// `development` — leaves the development goals exactly as they were, and
+    /// adding development goals leaves the six annual goals *and* a saved M7
+    /// goals form exactly as they were.
+    #[test]
+    fn development_goals_and_the_six_annual_goals_are_never_written_from_each_other() {
+        let (_dir, conn) = open();
+        let form = save_print_form(&conn, &blank_form("goals", "Στόχοι 2026-27")).unwrap();
+        set_print_form_value(
+            &conn,
+            form,
+            "goal.1.goal",
+            "Να τελειώσω το μεταπτυχιακό",
+            "2026-10-01",
+        )
+        .unwrap();
+
+        // From an empty development list: filling the annual goals invents none.
+        let before = load(&conn).unwrap();
+        for area in GOAL_AREAS {
+            save_annual_goal(&conn, &filled_annual_goal(area)).unwrap();
+        }
+        let after = load(&conn).unwrap();
+        assert_eq!(after.development_goals, before.development_goals);
+        assert!(after.development_goals.is_empty());
+        let dev_area = after
+            .annual_goals
+            .iter()
+            .find(|g| g.area == "development")
+            .unwrap();
+        assert_eq!(dev_area.goal, "Στόχος development");
+
+        // From a full one: editing the annual area changes no development goal.
+        save_development_goal(&conn, &sample_development_goal()).unwrap();
+        let before = load(&conn).unwrap();
+        save_annual_goal(
+            &conn,
+            &AnnualGoal {
+                goal: "Άλλος στόχος".into(),
+                ..filled_annual_goal("development")
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            load(&conn).unwrap().development_goals,
+            before.development_goals
+        );
+
+        // The other way: adding and editing development goals leaves the six
+        // annual goals and the saved goals form untouched.
+        let before = load(&conn).unwrap();
+        let id = save_development_goal(&conn, &sample_development_goal()).unwrap();
+        save_development_goal(
+            &conn,
+            &DevelopmentGoal {
+                id,
+                goal: "Άλλο".into(),
+                ..sample_development_goal()
+            },
+        )
+        .unwrap();
+        let after = load(&conn).unwrap();
+        assert_eq!(after.annual_goals, before.annual_goals);
+        assert_eq!(after.print_forms, before.print_forms);
+        assert_eq!(after.development_goals.len(), 2);
+    }
+
+    /// Nothing M8 adds points at anything else in the file, or at each other —
+    /// which is what "neither is generated from the other" and "separate
+    /// registers" look like in a schema.
+    #[test]
+    fn no_m8_table_links_to_anything() {
+        let (_dir, conn) = open();
+        for table in [
+            "staff_contact",
+            "cover_record",
+            "leave_record",
+            "development_goal",
+            "training_entry",
+            "development_budget",
+            "wellbeing_entry",
+            "wellbeing_note",
+        ] {
+            let columns: Vec<String> = conn
+                .prepare(&format!("PRAGMA table_info({table})"))
+                .unwrap()
+                .query_map([], |r| r.get::<_, String>(1))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
+            assert!(!columns.is_empty(), "{table} exists");
+            let links: Vec<String> = conn
+                .prepare(&format!("PRAGMA foreign_key_list({table})"))
+                .unwrap()
+                .query_map([], |r| r.get::<_, String>(2))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
+            assert!(links.is_empty(), "{table} links to {links:?}");
+            for column in &columns {
+                assert!(
+                    !column.ends_with("_id"),
+                    "{table}.{column} looks like a link to another record"
+                );
+            }
+        }
+    }
+
+    /// A blank cost or hours is stored as "not entered", never as zero, and a
+    /// zero she typed stays a zero. The budget roll-up depends on telling them
+    /// apart.
+    #[test]
+    fn a_blank_cost_is_not_stored_as_zero_and_a_zero_is_kept() {
+        let (_dir, conn) = open();
+        save_training_entry(&conn, &sample_training(None, None)).unwrap();
+        save_training_entry(&conn, &sample_training(Some(0.0), Some(0.0))).unwrap();
+        let entries = load(&conn).unwrap().training_entries;
+        assert_eq!((entries[0].cost, entries[0].hours), (None, None));
+        assert_eq!((entries[1].cost, entries[1].hours), (Some(0.0), Some(0.0)));
+
+        let stored: Option<f64> = conn
+            .query_row(
+                "SELECT cost FROM training_entry WHERE id = ?1",
+                [entries[0].id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored, None);
+
+        save_development_budget(
+            &conn,
+            &DevelopmentBudget {
+                amount: None,
+                notes: "".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(load(&conn).unwrap().development_budget.amount, None);
+    }
+
+    #[test]
+    fn the_file_refuses_a_negative_cost_hours_or_budget() {
+        let (_dir, conn) = open();
+        assert!(save_training_entry(&conn, &sample_training(Some(-5.0), None)).is_err());
+        assert!(save_training_entry(&conn, &sample_training(None, Some(-1.0))).is_err());
+        assert!(save_development_budget(
+            &conn,
+            &DevelopmentBudget {
+                amount: Some(-1.0),
+                notes: "".into()
+            }
+        )
+        .is_err());
+        assert!(load(&conn).unwrap().training_entries.is_empty());
+    }
+
+    /// The four "new record" buttons create a blank row the teacher is about
+    /// to type into, so a blank one is kept — M4's rule — and a new one never
+    /// changes an existing sibling.
+    #[test]
+    fn a_blank_new_m8_record_is_kept_and_leaves_its_siblings_alone() {
+        let (_dir, conn) = open();
+        save_staff_contact(&conn, &sample_staff_contact()).unwrap();
+        save_development_goal(&conn, &sample_development_goal()).unwrap();
+        save_cover_record(&conn, &sample_cover()).unwrap();
+        save_leave_record(&conn, &sample_leave()).unwrap();
+        save_training_entry(&conn, &sample_training(Some(10.0), Some(2.0))).unwrap();
+        let before = load(&conn).unwrap();
+
+        let blank_contact = StaffContact {
+            id: 0,
+            position: 0,
+            full_name: "".into(),
+            role: "".into(),
+            phone: "".into(),
+            email: "".into(),
+        };
+        save_staff_contact(&conn, &blank_contact).unwrap();
+        save_development_goal(
+            &conn,
+            &DevelopmentGoal {
+                id: 0,
+                position: 0,
+                goal: "".into(),
+                status: "".into(),
+                progress: "".into(),
+                notes: "".into(),
+            },
+        )
+        .unwrap();
+        save_cover_record(
+            &conn,
+            &CoverRecord {
+                id: 0,
+                date: "".into(),
+                class_name: "".into(),
+                covered: "".into(),
+                teacher: "".into(),
+                notes: "".into(),
+            },
+        )
+        .unwrap();
+        save_leave_record(
+            &conn,
+            &LeaveRecord {
+                id: 0,
+                date: "".into(),
+                reason: "".into(),
+                documents: "".into(),
+            },
+        )
+        .unwrap();
+        save_training_entry(
+            &conn,
+            &TrainingEntry {
+                id: 0,
+                date: "".into(),
+                activity: "".into(),
+                organiser: "".into(),
+                hours: None,
+                format: "".into(),
+                cost: None,
+                certificate: "".into(),
+            },
+        )
+        .unwrap();
+        save_wellbeing_entry(
+            &conn,
+            &WellbeingEntry {
+                id: 0,
+                date: "2026-11-13".into(),
+                notes: "".into(),
+            },
+        )
+        .unwrap();
+
+        let after = load(&conn).unwrap();
+        assert_eq!(after.staff_contacts.len(), 2);
+        assert_eq!(after.staff_contacts[0], before.staff_contacts[0]);
+        assert_eq!(after.development_goals[0], before.development_goals[0]);
+        assert!(after.cover_records.contains(&before.cover_records[0]));
+        assert_eq!(after.cover_records.len(), 2);
+        assert!(after.leave_records.contains(&before.leave_records[0]));
+        assert_eq!(after.leave_records.len(), 2);
+        assert!(after.training_entries.contains(&before.training_entries[0]));
+        assert_eq!(after.training_entries.len(), 2);
+        assert_eq!(after.wellbeing_entries.len(), 1);
+    }
+
+    /// Correcting the school year's start date moves nothing M8 stores.
+    #[test]
+    fn moving_the_school_year_start_date_leaves_every_m8_record_where_it_was() {
+        let (_dir, conn) = open();
+        save_cover_record(&conn, &sample_cover()).unwrap();
+        save_leave_record(&conn, &sample_leave()).unwrap();
+        save_training_entry(&conn, &sample_training(Some(12.5), None)).unwrap();
+        save_wellbeing_entry(
+            &conn,
+            &WellbeingEntry {
+                id: 0,
+                date: "2026-11-13".into(),
+                notes: "Καλή εβδομάδα".into(),
+            },
+        )
+        .unwrap();
+        let before = load(&conn).unwrap();
+        save_school_year(
+            &conn,
+            &SchoolYear {
+                year_model: "sep_aug".into(),
+                start_date: "2026-09-07".into(),
+            },
+        )
+        .unwrap();
+        let after = load(&conn).unwrap();
+        assert_eq!(after.cover_records, before.cover_records);
+        assert_eq!(after.leave_records, before.leave_records);
+        assert_eq!(after.training_entries, before.training_entries);
+        assert_eq!(after.wellbeing_entries, before.wellbeing_entries);
     }
 }

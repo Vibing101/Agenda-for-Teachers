@@ -6,7 +6,9 @@
 //! the gradebook; M3 the teacher's master timetable, her weekly lesson plans
 //! and her agenda notes; M4 attendance, absence events, behaviour incidents
 //! and support plans; M5 the parent communication log, the parent-appointment
-//! grid, staff meetings and their agreements.
+//! grid, staff meetings and their agreements; M6 the rest of teaching; M7 the
+//! print forms and the substitute folder; M8 the staff directory, the covers
+//! and leave registers, development and wellbeing.
 //!
 //! Two rules shape the command layer:
 //!
@@ -597,6 +599,112 @@ fn reset_substitute_text(
     })
 }
 
+// ------------------------------------------------------------------- M8 ---
+
+#[tauri::command]
+fn save_staff_contact(
+    state: tauri::State<'_, AppState>,
+    contact: StaffContact,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_staff_contact(tx, &contact).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_staff_contact(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_staff_contact(tx, id))
+}
+
+/// One cover the teacher taught. Reaches the covers register and nothing else:
+/// there is deliberately no command that writes a cover and a leave together.
+#[tauri::command]
+fn save_cover_record(state: tauri::State<'_, AppState>, record: CoverRecord) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_cover_record(tx, &record).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_cover_record(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_cover_record(tx, id))
+}
+
+/// One of the teacher's own leaves. Independent of the covers register above.
+#[tauri::command]
+fn save_leave_record(state: tauri::State<'_, AppState>, record: LeaveRecord) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_leave_record(tx, &record).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_leave_record(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_leave_record(tx, id))
+}
+
+/// One open-ended development goal. Cannot reach M1's six annual goals.
+#[tauri::command]
+fn save_development_goal(
+    state: tauri::State<'_, AppState>,
+    goal: DevelopmentGoal,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_development_goal(tx, &goal).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_development_goal(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_development_goal(tx, id))
+}
+
+#[tauri::command]
+fn save_training_entry(
+    state: tauri::State<'_, AppState>,
+    entry: TrainingEntry,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_training_entry(tx, &entry).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_training_entry(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_training_entry(tx, id))
+}
+
+#[tauri::command]
+fn save_development_budget(
+    state: tauri::State<'_, AppState>,
+    budget: DevelopmentBudget,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_development_budget(tx, &budget))
+}
+
+#[tauri::command]
+fn save_wellbeing_entry(
+    state: tauri::State<'_, AppState>,
+    entry: WellbeingEntry,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::save_wellbeing_entry(tx, &entry).map(|_| ())
+    })
+}
+
+#[tauri::command]
+fn delete_wellbeing_entry(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_wellbeing_entry(tx, id))
+}
+
+#[tauri::command]
+fn save_wellbeing_note(
+    state: tauri::State<'_, AppState>,
+    note: WellbeingNote,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_wellbeing_note(tx, &note))
+}
+
 // ------------------------------------------------------------ PDF export ---
 
 /// Writes one document to `exports/` as a real PDF and returns its path.
@@ -942,6 +1050,20 @@ pub fn run() {
             delete_print_form,
             set_substitute_text,
             reset_substitute_text,
+            save_staff_contact,
+            delete_staff_contact,
+            save_cover_record,
+            delete_cover_record,
+            save_leave_record,
+            delete_leave_record,
+            save_development_goal,
+            delete_development_goal,
+            save_training_entry,
+            delete_training_entry,
+            save_development_budget,
+            save_wellbeing_entry,
+            delete_wellbeing_entry,
+            save_wellbeing_note,
             export_pdf,
             print_job,
             print_ready,
