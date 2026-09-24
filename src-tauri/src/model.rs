@@ -11,6 +11,7 @@
 //! text is stored exactly as typed and never translated.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Empty strings rather than `NULL` throughout: a blank field a teacher has not
 /// filled in yet and a field she cleared are the same thing to her, and this
@@ -198,6 +199,9 @@ pub struct Planner {
     pub trip_consents: Vec<TripConsent>,
     pub textbooks: Vec<Textbook>,
     pub resources: Vec<Resource>,
+    pub print_forms: Vec<PrintForm>,
+    pub substitute_texts: Vec<SubstituteText>,
+    pub substitute_school_texts: Vec<SubstituteSchoolText>,
 }
 
 // ------------------------------------------------------------- M2: grades ---
@@ -890,3 +894,86 @@ pub struct Resource {
 
 pub const RESOURCE_CATEGORIES: [&str; 6] =
     ["websites", "apps", "books", "video", "classroom", "other"];
+
+// ------------------------------------------- M7: print forms & the folder ---
+
+/// A saved, named, filled-in copy of one of the eleven standalone print forms.
+///
+/// **A print form is a loose page**: it has no class, no student and no link
+/// to anything else in the file — the source calls them `Πρότυπα για
+/// εκτύπωση`, blanks the teacher fills in and prints. So this record carries
+/// nothing but its kind, its name, two dates and what was typed into it.
+///
+/// `values` is a flat map from a field's key (`reg.3.date`, `desk.2.5`,
+/// `start.backup`) to what was typed; the frontend's `domain/printForms.ts`
+/// defines the keys. It is stored one row per value in `print_form_value`, and
+/// a field with nothing in it has no row.
+///
+/// **The head and the values are written by different commands.** Saving a
+/// form's name never rewrites its values, so a rename sent while a field is
+/// still being saved cannot put a stale copy of the values back.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrintForm {
+    #[serde(default)]
+    pub id: i64,
+    /// One of [`PRINT_FORM_KINDS`].
+    pub kind: String,
+    pub name: String,
+    /// `YYYY-MM-DD`, from the shell's day — the backend never reads the clock
+    /// for a teacher-facing date.
+    pub created: String,
+    pub updated: String,
+    /// Read back with the form; ignored when its head is saved.
+    #[serde(default)]
+    pub values: BTreeMap<String, String>,
+}
+
+/// The eleven forms, in the source's page order.
+///
+/// Checked in Rust rather than by a `CHECK` constraint on purpose: if the
+/// product owner decides a filled *letter* should be saved too — the open
+/// question M5 left — it joins this table as one more kind, and extending a
+/// list here costs no migration where rebuilding a table to change its `CHECK`
+/// would.
+pub const PRINT_FORM_KINDS: [&str; 11] = [
+    "attendance",
+    "parentLog",
+    "coverLesson",
+    "minutes",
+    "priorities",
+    "roomPlan",
+    "credentials",
+    "periodChecklist",
+    "parentNote",
+    "loans",
+    "goals",
+];
+
+/// One of the substitute folder's own texts for one class — the rules, where
+/// things are, what to do if something goes wrong, the message to the
+/// substitute, the one-day plan.
+///
+/// **A row here means the teacher has written this box — including an empty
+/// value, which means she cleared it.** No row means she has not touched it,
+/// and the frontend shows the suggested text from the language bundle. The two
+/// must never be conflated, which is why this is the one text in the file where
+/// an empty string is stored rather than meaning "nothing".
+///
+/// **Nothing the folder shows from elsewhere is stored here** — no seat, no
+/// student, no week. The folder reads those live, which is M7's second
+/// acceptance criterion.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubstituteText {
+    pub class_id: i64,
+    pub field: String,
+    pub value: String,
+}
+
+/// One of the folder's texts that every class shares: the school's contacts
+/// and the six quick procedures. Same rule as [`SubstituteText`] for an empty
+/// value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubstituteSchoolText {
+    pub field: String,
+    pub value: String,
+}

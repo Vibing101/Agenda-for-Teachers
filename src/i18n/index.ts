@@ -17,11 +17,13 @@
 import { el as elUi } from "./el";
 import { lettersEl } from "./lettersEl";
 import { messagesEl } from "./messagesEl";
+import { formsEl } from "./formsEl";
 
 /**
- * The Greek bundle, assembled from three files that hold three different kinds
- * of string: the app's own labels, the seven parent letters and the
- * 150-message bank.
+ * The Greek bundle, assembled from four files that hold four different kinds
+ * of string: the app's own labels, the seven parent letters, the 150-message
+ * bank, and M7's form and folder content (the period checklist's items and
+ * the substitute folder's suggested text).
  *
  * **Splitting by kind rather than by screen is deliberate** (M5). The letters
  * and the message bank are the *product's content* — 465 strings of it, several
@@ -30,10 +32,10 @@ import { messagesEl } from "./messagesEl";
  * else changes: one lookup, one `StringId` type, and the eslint rule that keeps
  * Greek inside `src/i18n/` still covers all three files.
  *
- * M9 adds `en.ts`, `lettersEn.ts` and `messagesEn.ts` and one more entry in
- * `BUNDLES` — files added, not files edited.
+ * M9 adds `en.ts`, `lettersEn.ts`, `messagesEn.ts` and `formsEn.ts` and one
+ * more entry in `BUNDLES` — files added, not files edited.
  */
-const el = { ...elUi, ...lettersEl, ...messagesEl };
+const el = { ...elUi, ...lettersEl, ...messagesEl, ...formsEl };
 
 export type StringId = keyof typeof el;
 export type Locale = "el" | "en";

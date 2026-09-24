@@ -20,6 +20,7 @@ import type {
   ParentAppointment,
   ParentContact,
   Planner,
+  PrintForm,
   Resource,
   SchoolClass,
   SchoolYear,
@@ -205,6 +206,34 @@ export const api = {
 
   saveResource: (resource: Resource) => invoke<Planner>("save_resource", { resource }),
   deleteResource: (id: number) => invoke<Planner>("delete_resource", { id }),
+
+  /**
+   * A print form's head — its kind, its name and its two dates. **Never its
+   * values**: those are written one at a time by `setPrintFormValue`, so a
+   * rename sent while a field is still being saved cannot write back a stale
+   * copy of the form over it. A form with `id` 0 is created, empty.
+   */
+  savePrintForm: (form: PrintForm) => invoke<Planner>("save_print_form", { form }),
+  /** One field of a saved form. An empty value removes the field. */
+  setPrintFormValue: (formId: number, field: string, value: string, today: string) =>
+    invoke<Planner>("set_print_form_value", { formId, field, value, today }),
+  deletePrintForm: (id: number) => invoke<Planner>("delete_print_form", { id }),
+
+  /**
+   * One of the substitute folder's own texts. `classId` is `null` for the
+   * texts every class's folder shares (the contacts and procedures).
+   *
+   * **An empty value is stored**, not removed: it is how "she cleared this box"
+   * is told apart from "she has not touched it", which shows the suggested
+   * text. `resetSubstituteText` is the only way back to the suggestion.
+   *
+   * Note what is missing: there is no call that saves a seat, a roster or a
+   * week into the folder. The folder reads those live.
+   */
+  setSubstituteText: (classId: number | null, field: string, value: string) =>
+    invoke<Planner>("set_substitute_text", { classId, field, value }),
+  resetSubstituteText: (classId: number | null, field: string) =>
+    invoke<Planner>("reset_substitute_text", { classId, field }),
 
   /**
    * Writes one document into `exports/` as a real PDF and resolves with its

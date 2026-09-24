@@ -102,6 +102,82 @@ export function DeferredTextField({
   );
 }
 
+/**
+ * The text-area twin of [`DeferredTextField`]: commits when it loses focus.
+ *
+ * Added at M7 for the print forms and the substitute folder, whose boxes are
+ * saved as the teacher leaves them rather than behind a Save button — a form
+ * with thirty boxes on it should not lose one because she clicked away.
+ */
+export function DeferredTextArea({
+  labelId,
+  labelParams,
+  value,
+  onCommit,
+  rows = 3,
+}: {
+  labelId: StringId;
+  labelParams?: Params;
+  value: string;
+  onCommit: (value: string) => void;
+  rows?: number;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <Field labelId={labelId} labelParams={labelParams}>
+      {(id) => (
+        <textarea
+          id={id}
+          rows={rows}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            if (draft !== value) onCommit(draft);
+          }}
+        />
+      )}
+    </Field>
+  );
+}
+
+/**
+ * One cell of a ruled register or one desk of a room plan: an input with an
+ * accessible name and no visible label, committing when it loses focus.
+ *
+ * A 31-day attendance card is nearly a thousand of these, which is why it is
+ * not a [`Field`] with a `<label>` each.
+ */
+export function CellInput({
+  label,
+  value,
+  onCommit,
+  type = "text",
+  className,
+}: {
+  /** Already translated — a cell's name is built from its column and row. */
+  label: string;
+  value: string;
+  onCommit: (value: string) => void;
+  type?: "text" | "date";
+  className?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <input
+      aria-label={label}
+      className={className}
+      type={type}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        if (draft !== value) onCommit(draft);
+      }}
+    />
+  );
+}
+
 interface TextAreaProps {
   labelId: StringId;
   labelParams?: Params;

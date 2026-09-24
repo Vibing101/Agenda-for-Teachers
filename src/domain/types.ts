@@ -12,6 +12,8 @@ import type { LessonReflection } from "./reflections";
 import type { Resource, Textbook } from "./resources";
 import type { Trip, TripConsent } from "./trips";
 import type { Unit } from "./units";
+import type { PrintForm } from "./printForms";
+import type { SubstituteSchoolText, SubstituteText } from "./substitute";
 import type { SupportGoal, SupportPlan } from "./support";
 import type { ClassGrading, GradeColumn, GradeRow, GradeValue } from "./grades";
 import type { AgendaNote } from "./agenda";
@@ -162,6 +164,9 @@ export interface Planner {
   trip_consents: TripConsent[];
   textbooks: Textbook[];
   resources: Resource[];
+  print_forms: PrintForm[];
+  substitute_texts: SubstituteText[];
+  substitute_school_texts: SubstituteSchoolText[];
 }
 
 /** A blank card, so "new student" and "loaded student" are the same shape. */
@@ -240,6 +245,18 @@ export type { Exam } from "./exams";
 export type { LessonReflection } from "./reflections";
 export type { Trip, TripConsent } from "./trips";
 export type { Resource, Textbook } from "./resources";
+
+/**
+ * M7's records live beside their own rules too — a saved print form next to
+ * the definition of the eleven forms and the keys their values are stored
+ * under, and the substitute folder's texts next to the rule that tells an
+ * untouched box from a cleared one.
+ *
+ * **There is no stored copy of anything the folder shows from elsewhere** — no
+ * seats, no roster, no week. `domain/substitute.ts` reads those live.
+ */
+export type { PrintForm, PrintFormValue } from "./printForms";
+export type { SubstituteSchoolText, SubstituteText } from "./substitute";
 
 export function emptyClass(): SchoolClass {
   return {

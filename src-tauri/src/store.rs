@@ -48,6 +48,9 @@ pub fn load(conn: &Connection) -> AppResult<Planner> {
         trip_consents: trip_consents(conn)?,
         textbooks: textbooks(conn)?,
         resources: resources(conn)?,
+        print_forms: print_forms(conn)?,
+        substitute_texts: substitute_texts(conn)?,
+        substitute_school_texts: substitute_school_texts(conn)?,
     })
 }
 
@@ -1675,6 +1678,68 @@ fn trip_consents(conn: &Connection) -> AppResult<Vec<TripConsent>> {
     )
 }
 
+/// Every saved print form with its values, oldest first.
+fn print_forms(conn: &Connection) -> AppResult<Vec<PrintForm>> {
+    let mut forms = collect(
+        conn,
+        "SELECT id, kind, name, created, updated FROM print_form ORDER BY id",
+        |r| {
+            Ok(PrintForm {
+                id: r.get(0)?,
+                kind: r.get(1)?,
+                name: r.get(2)?,
+                created: r.get(3)?,
+                updated: r.get(4)?,
+                values: std::collections::BTreeMap::new(),
+            })
+        },
+    )?;
+    let values = collect(
+        conn,
+        "SELECT form_id, field, value FROM print_form_value ORDER BY form_id, field",
+        |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        },
+    )?;
+    for (form_id, field, value) in values {
+        if let Some(form) = forms.iter_mut().find(|f| f.id == form_id) {
+            form.values.insert(field, value);
+        }
+    }
+    Ok(forms)
+}
+
+fn substitute_texts(conn: &Connection) -> AppResult<Vec<SubstituteText>> {
+    collect(
+        conn,
+        "SELECT class_id, field, value FROM substitute_text ORDER BY class_id, field",
+        |r| {
+            Ok(SubstituteText {
+                class_id: r.get(0)?,
+                field: r.get(1)?,
+                value: r.get(2)?,
+            })
+        },
+    )
+}
+
+fn substitute_school_texts(conn: &Connection) -> AppResult<Vec<SubstituteSchoolText>> {
+    collect(
+        conn,
+        "SELECT field, value FROM substitute_school_text ORDER BY field",
+        |r| {
+            Ok(SubstituteSchoolText {
+                field: r.get(0)?,
+                value: r.get(1)?,
+            })
+        },
+    )
+}
+
 fn textbooks(conn: &Connection) -> AppResult<Vec<Textbook>> {
     collect(
         conn,
@@ -2007,6 +2072,132 @@ pub fn save_resource(conn: &Connection, r: &Resource) -> AppResult<i64> {
 
 pub fn delete_resource(conn: &Connection, id: i64) -> AppResult<()> {
     conn.execute("DELETE FROM resource WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+// ------------------------------------------------------- M7: print forms ---
+
+/// A write the file refuses, reported the way a `CHECK` constraint would be.
+fn refused(message: &str) -> crate::error::AppError {
+    rusqlite::Error::SqliteFailure(
+        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CONSTRAINT),
+        Some(message.to_string()),
+    )
+    .into()
+}
+
+/// Creates a form (`id` 0) or saves an existing one's **head only** — its kind,
+/// name and dates. Its values are never touched here: they are written one at
+/// a time by [`set_print_form_value`], so a rename can never put back a stale
+/// copy of them. Returns the form's id.
+pub fn save_print_form(conn: &Connection, f: &PrintForm) -> AppResult<i64> {
+    if !PRINT_FORM_KINDS.contains(&f.kind.as_str()) {
+        return Err(refused("unknown print form kind"));
+    }
+    if f.id == 0 {
+        conn.execute(
+            "INSERT INTO print_form (kind, name, created, updated) VALUES (?1, ?2, ?3, ?4)",
+            params![f.kind, f.name, f.created, f.updated],
+        )?;
+        Ok(conn.last_insert_rowid())
+    } else {
+        conn.execute(
+            "UPDATE print_form SET kind = ?2, name = ?3, created = ?4, updated = ?5 WHERE id = ?1",
+            params![f.id, f.kind, f.name, f.created, f.updated],
+        )?;
+        Ok(f.id)
+    }
+}
+
+/// One field of a saved form. An empty value removes the field — a blank on a
+/// form is the absence of a row, as an unmarked attendance day is — and either
+/// way the form's `updated` becomes `today`, the day the shell read.
+pub fn set_print_form_value(
+    conn: &Connection,
+    form_id: i64,
+    field: &str,
+    value: &str,
+    today: &str,
+) -> AppResult<()> {
+    if field.is_empty() {
+        return Err(refused("a print form value needs a field"));
+    }
+    let changed = conn.execute(
+        "UPDATE print_form SET updated = ?2 WHERE id = ?1",
+        params![form_id, today],
+    )?;
+    if changed == 0 {
+        return Err(refused("no such print form"));
+    }
+    if value.is_empty() {
+        conn.execute(
+            "DELETE FROM print_form_value WHERE form_id = ?1 AND field = ?2",
+            params![form_id, field],
+        )?;
+    } else {
+        conn.execute(
+            "INSERT INTO print_form_value (form_id, field, value) VALUES (?1, ?2, ?3)
+             ON CONFLICT(form_id, field) DO UPDATE SET value = ?3",
+            params![form_id, field, value],
+        )?;
+    }
+    Ok(())
+}
+
+/// Deletes a form and, by the schema's cascade, its values — and nothing else.
+pub fn delete_print_form(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute("DELETE FROM print_form WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+// ------------------------------------------------ M7: the substitute folder ---
+
+/// Writes one of the folder's own texts. `class_id` of `None` is a text every
+/// class's folder shares — the contacts and the procedures.
+///
+/// **An empty value is stored**, because it is the teacher clearing a box that
+/// would otherwise show its suggested text. [`reset_substitute_text`] is the
+/// only way back to the suggestion.
+pub fn set_substitute_text(
+    conn: &Connection,
+    class_id: Option<i64>,
+    field: &str,
+    value: &str,
+) -> AppResult<()> {
+    if field.is_empty() {
+        return Err(refused("a folder text needs a field"));
+    }
+    match class_id {
+        Some(class_id) => conn.execute(
+            "INSERT INTO substitute_text (class_id, field, value) VALUES (?1, ?2, ?3)
+             ON CONFLICT(class_id, field) DO UPDATE SET value = ?3",
+            params![class_id, field, value],
+        )?,
+        None => conn.execute(
+            "INSERT INTO substitute_school_text (field, value) VALUES (?1, ?2)
+             ON CONFLICT(field) DO UPDATE SET value = ?2",
+            params![field, value],
+        )?,
+    };
+    Ok(())
+}
+
+/// Forgets what the teacher wrote in one box, so its suggested text shows again.
+pub fn reset_substitute_text(
+    conn: &Connection,
+    class_id: Option<i64>,
+    field: &str,
+) -> AppResult<()> {
+    match class_id {
+        Some(class_id) => conn.execute(
+            "DELETE FROM substitute_text WHERE class_id = ?1 AND field = ?2",
+            params![class_id, field],
+        )?,
+        None => conn.execute(
+            "DELETE FROM substitute_school_text WHERE field = ?1",
+            params![field],
+        )?,
+    };
     Ok(())
 }
 
@@ -4408,5 +4599,268 @@ mod tests {
             "editing the second unit must leave the first byte-for-byte"
         );
         assert_eq!(after.units[1].title, "Γεωμετρία: τρίγωνα και τετράπλευρα");
+    }
+
+    // ---------------------------------------------------------------- M7 ---
+
+    fn blank_form(kind: &str, name: &str) -> PrintForm {
+        PrintForm {
+            id: 0,
+            kind: kind.into(),
+            name: name.into(),
+            created: "2026-11-02".into(),
+            updated: "2026-11-02".into(),
+            values: std::collections::BTreeMap::new(),
+        }
+    }
+
+    /// M7's first acceptance criterion at the storage layer: a form saved
+    /// under a name, filled, closed and reopened comes back whole — then takes
+    /// an edit, and comes back with that too.
+    #[test]
+    fn a_print_form_is_saved_under_its_name_reopened_and_re_edited() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+
+        let conn = db::open_at(&path).unwrap();
+        let id = save_print_form(&conn, &blank_form("minutes", "Σύλλογος Νοεμβρίου")).unwrap();
+        set_print_form_value(&conn, id, "kind", "Σύλλογος Διδασκόντων", "2026-11-03").unwrap();
+        set_print_form_value(&conn, id, "agenda", "1. Πρόοδος\n2. Εκδρομή", "2026-11-03").unwrap();
+        drop(conn); // the app quits
+
+        let conn = db::open_at(&path).unwrap();
+        let form = load(&conn).unwrap().print_forms.remove(0);
+        assert_eq!(form.name, "Σύλλογος Νοεμβρίου");
+        assert_eq!(form.kind, "minutes");
+        assert_eq!(form.created, "2026-11-02");
+        assert_eq!(form.updated, "2026-11-03");
+        assert_eq!(form.values["kind"], "Σύλλογος Διδασκόντων");
+        assert_eq!(form.values["agenda"], "1. Πρόοδος\n2. Εκδρομή");
+
+        // Re-edited: renamed, one value changed, one emptied.
+        save_print_form(
+            &conn,
+            &PrintForm {
+                name: "Σύλλογος 9 Νοεμβρίου".into(),
+                ..form.clone()
+            },
+        )
+        .unwrap();
+        set_print_form_value(&conn, id, "agenda", "1. Πρόοδος", "2026-11-09").unwrap();
+        set_print_form_value(&conn, id, "kind", "", "2026-11-09").unwrap();
+        drop(conn);
+
+        let conn = db::open_at(&path).unwrap();
+        let form = load(&conn).unwrap().print_forms.remove(0);
+        assert_eq!(form.name, "Σύλλογος 9 Νοεμβρίου");
+        assert_eq!(form.updated, "2026-11-09");
+        assert_eq!(
+            form.values.get("agenda").map(String::as_str),
+            Some("1. Πρόοδος")
+        );
+        // An emptied field is removed, not stored blank.
+        assert!(!form.values.contains_key("kind"));
+    }
+
+    /// Saving a form's head never writes its values. A rename carrying a stale
+    /// copy of the values — here, an empty one — must not undo a value saved
+    /// a moment before it.
+    #[test]
+    fn saving_a_forms_head_never_rewrites_its_values() {
+        let (_dir, conn) = open();
+        let id = save_print_form(&conn, &blank_form("goals", "")).unwrap();
+        let stale = load(&conn).unwrap().print_forms.remove(0);
+        set_print_form_value(&conn, id, "goal.1.goal", "Διαφοροποίηση", "2026-11-02").unwrap();
+
+        save_print_form(
+            &conn,
+            &PrintForm {
+                name: "Στόχοι".into(),
+                ..stale
+            },
+        )
+        .unwrap();
+
+        let form = load(&conn).unwrap().print_forms.remove(0);
+        assert_eq!(form.name, "Στόχοι");
+        assert_eq!(form.values["goal.1.goal"], "Διαφοροποίηση");
+    }
+
+    /// The create-then-edit rule at the storage layer: a new form from a file
+    /// that already holds two leaves both byte-for-byte as they were.
+    #[test]
+    fn a_new_form_leaves_every_other_form_exactly_as_it_was() {
+        let (_dir, conn) = open();
+        let a = save_print_form(&conn, &blank_form("roomPlan", "Αίθουσα 12")).unwrap();
+        set_print_form_value(&conn, a, "desk.1.1", "Νίκος", "2026-11-02").unwrap();
+        let b = save_print_form(&conn, &blank_form("roomPlan", "Αίθουσα 14")).unwrap();
+        set_print_form_value(&conn, b, "desk.2.2", "Ελένη", "2026-11-02").unwrap();
+        let before = load(&conn).unwrap().print_forms;
+
+        let c = save_print_form(&conn, &blank_form("roomPlan", "")).unwrap();
+        set_print_form_value(&conn, c, "desk.1.1", "Μαρία", "2026-11-05").unwrap();
+
+        let after = load(&conn).unwrap().print_forms;
+        assert_eq!(after.len(), 3);
+        assert_eq!(&after[..2], &before[..]);
+        assert_eq!(after[2].values["desk.1.1"], "Μαρία");
+    }
+
+    #[test]
+    fn deleting_a_form_takes_its_values_and_nothing_else() {
+        let (_dir, conn) = open();
+        let a = save_print_form(&conn, &blank_form("loans", "Βιβλία")).unwrap();
+        set_print_form_value(&conn, a, "reg.1.to", "Ελένη", "2026-11-02").unwrap();
+        let b = save_print_form(&conn, &blank_form("loans", "Υπολογιστές")).unwrap();
+        set_print_form_value(&conn, b, "reg.1.to", "Νίκος", "2026-11-02").unwrap();
+
+        delete_print_form(&conn, a).unwrap();
+
+        let forms = load(&conn).unwrap().print_forms;
+        assert_eq!(forms.len(), 1);
+        assert_eq!(forms[0].values["reg.1.to"], "Νίκος");
+        let orphans: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM print_form_value WHERE form_id = ?1",
+                [a],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(orphans, 0);
+    }
+
+    #[test]
+    fn the_file_refuses_a_form_kind_it_does_not_know_and_a_value_for_no_form() {
+        let (_dir, conn) = open();
+        assert!(save_print_form(&conn, &blank_form("certificate", "")).is_err());
+        assert!(set_print_form_value(&conn, 999, "name", "Χ", "2026-11-02").is_err());
+        assert!(load(&conn).unwrap().print_forms.is_empty());
+    }
+
+    /// **A print form is a loose page.** Nothing about one reaches — or is
+    /// reached from — a class, a student or a seat: no column of either M7
+    /// form table links anywhere, and deleting a class or a student leaves a
+    /// saved room plan exactly as it was, names and all.
+    #[test]
+    fn a_print_form_is_linked_to_nothing_else_in_the_file() {
+        let (_dir, conn) = open();
+        for table in ["print_form", "print_form_value"] {
+            let mut stmt = conn
+                .prepare(&format!("PRAGMA foreign_key_list({table})"))
+                .unwrap();
+            let targets: Vec<String> = stmt
+                .query_map([], |r| r.get::<_, String>(2))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
+            assert!(
+                targets.iter().all(|t| t == "print_form"),
+                "{table} must link to nothing but its own form: {targets:?}"
+            );
+        }
+
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+        let student_id = save_student(&conn, &sample_student()).unwrap();
+        let form = save_print_form(&conn, &blank_form("roomPlan", "Α1")).unwrap();
+        set_print_form_value(&conn, form, "desk.1.1", "Ελένη", "2026-11-02").unwrap();
+        let before = load(&conn).unwrap().print_forms;
+
+        delete_student(&conn, student_id).unwrap();
+        delete_class(&conn, class_id).unwrap();
+
+        assert_eq!(load(&conn).unwrap().print_forms, before);
+    }
+
+    /// The prefilled-once rule. No row means *untouched* — the suggested text
+    /// shows; a row with an empty value means *she cleared it* — and must stay
+    /// cleared; resetting removes the row. A store that treated an empty value
+    /// as "no row" would bring the suggestion back on the next launch.
+    #[test]
+    fn a_cleared_folder_text_is_stored_and_differs_from_an_untouched_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+        let conn = db::open_at(&path).unwrap();
+        let class_id = save_class(&conn, &sample_class()).unwrap();
+
+        set_substitute_text(&conn, Some(class_id), "rules", "Μπαίνουμε με τη σειρά.").unwrap();
+        set_substitute_text(&conn, Some(class_id), "materials", "").unwrap();
+        set_substitute_text(&conn, None, "proc.devices", "").unwrap();
+        drop(conn); // the app quits
+
+        let conn = db::open_at(&path).unwrap();
+        let planner = load(&conn).unwrap();
+        let text = |field: &str| {
+            planner
+                .substitute_texts
+                .iter()
+                .find(|t| t.class_id == class_id && t.field == field)
+                .map(|t| t.value.clone())
+        };
+        assert_eq!(text("rules").as_deref(), Some("Μπαίνουμε με τη σειρά."));
+        assert_eq!(
+            text("materials").as_deref(),
+            Some(""),
+            "cleared stays cleared"
+        );
+        assert_eq!(text("problem"), None, "untouched has no row at all");
+        assert_eq!(planner.substitute_school_texts.len(), 1);
+        assert_eq!(planner.substitute_school_texts[0].value, "");
+
+        reset_substitute_text(&conn, Some(class_id), "materials").unwrap();
+        reset_substitute_text(&conn, None, "proc.devices").unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.substitute_texts.len(), 1);
+        assert!(planner.substitute_school_texts.is_empty());
+    }
+
+    /// A class's folder texts go with the class; the school-wide ones belong
+    /// to no class and stay.
+    #[test]
+    fn deleting_a_class_drops_its_folder_texts_and_keeps_the_schools() {
+        let (_dir, conn) = open();
+        let a = save_class(&conn, &sample_class()).unwrap();
+        let b = save_class(&conn, &sample_class()).unwrap();
+        set_substitute_text(&conn, Some(a), "rules", "Α").unwrap();
+        set_substitute_text(&conn, Some(b), "rules", "Β").unwrap();
+        set_substitute_text(&conn, None, "contact.principal", "Α. Νικολάου").unwrap();
+
+        delete_class(&conn, a).unwrap();
+
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.substitute_texts.len(), 1);
+        assert_eq!(planner.substitute_texts[0].class_id, b);
+        assert_eq!(planner.substitute_school_texts[0].value, "Α. Νικολάου");
+    }
+
+    /// **The folder keeps no copy of the seating** — M7's second acceptance
+    /// criterion, held at the storage layer. No M7 table has a column that
+    /// could hold a student, a desk or a week, so the only place a seat exists
+    /// is M1's `seat` table, which is what the folder reads.
+    #[test]
+    fn nothing_m7_adds_can_hold_a_seat_a_student_or_a_week() {
+        let (_dir, conn) = open();
+        for table in [
+            "print_form",
+            "print_form_value",
+            "substitute_text",
+            "substitute_school_text",
+        ] {
+            let mut stmt = conn
+                .prepare(&format!("PRAGMA table_info({table})"))
+                .unwrap();
+            let columns: Vec<String> = stmt
+                .query_map([], |r| r.get::<_, String>(1))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
+            assert!(!columns.is_empty(), "{table} exists");
+            for column in &columns {
+                assert!(
+                    !["student_id", "row", "col", "seat", "week", "week_monday"]
+                        .contains(&column.as_str()),
+                    "{table}.{column} could hold a copy of something the folder must read live"
+                );
+            }
+        }
     }
 }

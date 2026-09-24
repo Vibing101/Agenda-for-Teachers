@@ -506,6 +506,40 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     )
     .unwrap();
 
+    // M7 — a saved print form, and the substitute folder's own texts in all
+    // three states: written, cleared, and (by having no row) untouched.
+    //
+    // **No seat, roster or week is written for the folder here, and none
+    // exists to write.** The folder reads M1's seating and M3's plan live, so
+    // what proves it survives a quit is that *they* do — which the M1 and M3
+    // halves of this test already assert.
+    let form_id = store::save_print_form(
+        &conn,
+        &PrintForm {
+            id: 0,
+            kind: "minutes".into(),
+            name: "Σύλλογος Νοεμβρίου".into(),
+            created: "2026-11-09".into(),
+            updated: "2026-11-09".into(),
+            values: Default::default(),
+        },
+    )
+    .unwrap();
+    store::set_print_form_value(&conn, form_id, "kind", "Σύλλογος Διδασκόντων", "2026-11-09")
+        .unwrap();
+    store::set_print_form_value(
+        &conn,
+        form_id,
+        "agenda",
+        "1. Πρόοδος\n2. Εκδρομή",
+        "2026-11-09",
+    )
+    .unwrap();
+    store::set_substitute_text(&conn, Some(class_a), "rules", "Μπαίνουμε με τη σειρά.").unwrap();
+    store::set_substitute_text(&conn, Some(class_a), "materials", "").unwrap();
+    store::set_substitute_text(&conn, None, "contact.principal", "Α. Νικολάου · 22 123456")
+        .unwrap();
+
     let saved = store::load(&conn).unwrap();
     drop(conn); // the app quits
     let after_write = Fingerprint::of(&paths::db_path()).unwrap();
@@ -772,6 +806,33 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert_eq!(resource.detail, "https://www.geogebra.org");
     assert_eq!(resource.notes, "Για τη γεωμετρία");
 
+    // M7, read back after the quit: the form under its own name with both
+    // values, and the folder's texts with **the cleared one still cleared** —
+    // an empty row, not a missing one, so the suggestion does not come back.
+    assert_eq!(reloaded.print_forms.len(), 1);
+    let form = &reloaded.print_forms[0];
+    assert_eq!(form.kind, "minutes");
+    assert_eq!(form.name, "Σύλλογος Νοεμβρίου");
+    assert_eq!(form.values["kind"], "Σύλλογος Διδασκόντων");
+    assert_eq!(form.values["agenda"], "1. Πρόοδος\n2. Εκδρομή");
+    let folder_text = |field: &str| {
+        reloaded
+            .substitute_texts
+            .iter()
+            .find(|t| t.class_id == class_a && t.field == field)
+            .map(|t| t.value.clone())
+    };
+    assert_eq!(
+        folder_text("rules").as_deref(),
+        Some("Μπαίνουμε με τη σειρά.")
+    );
+    assert_eq!(folder_text("materials").as_deref(), Some(""));
+    assert_eq!(folder_text("problem"), None);
+    assert_eq!(
+        reloaded.substitute_school_texts[0].value,
+        "Α. Νικολάου · 22 123456"
+    );
+
     assert_eq!(moved.classes, reloaded.classes);
     assert_eq!(moved.students, reloaded.students);
     assert_eq!(moved.enrollments, reloaded.enrollments);
@@ -817,6 +878,15 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert_eq!(moved.trip_consents, reloaded.trip_consents);
     assert_eq!(moved.textbooks, reloaded.textbooks);
     assert_eq!(moved.resources, reloaded.resources);
+    // M7's records carry no week at all, so moving the school year leaves them
+    // alone — and the folder's "current week" is derived from the day, not
+    // stored, so there is nothing of it here to move.
+    assert_eq!(moved.print_forms, reloaded.print_forms);
+    assert_eq!(moved.substitute_texts, reloaded.substitute_texts);
+    assert_eq!(
+        moved.substitute_school_texts,
+        reloaded.substitute_school_texts
+    );
     drop(conn);
 
     // Opening and reading must not disturb the file, or every session would

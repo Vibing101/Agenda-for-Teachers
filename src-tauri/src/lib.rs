@@ -544,6 +544,59 @@ fn delete_resource(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Plan
     mutate(&state, |tx| store::delete_resource(tx, id))
 }
 
+// ------------------------------------------------------------------- M7 ---
+
+/// Creates a print form or saves its head — never its values.
+#[tauri::command]
+fn save_print_form(state: tauri::State<'_, AppState>, form: PrintForm) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_print_form(tx, &form).map(|_| ()))
+}
+
+/// One field of a saved form; an empty value removes it. `today` is the day the
+/// shell read, recorded as the form's last change.
+#[tauri::command]
+fn set_print_form_value(
+    state: tauri::State<'_, AppState>,
+    form_id: i64,
+    field: String,
+    value: String,
+    today: String,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::set_print_form_value(tx, form_id, &field, &value, &today)
+    })
+}
+
+#[tauri::command]
+fn delete_print_form(state: tauri::State<'_, AppState>, id: i64) -> AppResult<Planner> {
+    mutate(&state, |tx| store::delete_print_form(tx, id))
+}
+
+/// One of the substitute folder's own texts. There is deliberately no command
+/// that stores a seat, a roster or a week for the folder: it reads those live.
+#[tauri::command]
+fn set_substitute_text(
+    state: tauri::State<'_, AppState>,
+    class_id: Option<i64>,
+    field: String,
+    value: String,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::set_substitute_text(tx, class_id, &field, &value)
+    })
+}
+
+#[tauri::command]
+fn reset_substitute_text(
+    state: tauri::State<'_, AppState>,
+    class_id: Option<i64>,
+    field: String,
+) -> AppResult<Planner> {
+    mutate(&state, |tx| {
+        store::reset_substitute_text(tx, class_id, &field)
+    })
+}
+
 // ------------------------------------------------------------ PDF export ---
 
 /// Writes one document to `exports/` as a real PDF and returns its path.
@@ -884,6 +937,11 @@ pub fn run() {
             delete_textbook,
             save_resource,
             delete_resource,
+            save_print_form,
+            set_print_form_value,
+            delete_print_form,
+            set_substitute_text,
+            reset_substitute_text,
             export_pdf,
             print_job,
             print_ready,

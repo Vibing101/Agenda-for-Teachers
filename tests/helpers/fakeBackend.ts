@@ -35,6 +35,8 @@ import type {
   ParentAppointment,
   ParentContact,
   Planner,
+  PrintForm,
+  PrintFormValue,
   Resource,
   SchoolClass,
   SchoolYear,
@@ -101,6 +103,9 @@ export function emptyPlanner(): Planner {
     trip_consents: [],
     textbooks: [],
     resources: [],
+    print_forms: [],
+    substitute_texts: [],
+    substitute_school_texts: [],
   };
 }
 
@@ -136,7 +141,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           app_folder: "/Drive/Ατζέντα",
           db_path: "/Drive/Ατζέντα/data/planner.sqlite",
           db_exists: true,
-          schema_version: 7,
+          schema_version: 8,
           backup_count: 2,
           last_backup: "2026-09-19T07:30:00+03:00",
           disk_changed: diskChanged,
@@ -196,6 +201,11 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           planner.enrollments = planner.enrollments.filter((e) => e.class_id !== args.id);
           planner.seats = planner.seats.filter((s) => s.class_id !== args.id);
           planner.lesson_plans = planner.lesson_plans.filter((p) => p.class_id !== args.id);
+          // The class's substitute folder texts go with it, as the schema's
+          // cascade does. The school-wide ones are nobody's to delete.
+          planner.substitute_texts = planner.substitute_texts.filter(
+            (s) => s.class_id !== args.id,
+          );
           // Attendance and absence events are per class and cascade with it.
           planner.attendance_marks = planner.attendance_marks.filter(
             (m) => m.class_id !== args.id,
@@ -572,6 +582,71 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
         case "delete_resource":
           planner.resources = planner.resources.filter((r) => r.id !== args.id);
           break;
+        // M7. A print form is written in two ways that never overlap: its head
+        // (kind, name, dates) and one value at a time — so a rename can never
+        // write back a stale copy of the values, exactly as the Rust side.
+        case "save_print_form": {
+          const f = args.form as PrintForm;
+          if (f.id === 0) {
+            planner.print_forms = [...planner.print_forms, { ...f, id: nextId++, values: {} }];
+          } else {
+            planner.print_forms = planner.print_forms.map((x) =>
+              x.id === f.id
+                ? { ...x, kind: f.kind, name: f.name, created: f.created, updated: f.updated }
+                : x,
+            );
+          }
+          break;
+        }
+        case "set_print_form_value": {
+          const v = { form_id: args.formId, field: args.field, value: args.value } as PrintFormValue;
+          planner.print_forms = planner.print_forms.map((x) => {
+            if (x.id !== v.form_id) return x;
+            const values = { ...x.values };
+            // An emptied field is removed, not stored blank.
+            if (v.value === "") delete values[v.field];
+            else values[v.field] = v.value;
+            return { ...x, values, updated: args.today as string };
+          });
+          break;
+        }
+        case "delete_print_form":
+          planner.print_forms = planner.print_forms.filter((f) => f.id !== args.id);
+          break;
+        case "set_substitute_text": {
+          // Stored even when empty: an empty row is "she cleared it", which is
+          // not the same as no row, "she has not touched it".
+          const classId = args.classId as number | null;
+          const field = args.field as string;
+          const value = args.value as string;
+          if (classId === null) {
+            planner.substitute_school_texts = [
+              ...planner.substitute_school_texts.filter((s) => s.field !== field),
+              { field, value },
+            ];
+          } else {
+            planner.substitute_texts = [
+              ...planner.substitute_texts.filter(
+                (s) => !(s.class_id === classId && s.field === field),
+              ),
+              { class_id: classId, field, value },
+            ];
+          }
+          break;
+        }
+        case "reset_substitute_text": {
+          const classId = args.classId as number | null;
+          if (classId === null) {
+            planner.substitute_school_texts = planner.substitute_school_texts.filter(
+              (s) => s.field !== args.field,
+            );
+          } else {
+            planner.substitute_texts = planner.substitute_texts.filter(
+              (s) => !(s.class_id === classId && s.field === args.field),
+            );
+          }
+          break;
+        }
         case "export_pdf":
           // The real export opens a hidden window and drives the platform's
           // print pipeline; there is no webview here, so the fake only records

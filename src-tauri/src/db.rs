@@ -19,7 +19,7 @@ use crate::model::GOAL_AREAS;
 use rusqlite::{params, Connection};
 use std::path::Path;
 
-pub const SCHEMA_VERSION: i64 = 7;
+pub const SCHEMA_VERSION: i64 = 8;
 
 pub fn open_at(db_path: &Path) -> AppResult<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -77,6 +77,11 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     if current < 7 {
         migrate_to_7(conn)?;
         conn.pragma_update(None, "user_version", 7)?;
+        current = 7;
+    }
+    if current < 8 {
+        migrate_to_8(conn)?;
+        conn.pragma_update(None, "user_version", 8)?;
     }
     Ok(())
 }
@@ -679,6 +684,62 @@ fn migrate_to_7(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
+/// M7: the eleven standalone print forms, and the substitute folder's own
+/// words. Three tables, purely additive; nothing earlier is touched.
+///
+/// **Two opposite kinds of record, and the schema keeps them apart.**
+///
+/// * `print_form` and `print_form_value` hold the saved forms. A form is a
+///   loose page: **no column links it to a class, a student or anything else**,
+///   because the source's `Πρότυπα για εκτύπωση` are blanks with nothing behind
+///   them. Its values are one row per filled field; an emptied field is
+///   removed. `kind` carries no `CHECK`, so a filled letter could join as one
+///   more kind without a migration — see [`crate::model::PRINT_FORM_KINDS`].
+/// * `substitute_text` and `substitute_school_text` hold only what the
+///   teacher writes *into* the substitute folder. **No column holds a seat, a
+///   student or a week**: the folder reads those live from M1's seating, the
+///   roster, the timetable and M3's plans, so it can never show a stale copy of
+///   them. A row with an empty `value` means she cleared a box; no row means
+///   she has not touched it and the suggested text shows.
+///
+/// Nothing here is keyed by a week index either.
+fn migrate_to_8(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "BEGIN;
+
+         CREATE TABLE print_form (
+             id      INTEGER PRIMARY KEY,
+             kind    TEXT NOT NULL,
+             name    TEXT NOT NULL DEFAULT '',
+             created TEXT NOT NULL DEFAULT '',
+             updated TEXT NOT NULL DEFAULT ''
+         );
+         CREATE INDEX print_form_by_kind ON print_form(kind);
+
+         CREATE TABLE print_form_value (
+             form_id INTEGER NOT NULL REFERENCES print_form(id) ON DELETE CASCADE,
+             field   TEXT NOT NULL,
+             value   TEXT NOT NULL,
+             PRIMARY KEY (form_id, field)
+         );
+
+         CREATE TABLE substitute_text (
+             class_id INTEGER NOT NULL REFERENCES class(id) ON DELETE CASCADE,
+             field    TEXT NOT NULL,
+             value    TEXT NOT NULL,
+             PRIMARY KEY (class_id, field)
+         );
+
+         CREATE TABLE substitute_school_text (
+             field TEXT PRIMARY KEY,
+             value TEXT NOT NULL
+         );
+
+         COMMIT;",
+    )?;
+    Ok(())
+}
+
 /// Folds every M1 `class_slot` row into the master timetable, losing none.
 ///
 /// A slot's `(period_label, start_time, end_time)` becomes an hour, and the slot
@@ -1056,7 +1117,7 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
 
         let planner = store::load(&conn).unwrap();
         // Everything M3 wrote is still there, untouched.
@@ -1186,13 +1247,15 @@ mod tests {
     }
 
     /// A data file as the **signed-off M5 build** left it — `user_version = 6`,
-    /// with real M5 rows on it — climbs to 7 and keeps every one of them.
+    /// with real M5 rows on it — climbs to the current schema and keeps every
+    /// one of them. (Written at M6 as "climbs to 7"; renamed at M7, the way M6
+    /// renamed the M4-era test, so the ladder's rungs do not each pin a number.)
     ///
     /// The M5-era equivalent of the test above, added because M6 is the first
     /// milestone to write a migration on top of what M5 wrote. Together the
     /// three cover the ladder from the oldest shipped file to the newest.
     #[test]
-    fn an_m5_file_with_data_on_it_climbs_to_7_and_keeps_every_row() {
+    fn an_m5_file_with_data_on_it_climbs_to_the_current_schema_and_keeps_every_row() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("planner.sqlite");
 
@@ -1227,7 +1290,6 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
-        assert_eq!(version, 7);
 
         let planner = store::load(&conn).unwrap();
         // Every M5 row, exactly as written.
@@ -1256,6 +1318,77 @@ mod tests {
         assert!(planner.trip_consents.is_empty());
         assert!(planner.textbooks.is_empty());
         assert!(planner.resources.is_empty());
+    }
+
+    /// A data file as the **signed-off M6 build** left it — `user_version = 7`,
+    /// with real M6 rows on it — climbs to 8 and keeps every one of them.
+    ///
+    /// The M6-era rung of the ladder the three tests above started: M7 is the
+    /// first milestone to write a migration on top of what M6 wrote. It also
+    /// carries a class with a seating plan, because the substitute folder reads
+    /// that seating live and the migration must neither move it nor copy it.
+    #[test]
+    fn an_m6_file_with_data_on_it_climbs_to_8_and_keeps_every_row() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+
+        let conn = Connection::open(&path).unwrap();
+        migrate_to_1(&conn).unwrap();
+        migrate_to_2(&conn).unwrap();
+        migrate_to_3(&conn).unwrap();
+        migrate_to_4(&conn).unwrap();
+        migrate_to_5(&conn).unwrap();
+        migrate_to_6(&conn).unwrap();
+        migrate_to_7(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 7).unwrap();
+        conn.execute_batch(
+            "INSERT INTO class (id, name, subject, room, responsible, seating_rows, seating_cols,
+                                seating_notes)
+             VALUES (1, 'Α1', 'Μαθηματικά', 'Αίθουσα 12', 'Κ. Γεωργίου', 5, 6,
+                     'Η Ελένη μπροστά');
+             INSERT INTO student (id, full_name) VALUES (1, 'Ελένη Παπαδοπούλου');
+             INSERT INTO enrollment (class_id, student_id, roster_no) VALUES (1, 1, 1);
+             INSERT INTO seat (class_id, row, col, student_id) VALUES (1, 0, 2, 1);
+             INSERT INTO lesson_plan (class_id, week_monday, notes, assessment)
+             VALUES (1, '2026-11-02', 'Κεφάλαιο 4', '');
+             INSERT INTO unit (class_id, position, title, hours)
+             VALUES (1, 0, 'Εξισώσεις πρώτου βαθμού', '12');
+             INSERT INTO exam (class_id, date, kind, weight)
+             VALUES (1, '2026-11-19', 'Ολιγόλεπτο', '20%');
+             INSERT INTO trip (id, date, activity, class_id) VALUES (1, '2026-12-04', 'Μουσείο', 1);
+             INSERT INTO trip_consent (trip_id, student_id, state) VALUES (1, 1, 'given');
+             INSERT INTO textbook (title, price) VALUES ('Μαθηματικά Β΄', 'δωρεάν');
+             INSERT INTO resource (category, title) VALUES ('websites', 'GeoGebra');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let conn = open_at(&path).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        assert_eq!(version, 8);
+
+        let planner = store::load(&conn).unwrap();
+        // Every M6 row, exactly as written.
+        assert_eq!(planner.units[0].title, "Εξισώσεις πρώτου βαθμού");
+        assert_eq!(planner.exams[0].weight, "20%");
+        assert_eq!(planner.trips[0].activity, "Μουσείο");
+        assert_eq!(planner.trip_consents[0].state, "given");
+        assert_eq!(planner.textbooks[0].price, "δωρεάν");
+        assert_eq!(planner.resources[0].category, "websites");
+        assert_eq!(planner.lesson_plans[0].notes, "Κεφάλαιο 4");
+        // And M1's seating, which the substitute folder reads **live**: the
+        // migration neither moved the seat nor made a copy of it anywhere.
+        assert_eq!(planner.seats.len(), 1);
+        assert_eq!((planner.seats[0].row, planner.seats[0].col), (0, 2));
+        assert_eq!(planner.classes[0].seating_notes, "Η Ελένη μπροστά");
+
+        // M7's tables exist and are empty — a purely additive migration.
+        assert!(planner.print_forms.is_empty());
+        assert!(planner.substitute_texts.is_empty());
+        assert!(planner.substitute_school_texts.is_empty());
     }
 
     /// **No table anywhere carries a week index**, which is the rule M1 set and

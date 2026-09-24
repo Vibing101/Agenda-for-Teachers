@@ -564,3 +564,43 @@ table.progress tr.current > * { background: var(--accent-soft, rgba(127, 127, 12
 dl.meta { display: flex; flex-wrap: wrap; gap: 4px 24px; margin: 12px 0 0; }
 dl.meta dt { font-size: 0.8rem; color: var(--muted); }
 dl.meta dd { margin: 0 24px 0 0; font-weight: 600; }
+
+/* ------------------------------------------------------------------ M7 --- */
+
+/* A register on a print form: every cell is an input, laid out to the page. */
+.form-table-wrap { overflow-x: auto; margin-top: 12px; }
+table.form-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+table.form-table th { text-align: left; font-size: 0.75rem; color: var(--muted); padding: 4px; }
+table.form-table td { padding: 2px; border-top: 1px solid var(--line); }
+table.form-table input { width: 100%; box-sizing: border-box; padding: 4px 6px; }
+/* The 31-day card: a narrow cell per day, one symbol each. */
+table.form-table.dense th,
+table.form-table.dense td { padding: 1px; text-align: center; }
+table.form-table input.day { min-width: 1.6em; padding: 3px 1px; text-align: center; }
+
+/* A repeated card — one of the goals, or one of the two parent notes. */
+.form-card { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 12px; margin-top: 12px; }
+.form-card.cut { border-style: dashed; }
+.form-card h3 { margin: 0 0 4px; font-size: 0.9rem; }
+
+/* A room plan's desk on a blank form: an input where the folder has a name. */
+.seating input.seat,
+.seating div.seat {
+  min-height: 2.6em;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+}
+.seating div.seat { display: flex; align-items: flex-end; justify-content: center; text-align: center; }
+
+.checklist .field.checkbox { margin-top: 6px; }
+.field-group { flex: 1 1 260px; min-width: 0; }
+.field-group h3 { margin: 12px 0 0; font-size: 0.9rem; }
+
+/* What the folder looks up from elsewhere: shown, never edited, here. */
+dl.live { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 12px 0 0; }
+dl.live dt { font-size: 0.8rem; color: var(--muted); }
+dl.live dd { margin: 0; font-weight: 600; }
+.prewrap { white-space: pre-line; }

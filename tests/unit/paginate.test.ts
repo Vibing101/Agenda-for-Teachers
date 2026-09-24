@@ -8,7 +8,11 @@
  */
 import { describe, expect, it } from "vitest";
 import { paginate, type Measure } from "../../src/print/paginate";
-import { renderPrintDocument, type PrintDocument } from "../../src/print/document";
+import {
+  renderPrintBundle,
+  renderPrintDocument,
+  type PrintDocument,
+} from "../../src/print/document";
 
 function sheet(rowCount: number): HTMLElement {
   const doc: PrintDocument = {
@@ -102,3 +106,103 @@ describe("paginating a sheet", () => {
     expect([result.pageWidth, result.pageHeight]).toEqual([841.89, 595.28]);
   });
 });
+
+/**
+ * M7: several documents in one file — the substitute folder's "one combined
+ * multi-page PDF, not 5 separate files". The print window cuts every sheet it
+ * is given onto pages in order, each sheet starting a page of its own, and the
+ * Rust side captures however many pages that comes to.
+ */
+describe("paginating several documents into one file", () => {
+  const doc = (title: string, rows = 0, extra: Partial<PrintDocument> = {}): PrintDocument => ({
+    title,
+    meta: [],
+    table: rows
+      ? {
+          head: [{ text: "Ώρα" }],
+          rows: Array.from({ length: rows }, (_, i) => [{ text: `${title} ${i + 1}` }]),
+        }
+      : undefined,
+    blocks: rows ? [] : [{ kind: "prose", lines: [`Κείμενο του ${title}`] }],
+    footer: "Ατζέντα Εκπαιδευτικού",
+    ...extra,
+  });
+
+  function bundle(docs: PrintDocument[]): HTMLElement {
+    const root = document.createElement("div");
+    root.innerHTML = renderPrintBundle(docs, true);
+    document.body.appendChild(root);
+    return root;
+  }
+
+  it("gives every document its own page, in order, in one file", () => {
+    const titles = ["Εξώφυλλο", "Πληροφορίες", "Εβδομάδα", "Αίθουσα", "Μέρα", "Επαφές"];
+    const root = bundle(titles.map((t) => doc(t)));
+    const result = paginate(root, measuring(20));
+
+    expect(result.pages).toBe(6);
+    const pages = Array.from(root.querySelectorAll(".page"));
+    expect(pages.map((p) => p.querySelector("header h1")?.textContent)).toEqual(titles);
+    // Each page carries its own document's content and no other's.
+    pages.forEach((page, i) => {
+      expect(page.textContent).toContain(`Κείμενο του ${titles[i]}`);
+      titles
+        .filter((_, j) => j !== i)
+        .forEach((other) => expect(page.textContent).not.toContain(`Κείμενο του ${other}`));
+    });
+    // No sheet is left behind unpaginated.
+    expect(root.querySelectorAll("[data-sheet]")).toHaveLength(0);
+  });
+
+  it("starts the next document on a fresh page even when the last one ran over", () => {
+    // 100 + 22n ≤ 538 → 19 rows a page, so 30 rows take two pages.
+    const root = bundle([doc("Εβδομάδα", 30), doc("Αίθουσα", 3)]);
+    const result = paginate(root, measuring(22));
+
+    expect(result.pages).toBe(3);
+    const pages = Array.from(root.querySelectorAll(".page"));
+    expect(pages.map((p) => p.querySelector("header h1")?.textContent)).toEqual([
+      "Εβδομάδα",
+      "Εβδομάδα",
+      "Αίθουσα",
+    ]);
+    expect(pages[2].textContent).not.toContain("Εβδομάδα 30");
+    expect(pages[1].textContent).toContain("Εβδομάδα 30");
+  });
+
+  it("leaves a single document exactly as it paginated before", () => {
+    const single = document.createElement("div");
+    single.innerHTML = renderPrintDocument(doc("Βαθμοί", 40), true);
+    document.body.appendChild(single);
+    const viaBundle = bundle([doc("Βαθμοί", 40)]);
+
+    expect(paginate(single, measuring(22)).pages).toBe(paginate(viaBundle, measuring(22)).pages);
+    expect(single.innerHTML).toBe(viaBundle.innerHTML);
+  });
+
+  /**
+   * A regression test for a defect found while writing this: the stylesheet
+   * frames a certificate as `.certificate .page-inner`, but the element that
+   * carried `certificate` was the sheet — which the paginator removes — so no
+   * page ever matched, and M5's two award certificates printed with no frame
+   * and an ordinary-sized title. Confirmed to fail against the pre-M7
+   * paginator.
+   */
+  it("carries a sheet's classes onto its pages, so a certificate keeps its frame", () => {
+    const root = bundle([doc("Έπαινος", 0, { certificate: true })]);
+    paginate(root, measuring(20));
+    const page = root.querySelector(".page")!;
+    expect(page.classList.contains("certificate")).toBe(true);
+    expect(page.querySelector(".certificate .page-inner, .page-inner")).not.toBeNull();
+    expect(root.querySelector(".certificate .page-inner")).not.toBeNull();
+  });
+
+  it("keeps one dense sheet from tightening the others in its bundle", () => {
+    const root = bundle([doc("Κάρτα", 2, { dense: true }), doc("Μητρώο", 2)]);
+    paginate(root, measuring(20));
+    const [dense, plain] = Array.from(root.querySelectorAll(".page"));
+    expect(dense.classList.contains("dense")).toBe(true);
+    expect(plain.classList.contains("dense")).toBe(false);
+  });
+});
+

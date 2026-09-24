@@ -44,10 +44,10 @@ describe("the app shell", () => {
   it("shows where the data lives, including the schema version", async () => {
     mount();
     expect(await screen.findByText("/Drive/Ατζέντα/data/planner.sqlite")).toBeInTheDocument();
-    // M6's forward migration: `user_version = 7`. This line is also the
+    // M7's forward migration: `user_version = 8`. This line is also the
     // cheapest check that a manual pass is looking at the build under test —
     // see the bundle-identifier hazard in `docs/MILESTONE_PROMPT.md`.
-    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("8")).toBeInTheDocument();
   });
 
   it("reaches the four M3 sections", async () => {
@@ -162,14 +162,28 @@ describe("the app shell", () => {
    * nowhere else to go — not because the rule was relaxed.
    */
   /**
-   * **Still nine after M6**, and this is the deliberate check the M5 note asked
+   * (M6, kept for the record.) **Still nine after M6**, and this is the deliberate check the M5 note asked
    * the next agent to make. M6 adds seven surfaces and no tab: the spec files
    * every one of them under module 3, which the app already had as `Πλάνο`, so
    * they went in as sub-pages — M4's shape. The number moved from eight to nine
    * at M5, because that module had no section to belong to; nothing about M6
    * moves it again.
    */
-  it("keeps the top row to nine sections after M6", async () => {
+  /**
+   * **Ten after M7 — moved by one, deliberately, and only by one.** M7's two
+   * halves are opposite kinds of thing and are filed apart on purpose:
+   *
+   * * the **substitute folder** is generated per class from the class's own
+   *   data, so it is a sub-page of `Τάξεις` — M4's and M6's shape, no new tab;
+   * * the **eleven print forms** belong to no class, student or record, so no
+   *   existing section is honest about holding them — M5's situation — and
+   *   they take **one** new section, `Πρότυπα`, the source's own word.
+   *
+   * Putting both under one new tab would have cost the same one place and put
+   * a live view of a class's seating beside a blank room plan with nothing
+   * behind it, which is the confusion M7 is built to avoid.
+   */
+  it("keeps the top row to ten sections after M7", async () => {
     mount();
     await screen.findByRole("heading", { name: "Σχολικό έτος" });
     const top = screen.getAllByRole("navigation")[0];
@@ -182,8 +196,39 @@ describe("the app shell", () => {
       "Πλάνο",
       "Ατζέντα",
       "Γονείς & Ομάδα",
+      "Πρότυπα",
       "Σημερινό",
     ]);
+  });
+
+  /**
+   * The folder is filed with the class it is generated from; the forms, which
+   * belong to nothing, have their own section. Τάξεις still opens on the class
+   * list, unmoved.
+   */
+  it("files the substitute folder under Τάξεις and the print forms on their own", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Σχολικό έτος" });
+
+    await user.click(screen.getByRole("button", { name: "Τάξεις" }));
+    expect(await screen.findByRole("heading", { name: "Τα τμήματά μου" })).toBeInTheDocument();
+    const sub = screen.getAllByRole("navigation")[1];
+    expect(within(sub).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Τμήματα",
+      "Φάκελος αναπλήρωσης",
+    ]);
+    await user.click(within(sub).getByRole("button", { name: "Φάκελος αναπλήρωσης" }));
+    expect(
+      await screen.findByRole("heading", { name: "Φάκελος αναπλήρωσης" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Πρότυπα" }));
+    expect(
+      await screen.findByRole("heading", { name: "Πρότυπα για εκτύπωση" }),
+    ).toBeInTheDocument();
+    // A section with no sub-pages: the forms are one screen.
+    expect(screen.getAllByRole("navigation")).toHaveLength(1);
   });
 
   /**

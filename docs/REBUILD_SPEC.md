@@ -337,8 +337,56 @@ sequence.
 | **What deleting a class does to M6's records** | **A unit goes with it; an exam, a trip and a reflection stay with their link emptied** (M6) — `CASCADE` on `unit`, `ON DELETE SET NULL` on the other three | A unit *is* the class's annual plan and means nothing without it. The other three record something that was planned or that happened, which is still true after the class is gone — the call M4 took on an incident and M5 on a meeting |
 | **Which M6 surfaces produce a PDF** | **None** (M6), per the M2/M3 precedent that a milestone ships its scope line exactly, and M6's names no PDF | The "PDF output" section names **"annual goals"** among the surfaces that produce a real file. That reads as M1's **six fixed annual-goal areas**, not M6's annual *plan*: the phrase matches `annual_goals` exactly, and module 1's own entry says those six are "printed as one table" while module 3 says nothing of the sort about the annual plan. So M6 is promised none. **But M1's annual goals are still unprinted** and nothing has claimed them — raised, see Open |
 
+| **A print form and the substitute folder are opposite kinds of record** | **A print form is a loose page with nothing behind it; the substitute folder is a live view with nothing stored but its own words** (M7). `print_form` / `print_form_value` link to no class, student or seat, and `formDocument()` is never handed the planner. `substituteFolder()` reads the class, its roster, its seats, the timetable and the week's plan every time it is asked, and **no table holds a copy of any of them** — a Rust test walks every M7 column to say so | Module 8 says the forms are "independent of the modules above", and the source calls them `Πρότυπα για εκτύπωση`; module 6 says the folder is "generated per class **from live data**" with a seating plan "shared live, not copied". Four of the eleven forms look like live surfaces the app already has — *Απουσίες του μήνα* (M4.5's filled card), *Επικοινωνία με γονείς* (M5's log), *Πλάνο αίθουσας* (M1's seating, and the folder's), *Πρακτικό συνεδρίασης* (M5's meetings) — and **none of them reads from it**. `Πλάνο αίθουσας` therefore exists twice, as two different artefacts, on purpose. Recorded because the next agent will read "print forms" and "substitute folder" and assume they are the same kind of thing |
+| **Where M7's two halves live in the navigation** | **The eleven forms get one new top-level section, `Πρότυπα`; the folder is a sub-page of `Τάξεις`** (M7) — *Τμήματα / Φάκελος αναπλήρωσης*. The top row goes from nine to **ten** | Opposite answers for opposite things. The folder is generated per class from the class's own data, so it goes where the class is — the M4/M6 shape, no new tab. The forms belong to nothing, so no existing section is honest about holding them — the M5 situation — and they take one section named with the source's own word. Filing both under one new tab would have cost the same one place and put a live view of a class's seating beside a blank room plan. `tests/component/App.test.tsx` is renamed to pin ten and says why |
+| **How a filled print form is stored** | **A head (`print_form`: kind, name, created, updated) and one row per filled field (`print_form_value`)**, written by **different commands** (M7). Saving a form's name never rewrites its values; an emptied field is removed. `kind` is checked in Rust, not by a `CHECK` | Two commands so that a rename sent while a field is still saving cannot write back a stale copy of the values — a Rust test holds it. No `CHECK` so that **a filled letter could join as one more `kind` without a migration** (a letter's values are already a key → value map). Whether it should is the product owner's open question, not M7's — see Open |
+| **What "prefilled once and stays independently editable" means for the folder's boilerplate** | **No row means untouched, and the suggestion from the language bundle shows and prints; a row means the teacher's text — including an empty row, which means she cleared it; *Επαναφορά* deletes the row** (M7). The suggestion is never copied into the file | "She cleared it" and "she has not touched it" must stay distinguishable, or the suggestion comes back into a box she emptied. This is the one text in the file where an empty string is stored rather than meaning "nothing" — M4's "a missing row is not recorded yet", applied to a sentence. Not copying the default is the same outcome for the teacher, with one advantage: an untouched box follows the UI language at M9, while what she typed stays as typed |
+| **Which week the folder's "current week" is** | **The week containing the day the shell read — except on a Saturday or Sunday, when it is the coming week** (M7). A pure function of `today` | The folder is for the morning the teacher does not come in. Printed on a Sunday evening, last week's plan would be the wrong thing to leave in the drawer |
+| **The folder's contacts and procedures** | **School-wide, typed once, shared by every class's folder** — except `Υπεύθυνος τμήματος`, which is the class card's own `responsible`, looked up (M7) | The principal's number does not change by class, and "not a separate data-entry chore" rules out typing it once per class. The one contact that differs by class already exists in M1 |
+| **What the folder's `ΜΑΘΗΤΕΣ ΠΟΥ ΧΡΕΙΑΖΟΝΤΑΙ ΠΡΟΣΟΧΗ` box holds** | **A live list from the students' cards, verbatim** — a card's SEN category, the class's support tick and its note, allergies, conditions, medication — **then any note the teacher adds** (M7) | The same three signals M4's support overview merges, plus the card's health fields, which are exactly what a substitute must know. Nothing is summarised or inferred, the M4.5 rule. **Raised as a privacy question** — see Open |
+| **How one PDF carries several documents** | **The print window cuts every sheet it is given onto A4 pages in order, each sheet starting a page of its own; the Rust side is unchanged** (M7). One orientation per file | Every PDF before M7 was one document. The app already measured and placed; macOS already captured however many pages it was told and PDFKit assembled them; WebView2 already broke at the same page blocks. So a bundle is more than one sheet in the document. **Proven on real files early**, before the folder's pages were built. The rule that the app, not the engine, decides where a page breaks is untouched |
+| **Whether three of the forms have subtitles** | **Yes — all eleven do** (M7). *Επικοινωνία με γονείς*: "Καταγραφή συζητήσεων και μηνυμάτων — ημερομηνία, αιτία, συμφωνίες"; *Πλάνο αναπλήρωσης*: "Ό,τι πρέπει να ξέρει ο αναπληρωτής για αυτή την ώρα"; *Στόχοι και επαγγελματική ανάπτυξη*: "Εξέλιξη, επιμορφώσεις, δικοί σας στόχοι για τη χρονιά — και τι βγήκε από αυτούς" | The M7 brief lists these three as having none. The source pages print one each. Recorded, as M5 recorded the award pages, because the brief is wrong and the next agent will read it |
+| **Whether the parent note is two-up** | **Yes — two notes to an A4 portrait sheet, each in a dashed frame to be cut out** (M7) | The source page says so itself: "Δύο σημειώματα ανά σελίδα · κόψτε κατά μήκος της γραμμής". Unlike the award pages M5 was told were 2-up, this one is — and it was **rendered and looked at anyway**, per M5's lesson |
+| **A register form's row count** | **The source page's own, and the teacher can add rows**, which run onto a second sheet with the header repeated (M7). The goals page's four goals likewise | The spec says no list has a fixed cap, and these are paper forms with a fixed number of ruled lines. The default keeps a blank form to one A4 sheet, as the source's is; the extra rows keep the cap off |
+| **`ΕΙΔΟΣ ΣΥΝΕΔΡΙΑΣΗΣ` on the minutes form** | **Free text** (M7) | M6's rule: a vocabulary only where the source enumerates one. The subtitle names three examples; the field itself is a blank box. M5's meeting kinds are a vocabulary because they belong to the stored meetings, which this form is not |
+| **Where M7's content strings live** | **A fourth bundle file, `src/i18n/formsEl.ts`**: the period checklist's sixteen fixed items (transcribed) and the folder's suggested boilerplate (the app's own wording). Every caption stays in `el.ts` (M7) | M5's rule — split the bundle by *kind* of string. Captions are labels; the checklist's sentences and the folder's suggestions are content. M9 adds `formsEn.ts` and one line in `BUNDLES` |
+| **A certificate's frame on a printed page** | **A sheet's classes are copied onto the pages cut from it** (M7) | **An M5 defect, found while making the paginator walk several sheets.** The stylesheet frames a certificate as `.certificate .page-inner`, but the element that carried `certificate` was the sheet, which the paginator removes — so no page matched, and the two award certificates printed with no frame and an ordinary-sized title. A regression test was confirmed to fail against the old paginator |
+
 
 ### Open — flag back rather than silently decide
+
+- **Should the *Κωδικοί και πρόσβαση* form be fillable in the app at all?**
+  The spec asks for all eleven forms to be "fillable, nameable, saveable", and
+  M7 builds this one like the rest. But what a teacher types into it is her
+  passwords, and it is stored **unencrypted** in `planner.sqlite`, inside a
+  folder synced to the cloud, and in every backup snapshot. M7 shows a warning
+  above the form saying exactly that and suggesting she print it blank. The
+  alternatives are to offer it blank-only (print, never store), or to encrypt
+  it — which would need a passphrase and is well beyond a form. Raised at M7
+  (2026-09-24).
+
+- **Should the substitute folder print students' health and support notes?**
+  Its *ΜΑΘΗΤΕΣ ΠΟΥ ΧΡΕΙΑΖΟΝΤΑΙ ΠΡΟΣΟΧΗ* box lists, from the cards, each
+  student's SEN category, the class's support note, allergies, conditions and
+  medication — which is what that box on the source page is for, and what a
+  substitute most needs to know. But it puts special-category information on a
+  sheet meant to be left in a drawer. The alternatives are health fields only
+  (the safety-critical half), or nothing live and a free box as on the source.
+  Raised at M7 (2026-09-24).
+
+- **The substitute folder's suggested text is the app's own Greek, not the
+  source's.** "Descriptive boilerplate text is prefilled once", but the source's
+  boxes are blank, so there was nothing to transcribe. M7 wrote short, generic
+  suggestions in `src/i18n/formsEl.ts` for the rules, where things are, what to
+  do if something goes wrong, the six procedures and the message to the
+  substitute. They are written to be replaced, and a Greek-speaking teacher
+  should read them before a teacher does. Raised at M7 (2026-09-24).
+
+- **Should the folder's contacts come from M8's staff directory?** M7 stores
+  the five school contacts as the folder's own text, typed once for every
+  class. When M8 builds the directory, those five could point into it instead —
+  which would be one more place typed once. Raised at M7 (2026-09-24) for M8.
+
 
 - **Are the six resource categories about what a material *is*, or about whom
   it belongs to?** This document's module-3 entry says "entries across the six
@@ -453,14 +501,22 @@ sequence.
   to do what by when is a thing a teacher hands round. It is one document
   definition on the existing contract and no stored data either way. Raised at
   M5 (2026-09-23) rather than silently decided, which is the M4 precedent.
+  **M7's blank *Πρακτικό συνεδρίασης* form is not an answer to this.** It is a
+  loose page the teacher fills in by hand or on screen; it does not read a
+  stored meeting, and a meeting recorded in *Συνεδριάσεις* still has no PDF.
 
-- **Should a filled letter be saveable before M7?** M5 stores nothing for a
+- **Should a filled letter be saveable?** M5 stores nothing for a
   letter: it is filled and printed in one sitting, and the values live in the
-  screen. That matches M5's scope line and leaves saved-and-reopenable filled
-  forms to M7, whose acceptance criterion is exactly that. The risk is that a
+  screen. The risk is that a
   teacher who fills a long newsletter, closes the app and comes back expects to
-  find it. If filled letters should persist before M7, it is one table and one
-  migration. Raised at M5 (2026-09-23).
+  find it. Raised at M5 (2026-09-23). **What it would cost now (M7):** no
+  migration. M7's `print_form` / `print_form_value` store exactly the shape a
+  letter already has — a named record plus a key → value map — and `kind` has
+  no `CHECK`, so a letter would be `kind = "letter.welcome"` and so on: seven
+  more codes in `PRINT_FORM_KINDS`, and the letters screen gaining M7's saved
+  list, *Νέο* button and per-field saving. The same answer settles whether a
+  trip fills in the consent letter (M6's question), since a trip could then
+  create a saved letter. Still the product owner's call; M7 did not wire it.
 
 - **M4.5's open question about page-level boxes now applies to a second
   register.** The printed communication log lists each line's own stored
@@ -534,7 +590,10 @@ sequence.
   file?** M2 ships it as its own, matching the source product, which keeps
   "Συμπεριφορά και στάση" as a separate page — and M7 is the only place the
   spec asks for several pages bundled into one PDF. Raised at M2 (2026-09-20).
-  Now that pagination is the app's own, merging the two is a small change.
+  **Now cheap (M7):** `renderPrintBundle()` puts several documents in one file,
+  each on its own pages, and the grade sheet and conduct sheet are both
+  landscape — so bundling them is one call in `GradesScreen` and no new
+  machinery. Still the product owner's call.
 
 - **The source's conduct page rates four things; the data model names one.** The
   PDF's conduct page has columns for *Συμμετοχή, Αυτονομία, Διαγωγή* and

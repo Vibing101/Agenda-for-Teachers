@@ -29,6 +29,7 @@ import BehaviourScreen from "./screens/BehaviourScreen";
 import ClassesScreen from "./screens/ClassesScreen";
 import ContactsScreen from "./screens/ContactsScreen";
 import ExamsScreen from "./screens/ExamsScreen";
+import FormsScreen from "./screens/FormsScreen";
 import GradesScreen from "./screens/GradesScreen";
 import LibraryScreen from "./screens/LibraryScreen";
 import LettersScreen from "./screens/LettersScreen";
@@ -38,6 +39,7 @@ import PlanScreen, { type PlanFocus } from "./screens/PlanScreen";
 import ProgressScreen from "./screens/ProgressScreen";
 import ReflectionsScreen from "./screens/ReflectionsScreen";
 import StudentsScreen from "./screens/StudentsScreen";
+import SubstituteScreen from "./screens/SubstituteScreen";
 import SupportScreen from "./screens/SupportScreen";
 import TimetableScreen from "./screens/TimetableScreen";
 import TodayScreen from "./screens/TodayScreen";
@@ -54,6 +56,7 @@ type Section =
   | "agenda"
   | "plan"
   | "parents"
+  | "forms"
   | "today";
 
 /**
@@ -88,8 +91,29 @@ type Section =
  * share a page, and the two reference lists — *Σχολικά βιβλία* and *Υλικά και
  * πηγές* — are the two surfaces that hang off no class and no week, so they
  * share one too.
+ *
+ * **M7 takes one top-level tab and gives Τάξεις its first sub-pages — because
+ * its two halves are opposite kinds of thing and must not share a home.**
+ *
+ * * **The substitute folder is generated per class, from the class.** Its
+ *   seating plan is M1's own, read live; its roster, room and person in charge
+ *   are the class card's. So it goes where the class is: Τάξεις becomes
+ *   *Τμήματα / Φάκελος αναπλήρωσης*, which is the M4/M6 shape — a sub-page in
+ *   the section that already holds what it is made of. The spec numbers it
+ *   module 6, but nothing in it exists apart from a class.
+ * * **The eleven print forms belong to nothing.** They are loose pages with no
+ *   class, no student and no record behind them, so no existing section is
+ *   honest about holding them — the M5 situation. They get **one** new
+ *   section, `Πρότυπα`, the source's own word for them (`Πρότυπα για
+ *   εκτύπωση`). The top row goes from nine to **ten**.
+ *
+ * Filing both under one new "print" tab would have cost the same one place
+ * and put a live view of a class's seating next to a blank room plan with no
+ * class behind it — the one confusion M7 exists to avoid.
  */
 type Page =
+  | "classList"
+  | "substitute"
   | "gradebook"
   | "attendance"
   | "cards"
@@ -110,7 +134,14 @@ type Page =
 
 const SECTIONS: { key: Section; labelId: StringId; pages?: { key: Page; labelId: StringId }[] }[] = [
   { key: "year", labelId: "nav.year" },
-  { key: "classes", labelId: "nav.classes" },
+  {
+    key: "classes",
+    labelId: "nav.classes",
+    pages: [
+      { key: "classList", labelId: "nav.classList" },
+      { key: "substitute", labelId: "nav.substitute" },
+    ],
+  },
   {
     key: "students",
     labelId: "nav.students",
@@ -154,6 +185,8 @@ const SECTIONS: { key: Section; labelId: StringId; pages?: { key: Page; labelId:
       { key: "messages", labelId: "nav.messages" },
     ],
   },
+  // M7's: the eleven loose print forms, which belong to no other section.
+  { key: "forms", labelId: "nav.forms" },
   // Last, as the source product puts "ΣΗΜΕΡΙΝΟ ΜΑΘΗΜΑ" at the right of its nav.
   { key: "today", labelId: "nav.today" },
 ];
@@ -344,7 +377,15 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
       ) : (
         <fieldset className="sections" disabled={blocked}>
           {section === "year" && <YearScreen planner={planner} run={run} />}
-          {section === "classes" && <ClassesScreen planner={planner} run={run} />}
+          {section === "classes" && (page ?? "classList") === "classList" && (
+            <ClassesScreen planner={planner} run={run} />
+          )}
+          {section === "classes" && page === "substitute" && (
+            // Reads the same planner the class card writes — so a seat moved
+            // on *Τμήματα* is already moved here, with nothing regenerated.
+            <SubstituteScreen planner={planner} run={run} today={today} />
+          )}
+          {section === "forms" && <FormsScreen planner={planner} run={run} today={today} />}
           {section === "students" && (page ?? "cards") === "cards" && (
             <StudentsScreen planner={planner} run={run} />
           )}

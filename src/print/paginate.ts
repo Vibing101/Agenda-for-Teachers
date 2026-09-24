@@ -57,19 +57,53 @@ export type Measure = (element: HTMLElement) => number;
 const measureOffsetHeight: Measure = (element) => element.offsetHeight;
 
 export function paginate(root: HTMLElement, measure: Measure = measureOffsetHeight): Pagination {
-  const sheet = root.querySelector<HTMLElement>("#sheet");
-  if (!sheet) return { pages: 0, pageWidth: 0, pageHeight: 0 };
+  // Every sheet in the document, in order. A single register or letter is one
+  // sheet; M7's substitute folder is several, bundled into one file.
+  const sheets = Array.from(root.querySelectorAll<HTMLElement>("[data-sheet]"));
+  if (sheets.length === 0) return { pages: 0, pageWidth: 0, pageHeight: 0 };
 
-  const pageWidth = Number(sheet.dataset.pageWidth);
+  const pageWidth = Number(sheets[0].dataset.pageWidth);
+  const pageHeight = Number(sheets[0].dataset.pageHeight);
+
+  const pages = document.createElement("div");
+  // Attached to the document *before* anything is measured: an element that is
+  // not in the document has no layout, so every height would read as zero and
+  // the whole roster would end up on one clipped page.
+  sheets[0].before(pages);
+  for (const sheet of sheets) paginateSheet(sheet, pages, measure);
+
+  return { pages: pages.children.length, pageWidth, pageHeight };
+}
+
+/**
+ * Lays one sheet out onto pages appended to `pages`.
+ *
+ * **Each sheet starts a page of its own.** That is what makes a bundle of
+ * several documents one file of several documents rather than one document
+ * with five headers in it: the folder's seating plan never begins halfway down
+ * the page its week ended on.
+ *
+ * **A sheet's classes travel onto its pages.** The stylesheet addresses a
+ * certificate as `.certificate .page-inner`, and the element carrying
+ * `certificate` is the sheet — which is removed once it has been cut into
+ * pages. Until M7 nothing copied the class across, so that rule matched
+ * nothing on a real PDF and the two award certificates printed without their
+ * frame. Found while making this function walk more than one sheet.
+ */
+function paginateSheet(sheet: HTMLElement, pages: HTMLElement, measure: Measure): void {
   const pageHeight = Number(sheet.dataset.pageHeight);
   const margin = Number(sheet.dataset.pageMargin);
   const content = pageHeight - 2 * margin;
+  const classes = sheet.className;
 
-  const header = sheet.querySelector("header");
-  const table = sheet.querySelector("table");
-  const footer = sheet.querySelector("footer");
-  // A letter has no table, so only the header is required now.
-  if (!header) return { pages: 0, pageWidth, pageHeight };
+  const header = sheet.querySelector(":scope > header");
+  const table = sheet.querySelector<HTMLTableElement>(":scope > table");
+  const footer = sheet.querySelector(":scope > footer");
+  // A letter has no table, so only the header is required.
+  if (!header) {
+    sheet.remove();
+    return;
+  }
 
   const head = table?.querySelector("thead") ?? null;
 
@@ -81,12 +115,7 @@ export function paginate(root: HTMLElement, measure: Measure = measureOffsetHeig
     ...Array.from(sheet.querySelectorAll<HTMLElement>(":scope > .block")),
   ];
 
-  const pages = document.createElement("div");
-  // Attached to the document *before* anything is measured: an element that is
-  // not in the document has no layout, so every height would read as zero and
-  // the whole roster would end up on one clipped page.
-  sheet.before(pages);
-  let current = newPage(pages, header);
+  let current = newPage(pages, header, classes);
   let onPage = 0;
 
   for (const item of items) {
@@ -97,7 +126,7 @@ export function paginate(root: HTMLElement, measure: Measure = measureOffsetHeig
     // taller than a sheet is still a row the teacher wrote.
     if (measure(inner(current)) > content && onPage > 1) {
       remove(item);
-      current = newPage(pages, header);
+      current = newPage(pages, header, classes);
       place(current, item, head);
       onPage = 1;
     }
@@ -108,14 +137,13 @@ export function paginate(root: HTMLElement, measure: Measure = measureOffsetHeig
     if (measure(inner(current)) > content && onPage > 0) {
       // The note and the footer would spill off the bottom: give them a page
       // of their own rather than losing them.
-      current = newPage(pages, header);
+      current = newPage(pages, header, classes);
       current.querySelector("table")?.remove();
       inner(current).appendChild(footer);
     }
   }
 
   sheet.remove();
-  return { pages: pages.children.length, pageWidth, pageHeight };
 }
 
 function inner(page: HTMLElement): HTMLElement {
@@ -156,9 +184,9 @@ function remove(item: Element): void {
  * and its `thead` when a row first lands on the page, so a page holding only
  * letter blocks does not carry an empty table.
  */
-function newPage(container: HTMLElement, header: Element): HTMLElement {
+function newPage(container: HTMLElement, header: Element, classes = ""): HTMLElement {
   const page = document.createElement("div");
-  page.className = "page";
+  page.className = classes ? `page ${classes}` : "page";
   const wrapper = document.createElement("div");
   wrapper.className = "page-inner";
   page.appendChild(wrapper);

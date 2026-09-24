@@ -150,6 +150,27 @@ export const RESOURCE_CATEGORIES = [
   "other",
 ] as const;
 
+/**
+ * The eleven standalone print forms (M7), in the source's own page order.
+ *
+ * A vocabulary by M6's rule — the source enumerates them, on the index page of
+ * *Πρότυπα για εκτύπωση* — and the code is what `print_form.kind` stores. The
+ * label is the form's own title.
+ */
+export const PRINT_FORM_KINDS = [
+  "attendance",
+  "parentLog",
+  "coverLesson",
+  "minutes",
+  "priorities",
+  "roomPlan",
+  "credentials",
+  "periodChecklist",
+  "parentNote",
+  "loans",
+  "goals",
+] as const;
+
 /** Monday–Saturday, matching the source timetable grid. */
 export const WEEKDAYS = [1, 2, 3, 4, 5, 6] as const;
 /**
@@ -178,6 +199,7 @@ export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 export type MeetingKind = (typeof MEETING_KINDS)[number];
 export type ConsentState = (typeof CONSENT_STATES)[number];
 export type ResourceCategory = (typeof RESOURCE_CATEGORIES)[number];
+export type PrintFormKind = (typeof PRINT_FORM_KINDS)[number];
 export type Weekday = (typeof WEEKDAYS)[number];
 export type AgendaScope = (typeof AGENDA_SCOPES)[number];
 export type Month = (typeof MONTHS)[number];
@@ -213,3 +235,4 @@ export const appointmentStatusLabel = (code: string) => vocabLabelId("appointmen
 export const meetingKindLabel = (code: string) => vocabLabelId("meetingKind", code);
 export const consentStateLabel = (code: string) => vocabLabelId("consentState", code);
 export const resourceCategoryLabel = (code: string) => vocabLabelId("resourceCategory", code);
+export const printFormLabel = (code: string) => vocabLabelId("printForm", code);
