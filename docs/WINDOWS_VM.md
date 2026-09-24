@@ -45,16 +45,31 @@ do not claim gate step 4 or 5 from it.
 
 ---
 
-## Connection details, verified 2026-09-20
+## Connection details, verified 2026-09-24
+
+**The guest was reinstalled from scratch on 2026-09-24**, during M8: its virtual
+disk was corrupted after a Windows Update at M7, and sshd never answered again.
+Everything below is the reinstalled machine. **The user changed** from
+`vboxtester` to `kyria`; commands elsewhere in this file that say `vboxtester`
+mean whichever user the table names.
 
 | | |
 |---|---|
-| From the Mac | `ssh -p 2222 vboxtester@127.0.0.1` |
+| From the Mac | `ssh -p 2222 kyria@127.0.0.1` |
 | Auth | The Mac's `~/.ssh/id_ed25519`, installed as `administrators_authorized_keys` |
 | Remote shell | Windows PowerShell 5.1 |
-| Guest | Windows 11 Home, x64, 6 vCPU, 8 GB RAM, ~96 GB free |
-| Repo in the guest | `C:\Dev\Agenda-for-Teachers` |
-| Sync clients | OneDrive and Google Drive both installed and running |
+| Guest | Windows 11 Pro, x64 |
+| Repo in the guest | `C:\Dev\Agenda-for-Teachers`, cloned fresh from a bundle at M8 |
+| Toolchain | VS 2022 Build Tools (C++), Git 2.55, Node 24.19, Rust 1.98.1, all by `winget` over SSH |
+| Sync clients | OneDrive and Google Drive both signed in and running |
+| Snapshot | `clean-baseline`, taken live at M8 after the toolchain and before the app ever ran |
+
+**Taking a live snapshot left the VM `paused due to host power management`**, and
+`controlvm resume` refused. `controlvm savestate` then **failed and left the VM
+`aborted`**, which is a hard power-off. It came back clean (`Repair-Volume -Scan`
+found no errors, `git fsck` was clean), but that is luck, not a procedure, on a
+machine whose last disk was corrupted. **Run `caffeinate -dimsu` on the Mac
+before taking a snapshot**, not only before a gate run.
 
 **The VM deliberately holds no GitHub credentials.** It is a machine that gets
 snapshotted and reverted, and a snapshot would carry any stored token or deploy

@@ -4,19 +4,20 @@
 **Branch:** `m8-development-wellbeing`
 **Signed off by:** <product owner, once reviewed>
 
-**The Windows half of this gate was not run, and this note says so wherever it
-matters.** The `MilestoneTesting` VM is running, but its sshd is still down in
-the same way as at M7: the port forward accepts the connection and the guest
-never sends a banner (`Connection timed out during banner exchange`, checked
-at the start of the milestone and again before packaging). Guest Additions
-report run level 0, so there is no second way in. Nothing was done to the VM
-from the Mac. **Windows steps 1–4 are covered by CI only; Windows step 5 was
-not performed.** M7's outstanding Windows half is also **still outstanding**:
-it needs the VM, and at its console, not over SSH. See "What still needs a
-human".
+**The Windows half of this gate was run, after a VM rebuild.** When M8
+started, the `MilestoneTesting` VM's sshd was still down, as it had been since
+M7. The product owner then found its **virtual disk corrupted and reinstalled
+Windows 11 Pro from scratch**, and reinstalled OpenSSH. The agent installed the
+toolchain over SSH (VS Build Tools, Git, Node, Rust, all by `winget`), cloned
+the branch fresh from a bundle, and ran **all of Windows steps 1–5 natively in
+the VM** at `60c90c5`. See the gate table. **M7's Windows half is still
+outstanding**, because it needs the VM's console, not SSH. See "What still
+needs a human".
 
 Worked on **the dev Mac** (`uname -s` = `Darwin`, `VBoxManage list vms` lists
-`MilestoneTesting`). Every result below names the machine that produced it
+`MilestoneTesting`), with the Windows half driven over SSH into the rebuilt
+`MilestoneTesting` VM (`COMPUTERNAME` = `MILESTONETESTIN`, Windows 11 Pro, user
+`kyria`). Every result below names the machine that produced it
 and says whether an agent or a human produced it. **Every result in this note
 was produced by an agent.**
 
@@ -206,12 +207,12 @@ kinds, and the Feb–Dec year model.
 
 | # | Step | Result |
 |---|---|---|
-| 1 | Typecheck clean | **macOS: pass, by agent.** **Windows: CI only.** The VM is unreachable |
-| 2 | Lint clean | **macOS: pass, by agent.** This covers eslint (including the no-inline-Greek rule), `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings`. **Windows: CI only** |
-| 3 | Automated tests pass | **macOS: pass, by agent.** **639 frontend tests** (was 594) and **117 Rust tests** (was 105). **Windows: CI only** |
+| 1 | Typecheck clean | **Pass on both, by agent.** On the dev Mac, and natively in the Windows VM at `60c90c5` |
+| 2 | Lint clean | **Pass on both, by agent.** eslint (including the no-inline-Greek rule), `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings`, on the dev Mac and natively in the VM. Each was confirmed by its exit code |
+| 3 | Automated tests pass | **Pass on both, by agent.** **639 frontend tests** (was 594) and **117 Rust tests** (was 105), green on the dev Mac and natively in the VM |
 | 3b | Persistence round-trip | **Pass, extended.** `cloud_folder.rs` writes one of every M8 record: a cover and a leave on the same date, a training line with a cost and one with none, the budget, a reflection and both standing boxes. It quits, relaunches, and asserts each one, **the blank cost still blank rather than 0**. It then moves the school year's start date and asserts all eight M8 values compare equal. `db.rs` gains **the M7-era climb test**: a `user_version = 8` file with two saved print forms with values and the folder's texts in all three states (written, cleared as an empty row, untouched as no row) climbs to 9 with every row intact. The M6-era test is renamed to "climbs to the current schema". `no_table_is_keyed_by_a_week_index` stays green |
-| 4 | Packaged build on Windows and macOS, structurally verified | **macOS: pass, by agent.** `npm run tauri build -- --target universal-apple-darwin` produced `Teacher Planner.app` (binary 9,979,504 bytes) and a 4,743,293-byte `.dmg`. `lipo -archs` gives `x86_64 arm64`, and `CFBundleIdentifier` is `gr.atzenta.teacher-planner`. The app was launched and driven (step 5). **Windows: CI only. Not built in the VM** |
-| 5 | Manual launch test from inside a cloud-synced folder, both OSes | **macOS: pass, by agent. Windows: not performed.** Launches were programmatic (`open -a`), not human double-clicks |
+| 4 | Packaged build on Windows and macOS, structurally verified | **macOS: pass, by agent.** `npm run tauri build -- --target universal-apple-darwin` produced `Teacher Planner.app` (binary 9,979,504 bytes) and a 4,743,293-byte `.dmg`. `lipo -archs` gives `x86_64 arm64`, and `CFBundleIdentifier` is `gr.atzenta.teacher-planner`. The app was launched and driven (step 5). **Windows:** `npm run tauri build` **inside the VM** produced `teacher-planner.exe` (4,913,664 bytes) and `Teacher Planner_0.1.0_x64-setup.exe` (1,901,065 bytes). `Get-AuthenticodeSignature` reports `NotSigned` on both, as expected. The exe was launched and driven (step 5) |
+| 5 | Manual launch test from inside a cloud-synced folder, both OSes | **Pass on both, by agent.** Launches were programmatic (`open -a` on the Mac, `Start-Process` in the VM), not human double-clicks |
 | 6 | This release note | **Pass** |
 
 ### What step 5 covered on macOS (by agent)
@@ -232,6 +233,30 @@ lesson, and launched with `open -a`. **In both folders:**
 - after the relaunch the cover and the leave were **both there, one each**, and
   the no-cost line was **still `NULL`**.
 
+### What step 5 covered on Windows, in the VM (by agent)
+
+The exe built in the VM was copied into `Atzenta M8 vm` inside live **OneDrive**
+and live **Google Drive** (`G:\My Drive`). The folder names are distinct from
+the Mac's, because both machines are signed into the same accounts. The script
+was copied in as a `.ps1` file with ASCII-only content, per the guide. **In both
+folders:** the process started and stayed running; it created `data\`,
+`data\backups\` and `exports\`; the quit was confirmed by PID; the relaunch left
+the database **byte-identical** (SHA-256); a dated snapshot was written
+(`0 → 1`); and there were **no sidecars**. The guest has no `sqlite3`, so both
+databases were copied back to the Mac. Both read **`user_version = 9`**,
+`integrity_check` `ok`, **all eight M8 tables present**, `development_budget`'s
+single row created, and **no column named like a week index**.
+
+**One incident, recorded because of this VM's history.** Taking the live
+`clean-baseline` snapshot left the VM `paused due to host power management`,
+and `controlvm resume` refused. `controlvm savestate` then failed and **left
+the VM `aborted`, a hard power-off**. It was restarted, and before anything
+else was trusted: `Repair-Volume -Scan` reported `NoErrorsFound`, `git fsck`
+was clean, the built exe was intact, and sshd came back on its own. Windows
+logged the unexpected shutdown (events 41 and 6008). **Step 5 ran after this,
+on the restarted VM.** `docs/WINDOWS_VM.md` now says to run `caffeinate` before
+taking a snapshot.
+
 The previous milestone's `Atzenta M7 mac` copies were **left in place** rather
 than deleted, because they are in the product owner's cloud folders. Every
 launch used the bundle's full path, which resolves the bundle itself (see
@@ -242,15 +267,12 @@ launch used the bundle's full path, which resolves the bundle itself (see
 
 **Before any manual pass: the app's own `Schema version` line must read `9`.**
 
-- **Restart the VM's sshd, or the VM.** Once it is back, an agent can run the
-  Windows half of M8's gate (steps 1–5, as at M6). The VM's clone at
-  `C:\Dev\Agenda-for-Teachers` holds the pre-rewrite history, so it must be
-  **re-cloned from a fresh bundle**, not fetched into.
-- **M7's Windows half is still outstanding** and was not produced here. It needs
-  the VM, and it must run **in the VM's console session**, not over SSH:
-  `G:\My Drive\Atzenta M7 evidence\run-windows-selftest.ps1 -Exe <path>`.
-  **`folder-A1-win.pdf` must be 6 pages.** M8 changed nothing under
-  `src/print/`, so the HTML there does not need regenerating on M8's account.
+- **M7's Windows half is still outstanding.** It must run **in the VM's
+  console session**, not over SSH. The inputs survived the reinstall on Drive.
+  M8 changed nothing under `src/print/`, so M8's exe prints through exactly
+  M7's code:
+  `powershell -ExecutionPolicy Bypass -File "G:\My Drive\Atzenta M7 evidence\run-windows-selftest.ps1" -Exe C:\Dev\Agenda-for-Teachers\src-tauri\target\release\teacher-planner.exe`.
+  **`folder-A1-win.pdf` must be 6 pages.**
 - **Type into M8's four screens**, on either OS. Nobody has. The five-minute
   script below.
 - **Carried, still outstanding, not closed by M8:**
@@ -294,7 +316,7 @@ M7's list with **part 8 added**:
 
 ## Known gaps
 
-- **The Windows half of the gate**, and **M7's Windows half**, as above.
+- **M7's Windows half**, as above. M8's own Windows half is done.
 - **No human has typed into M8's screens**, and no human has seen them in a
   real window. They were exercised in jsdom and against the packaged build's
   database, not looked at.
@@ -311,9 +333,9 @@ M7's list with **part 8 added**:
 The repository is public, so CI costs no minutes. The full gate was run
 locally on the dev Mac before pushing, and the code and these docs go in **one
 push**. No commit message on the branch carries the CI-skip marker in any
-form. **With the VM down, CI's `windows-latest` job is the only Windows
-evidence for steps 1–4**, stated rather than blurred, and it is not a
-substitute for step 5.
+form. The VM was rebuilt partway through the milestone, so Windows steps 1–5 were
+also run natively there after CI had passed. CI is confirmatory, not the
+Windows evidence.
 
 **CI was green on both runners on the first run.** That was run
 [36045460325](https://github.com/Vibing101/Agenda-for-Teachers/actions/runs/36045460325)
