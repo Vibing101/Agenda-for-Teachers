@@ -2,7 +2,12 @@
 
 **Date:** 2026-09-24
 **Branch:** `m8-development-wellbeing`
-**Signed off by:** <product owner, once reviewed>
+**Signed off by:** Product owner, 2026-09-24, by asking for the merge. It was
+squash-merged to `main` and the branch deleted in the same step. **Signed off
+with two items still outstanding**, both listed under "What still needs a
+human": **M7's Windows self-test** (at the VM's console; `folder-A1-win.pdf`
+must be 6 pages) and **the typing pass over M8's four screens**. Neither had
+been done at merge.
 
 **The Windows half of this gate was run, after a VM rebuild.** When M8
 started, the `MilestoneTesting` VM's sshd was still down, as it had been since
