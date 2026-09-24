@@ -352,6 +352,21 @@ sequence.
 | **Where M7's content strings live** | **A fourth bundle file, `src/i18n/formsEl.ts`**: the period checklist's sixteen fixed items (transcribed) and the folder's suggested boilerplate (the app's own wording). Every caption stays in `el.ts` (M7) | M5's rule — split the bundle by *kind* of string. Captions are labels; the checklist's sentences and the folder's suggestions are content. M9 adds `formsEn.ts` and one line in `BUNDLES` |
 | **A certificate's frame on a printed page** | **A sheet's classes are copied onto the pages cut from it** (M7) | **An M5 defect, found while making the paginator walk several sheets.** The stylesheet frames a certificate as `.certificate .page-inner`, but the element that carried `certificate` was the sheet, which the paginator removes — so no page matched, and the two award certificates printed with no frame and an ordinary-sized title. A regression test was confirmed to fail against the old paginator |
 
+| **Wellbeing entries depart from the source page on purpose** | **Free text only — the source's five rating columns are not built** (M8). An entry is a date and the page's one free column, `Τι βοήθησε · τι να αλλάξω` | Page 222, *Ευεξία εκπαιδευτικού · Κάθε Παρασκευή κοιτάξτε πίσω · ένα λεπτό αρκεί*, is a structured weekly check-in: `Εβδομάδα | Ενέργεια | Φόρτος | Διάθεση | Ύπνος | Ισορροπία | Τι βοήθησε · τι να αλλάξω`. The **Wellbeing entries** row above is a product-owner decision — "Free text only; no structured mood/energy/workload dropdowns" — and the later, specific decision wins, as it did for M5's "bilingual content". **Recorded so the next agent does not "fix" it**, as dropdowns or as scales. The screen asserts there is no select, slider, spinner, radio or checkbox on it |
+| **A wellbeing entry's key, and the page's two boxes** | **Keyed by an actual date; the week is derived at display time. The two page-level boxes — `ΤΙ ΜΕ ΚΡΑΤΑΕΙ ΣΕ ΦΟΡΜΑ` and `ΟΡΙΑ ΠΟΥ ΘΕΛΩ ΝΑ ΚΡΑΤΗΣΩ` — are one stored note with two fields, not columns on every entry** (M8) | The source's axis is `Εβδομάδα`; M1's rule forbids storing it, and `no_table_is_keyed_by_a_week_index` holds it. A new entry is dated the shell's `today`. The two boxes are separate on the rendered page (the text layer runs them together) and belong to the page, not to a week |
+| **Where M8's four surfaces live in the navigation** | **`Έτος` gets its first sub-pages — *Σχολικό έτος / Επαφές σχολείου / Αναπληρώσεις & άδειες* — and module 7 gets one new section, `Ανάπτυξη & Ευεξία`, with *Ανάπτυξη και καριέρα / Ευεξία*.** The top row goes from ten to **eleven** (M8) | The spec files the directory and the covers/leave log under module 1, and the source's own ΕΤΟΣ index page lists them beside the calendar and the annual goals ("Άνθρωποι στο σχολείο · Διεύθυνση, γραμματεία και συνάδελφοι", "Αναπληρώσεις και άδειες") — M6's move on `Πλάνο`, M1's screen unmoved as the first tab. Module 7 had no section, and nothing else in the app is about the teacher herself — M5's situation; the source carries ΕΥΕΞΙΑ and ΑΝΑΠΤΥΞΗ as two top-level items, and one tab named after the spec's module keeps the label honest about both. `App.test.tsx` pins eleven and says why |
+| **Development goals, the six annual goals and M7's goals form** | **Three independent surfaces. Nothing seeds, prefills or copies between any two of them** (M8) | The spec says development goals and annual goals are distinct and neither is generated from the other; M7 recorded that its *Στόχοι και επαγγελματική ανάπτυξη* form is neither. `development_goal` has no key to anything, no command writes two of them, and the development screen neither shows nor reads `annual_goals`. **Visibly separate** because they are in different sections — the six on *Έτος → Σχολικό έτος*, the open list on *Ανάπτυξη & Ευεξία → Ανάπτυξη και καριέρα* — which is how the source keeps them: page 10 *Στόχοι για τη χρονιά* under ΕΤΟΣ, the `ΣΤΟΧΟΙ ΑΝΑΠΤΥΞΗΣ` box on page 224 under ΑΝΑΠΤΥΞΗ. Each screen carries one sentence saying the other exists and is separate. A development goal's `status` is free text, like an annual goal's |
+| **A cover taught and a leave taken** | **Two tables (`cover_record`, `leave_record`), two commands, two selectors, no key between them** (M8) | The spec's "two related but separate registers". The source prints both on page 13, a register over two boxes. A leave's `ΕΓΓΡΑΦΑ ΠΟΥ ΚΑΤΑΤΕΘΗΚΑΝ` is stored **per leave**, the spec's "documents submitted" field, the shape M4.5 resolved for a captioned box |
+| **A cover record is not the timetable, and a leave is not the folder** | **Nothing reads or writes across** (M8) | "Αναπλήρωση" now means four things: the master timetable's duty cell (M3, a *planned* weekly slot), the substitute folder (M7, what someone covering *her* needs), a cover record (M8, a *dated record* of one she taught) and a leave record (M8, her own absence). Plan versus record is M5's booking/log distinction again. Tested at the storage layer and in the fixtures |
+| **A cover's `Τάξη`** | **Free text, not a link to a class** (M8) | The class she covered is usually a colleague's and not in her class list. M4's optional link (`ON DELETE SET NULL`) suits an incident in *her* class; here a link would force her to create a class she does not teach, which would then appear in her gradebook, her timetable picker and her substitute folders |
+| **Merged source columns** | **One field per source column**: a contact's `Θέση / Τομέας` is one `role`; a cover's `Μάθημα / Ύλη που καλύφθηκε` is one `covered` and its `Υπογραφή / Παρατηρήσεις` one `notes` (M8) | The source heads each pair as one column (pages 12 and 13) and the spec writes "role/area" and "subject/material covered" as one phrase. M4 split a support plan's strengths and needs because the source boxed them separately; these it does not. **The M8 brief's field lists split them**; the rendered pages do not, and the page wins |
+| **How a training line's cost and hours are stored** | **Nullable `REAL`: `NULL` is "not entered", `0` is a real zero; `CHECK` refuses a negative.** The input accepts `12,50` and `12.50`, shows the stored value back with a dot, and **refuses anything else without saving it** (M8) | **Different from M6's textbook `Τιμή`, deliberately.** A price is never added up, so it can say "δωρεάν". A training cost is summed by a roll-up the spec asks for and the page captions (`ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΚΑΙ ΣΥΝΟΨΗ`), and a sum cannot read a word; "δωρεάν" is typed as `0`, and the refusal says so. The same three-way reading as M2's weights — one parser, `domain/numbers.ts`, which M2's `parseWeight` now reads through |
+| **The budget summary roll-up** | **A pure function, `trainingSummary()`, over the school year's own window — week 1's Monday to week 53's Sunday — never the clock.** A blank cost is left out and **counted** ("N χωρίς έξοδο"); a line outside the year and an undated line are counted apart too; the remainder is shown only when a budget has been entered, and an overspend as one. Sums are in hundredths. Without a start date, every line counts and the screen says why (M8) | M2's rule — the app never invents a number the teacher did not type — applied to money. The budget itself is **one stored row** (`development_budget`: amount, notes) beside the page's notes box: one active school year per file, so one figure |
+| **A training line's `Μορφή` and `Βεβαίωση`** | **Free text, both** (M8) | M6's rule: a vocabulary only where the source enumerates one, and page 224's columns enumerate nothing. A certificate is not a vocabulary but could be a tick; it is text because the common real answers are "αναμένεται" and a certificate number, which a tick cannot hold |
+| **The staff directory's search** | **The message bank's folding rule, moved to `domain/search.ts` and shared**, over name, role, phone and email; it searches staff contacts only (M8) | "Do not write a second folding function." A guardian who shares a colleague's name is in another table and is never returned — the fixture carries exactly that case |
+| **Which M8 surfaces produce a PDF** | **None** (M8), per the scope line | The "PDF output" section names none of the four, and neither module entry says "printable". One source detail is raised rather than decided — see Open |
+| **Three details of the M8 brief were wrong about its source pages** | **The pages win** (M8) | Page 13's register has **five** columns, not seven (two pairs are merged); page 224's has **seven**, not eight (`Επιμόρφωση / Δραστηριότητα` is one); page 222's standing box is **two** boxes. Found by rendering the pages, per M5's and M7's lesson; recorded because the next agent will read the brief |
+
 
 ### Open — flag back rather than silently decide
 
@@ -386,6 +401,36 @@ sequence.
   the five school contacts as the folder's own text, typed once for every
   class. When M8 builds the directory, those five could point into it instead —
   which would be one more place typed once. Raised at M7 (2026-09-24) for M8.
+  **M8 built the directory and did not wire it. What wiring would cost:** one
+  migration adding `substitute_contact(role PRIMARY KEY, staff_contact_id
+  REFERENCES staff_contact ON DELETE SET NULL)`; a picker beside each of the
+  five contacts on the folder's last page; `substituteFolder()` reading the
+  linked contact's name and phone live, as it already reads the seating; and a
+  rule for which wins when a contact is both linked and typed. **Nothing the
+  teacher has already typed would be converted** — the typed text stays and
+  shows until she picks a link, so no migration touches her data. A deleted
+  directory entry would fall back to the typed text rather than to a blank.
+
+- **Should any other free-text name point into the staff directory?** Three
+  fields hold a colleague's name as text today: a meeting's `attendees` (M5), a
+  cover's `teacher` (M8) and a trip's `responsible` (M6). M8 converted none of
+  them, because converting would be a migration over text the teacher has
+  already typed. An *optional* link beside each — the text kept, the link added
+  — is the shape the folder question above would set; a meeting's attendees are
+  several people and would need a join table rather than one column. Raised at
+  M8 (2026-09-24).
+
+- **Should the covers register print?** Page 13's last column is `Υπογραφή /
+  Παρατηρήσεις` — a signature, which suggests a sheet the teacher hands to the
+  deputy head to sign. The spec's "PDF output" section does not name it and
+  M8's scope line names no PDF, so M8 ships none (the M2/M3 precedent). It
+  would be one document definition on the existing contract, with a blank
+  signature column. Raised at M8 (2026-09-24).
+
+- **Should a leave cover several days?** The spec's `LeaveRecord` has one
+  `date`, and M8 stores one; a three-day sick leave is one record dated its
+  first day, with the length in its reason. A `to` date is one column and one
+  migration if the product owner wants ranges. Raised at M8 (2026-09-24).
 
 
 - **Are the six resource categories about what a material *is*, or about whom
