@@ -26,11 +26,15 @@ import {
   type LetterCode,
   type LetterValues,
 } from "../domain/letters";
-import { useTranslate } from "../i18n/useTranslate";
+import { useContentTranslate, useTranslate } from "../i18n/useTranslate";
+import { ContentLanguageNote } from "../components/ContentLanguageNote";
 import { letterHtml, unansweredPlaceholders } from "../print/letterSheets";
 
 export default function LettersScreen({ today }: { today: string }) {
   const t = useTranslate();
+  /** A letter is printed in one language: Greek, while the English letters
+   * are unreviewed (M10). The screen's own buttons stay in `t`. */
+  const doc = useContentTranslate();
   const [code, setCode] = useState<LetterCode>(LETTERS[0].code);
   /**
    * One draft per letter, so moving between letters while composing does not
@@ -61,11 +65,11 @@ export default function LettersScreen({ today }: { today: string }) {
           <ExportButton
             labelId="letters.export"
             landscape={false}
-            fileName={t("letters.fileName", {
-              letter: t(letter.titleId),
+            fileName={doc("letters.fileName", {
+              letter: doc(letter.titleId),
               date: formatDate(today),
             })}
-            html={() => letterHtml(t, letter, values, today)}
+            html={() => letterHtml(doc, letter, values, today)}
           />
         </>
       }
@@ -81,6 +85,7 @@ export default function LettersScreen({ today }: { today: string }) {
         </select>
       </label>
 
+      <ContentLanguageNote />
       <p className="muted">{t("letters.blankNote")}</p>
 
       {letter.fields.length > 0 && (

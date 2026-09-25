@@ -10,6 +10,12 @@
  * reviewing them carefully before a teacher sends one. Until someone has, treat
  * every sentence here as a proposal.
  *
+ * **Not shown in the app until it is reviewed** (M10, the product owner's
+ * call): with `ENGLISH_CONTENT_REVIEWED` false in `contentReview.ts`, the
+ * English interface shows and prints the Greek content instead. This file is
+ * still held against the Greek by `i18nParity.test.ts`, and is what a
+ * reviewer corrects before that switch is turned on.
+ *
  * Same keys as `lettersEl.ts`, checked by the compiler and by
  * `tests/unit/i18nParity.test.ts`. The structure of each letter — its fields,
  * blocks and reply slips — is in `src/domain/letters.ts` and did not change.

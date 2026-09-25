@@ -25,7 +25,7 @@ import { lettersEl } from "../../src/i18n/lettersEl";
 import { lettersEn } from "../../src/i18n/lettersEn";
 import { messagesEl } from "../../src/i18n/messagesEl";
 import { messagesEn } from "../../src/i18n/messagesEn";
-import { translatorFor } from "../../src/i18n";
+import { englishBundle, translatorFor, type StringId, type Translate } from "../../src/i18n";
 import {
   PLACEHOLDER_CODES,
   placeholderKeyOf,
@@ -89,7 +89,12 @@ describe("the English bundle against the Greek", () => {
 
 describe("the placeholders the letters and messages ask for", () => {
   const tEl = translatorFor("el");
-  const tEn = translatorFor("en");
+  // The English *drafts*, not the lookup the app ships: since M10 the English
+  // interface serves the Greek content until it is reviewed, and what this
+  // block holds is that the drafts ask for the same placeholders — so they are
+  // ready the day the switch is turned on.
+  const drafts = englishBundle(true);
+  const tEn: Translate = (id: StringId) => drafts[id];
   const keyOfEl = placeholderKeyOf(tEl);
   const keyOfEn = placeholderKeyOf(tEn);
 

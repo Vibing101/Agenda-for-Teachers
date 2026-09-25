@@ -21,6 +21,7 @@
  */
 import { useState } from "react";
 import { api } from "../api";
+import { ContentLanguageNote } from "../components/ContentLanguageNote";
 import { ExportButton } from "../components/ExportButton";
 import {
   Button,
@@ -84,6 +85,7 @@ export default function FormsScreen({
     <>
       <Panel headingId="forms.heading" introId="forms.intro">
         <p className="hint">{t("forms.independent")}</p>
+        <ContentLanguageNote />
         <ul className="chips" aria-label={t("forms.pick")}>
           {PRINT_FORM_KINDS.map((k) => (
             <li key={k}>

@@ -11,6 +11,12 @@
  * Greek, treat each one as a proposal. The Greek is the source's own words; the
  * English is not.
  *
+ * **Not shown in the app until it is reviewed** (M10, the product owner's
+ * call): with `ENGLISH_CONTENT_REVIEWED` false in `contentReview.ts`, the
+ * English interface shows and prints the Greek content instead. This file is
+ * still held against the Greek by `i18nParity.test.ts`, and is what a
+ * reviewer corrects before that switch is turned on.
+ *
  * Same keys as `messagesEl.ts`, checked by the compiler and by
  * `tests/unit/i18nParity.test.ts`, which also holds that **every message asks
  * for the same placeholders in both languages** — by code, not by spelling. The

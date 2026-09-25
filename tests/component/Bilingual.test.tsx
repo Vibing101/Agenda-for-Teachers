@@ -21,9 +21,25 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Planner } from "../../src/domain/types";
+import {
+  GREEK,
+  greekLeftIn,
+  htmlText,
+  pageText,
+  teacherStrings,
+} from "../helpers/languageChecks";
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
+/**
+ * **With the English content switched on** (M10). The app ships with the
+ * letters, messages and forms' fixed text held in Greek until a bilingual
+ * reader has reviewed the English (`src/i18n/contentReview.ts`); what it ships
+ * is tested in `GreekContent.test.tsx`. This file keeps M9's criterion honest
+ * for the day the switch is turned on: every English draft still reaches every
+ * screen and every document.
+ */
+vi.mock("../../src/i18n/contentReview", () => ({ ENGLISH_CONTENT_REVIEWED: true }));
 
 const { createFakeBackend, emptyPlanner } = await import("../helpers/fakeBackend");
 const { default: App } = await import("../../src/App");
@@ -36,9 +52,6 @@ const { growthPlanner, TODAY: GROWTH_TODAY } = await import("../helpers/growthFi
 const { weekPlanner } = await import("../helpers/weekFixture");
 
 type Backend = ReturnType<typeof createFakeBackend>;
-
-const GREEK = /[Ͱ-Ͽἀ-῿]/;
-const GREEK_RUN = /[Ͱ-Ͽἀ-῿][Ͱ-Ͽἀ-῿\s.,·]*/g;
 
 function mount(planner: Planner, today = "2026-11-09"): Backend {
   const backend = createFakeBackend(planner);
@@ -65,57 +78,6 @@ const toggle = () => screen.getByRole("group", { name: /^(Γλώσσα|Language)
 
 async function switchTo(user: ReturnType<typeof userEvent.setup>, name: "English" | "Ελληνικά") {
   await user.click(within(toggle()).getByRole("button", { name }));
-}
-
-/** Every string the teacher (or the fixture, for her) put in the file. */
-function teacherStrings(planner: Planner): string[] {
-  const out = new Set<string>();
-  const walk = (v: unknown) => {
-    if (typeof v === "string") {
-      if (v.trim()) out.add(v.trim());
-      for (const line of v.split("\n")) if (line.trim()) out.add(line.trim());
-    } else if (Array.isArray(v)) v.forEach(walk);
-    else if (v && typeof v === "object") Object.values(v).forEach(walk);
-  };
-  walk(planner);
-  // The fake backend's folder path is the teacher's folder name, not a label.
-  out.add("/Drive/Ατζέντα/data/planner.sqlite");
-  out.add("/Drive/Ατζέντα");
-  // The toggle names Greek in Greek, on purpose.
-  out.add("Ελληνικά");
-  return [...out].sort((a, b) => b.length - a.length);
-}
-
-/** Every Greek run left in a piece of text once the teacher's words are removed. */
-function greekLeftIn(text: string, allowed: string[]): string[] {
-  let rest = text;
-  for (const a of allowed) rest = rest.split(a).join(" ");
-  return [...rest.matchAll(GREEK_RUN)].map((m) => m[0].trim()).filter(Boolean);
-}
-
-/** The whole visible page as text: text nodes, form values, and the attributes a reader hears. */
-function pageText(): string {
-  const parts = [document.body.textContent ?? ""];
-  for (const el of document.body.querySelectorAll("*")) {
-    for (const attr of ["aria-label", "placeholder", "title", "alt"]) {
-      const v = el.getAttribute(attr);
-      if (v) parts.push(v);
-    }
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) parts.push(el.value);
-  }
-  return parts.join("\n");
-}
-
-/** The visible text of an exported document's HTML. */
-function htmlText(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/g, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
 }
 
 function exports(backend: Backend) {

@@ -9,6 +9,12 @@
  * source's boxes are blank — and the Open question asking a Greek-speaking
  * teacher to read them now applies to this English version too.
  *
+ * **Not shown in the app until it is reviewed** (M10, the product owner's
+ * call): with `ENGLISH_CONTENT_REVIEWED` false in `contentReview.ts`, the
+ * English interface shows and prints the Greek content instead. This file is
+ * still held against the Greek by `i18nParity.test.ts`, and is what a
+ * reviewer corrects before that switch is turned on.
+ *
  * **How the folder's suggestions follow the language.** A box the teacher has
  * never touched has no row in the file, and shows whichever of these, or of
  * their Greek, matches the interface at that moment. A box she has written in

@@ -64,6 +64,8 @@ export const en = {
   "blocked.reload": "Reload from disk",
   "blocked.reloaded": "Reloaded the version that is now on disk.",
 
+  "content.greekOnly":
+    "The letters, the messages and the fixed text of the templates and the substitute folder stay in Greek until a person has checked their English translation.",
   "storage.heading": "Where your data is kept",
   "storage.appFolder": "App folder",
   "storage.dataFile": "Data file",

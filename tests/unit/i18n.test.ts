@@ -9,10 +9,19 @@
 import { describe, expect, it } from "vitest";
 // The *merged* bundle — app labels plus M5's letters and message bank — since
 // that is what `StringId` and the lookup are built from.
+import { en as enUi } from "../../src/i18n/en";
+import { formsEl } from "../../src/i18n/formsEl";
+import { formsEn } from "../../src/i18n/formsEn";
+import { lettersEl } from "../../src/i18n/lettersEl";
+import { lettersEn } from "../../src/i18n/lettersEn";
+import { messagesEl } from "../../src/i18n/messagesEl";
+import { messagesEn } from "../../src/i18n/messagesEn";
 import {
+  contentLocale,
   countOf,
   el,
   en,
+  englishBundle,
   translate,
   translatorFor,
   type Locale,
@@ -86,6 +95,43 @@ describe("the string lookup", () => {
 
   it("gives a translator bound to one locale", () => {
     expect(translatorFor("el")("nav.students")).toBe("Μαθητές");
+  });
+});
+
+describe("the English content, held back until reviewed (M10)", () => {
+  const content = { ...lettersEl, ...messagesEl, ...formsEl } as Record<string, string>;
+  const drafts = { ...lettersEn, ...messagesEn, ...formsEn } as Record<string, string>;
+  const ui = enUi as Record<string, string>;
+
+  it("keeps every label of the English interface, whichever way the switch is", () => {
+    for (const reviewed of [false, true]) {
+      const bundle = englishBundle(reviewed) as Record<string, string>;
+      for (const [id, text] of Object.entries(ui)) expect(bundle[id], id).toBe(text);
+    }
+  });
+
+  it("serves the Greek letters, messages and form content while unreviewed", () => {
+    const bundle = englishBundle(false) as Record<string, string>;
+    for (const [id, text] of Object.entries(content)) expect(bundle[id], id).toBe(text);
+  });
+
+  it("serves the English drafts once reviewed", () => {
+    const bundle = englishBundle(true) as Record<string, string>;
+    for (const [id, text] of Object.entries(drafts)) expect(bundle[id], id).toBe(text);
+  });
+
+  it("is what the app ships: the bundle in use is the unreviewed one", () => {
+    expect(en).toEqual(englishBundle(false));
+    expect(translate("en", "letter.invitation.title")).toBe("Πρόσκληση");
+    expect(translate("en", "nav.letters")).toBe("Letters");
+  });
+
+  it("prints content documents in Greek from an English interface until reviewed", () => {
+    expect(contentLocale("en", false)).toBe("el");
+    expect(contentLocale("en", true)).toBe("en");
+    expect(contentLocale("el", false)).toBe("el");
+    expect(contentLocale("el", true)).toBe("el");
+    expect(contentLocale("en")).toBe("el");
   });
 });
 

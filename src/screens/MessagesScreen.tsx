@@ -27,11 +27,15 @@ import {
   type MessageCategory,
 } from "../domain/messages";
 import { countOf } from "../i18n";
-import { useTranslate } from "../i18n/useTranslate";
+import { useContentTranslate, useTranslate } from "../i18n/useTranslate";
+import { ContentLanguageNote } from "../components/ContentLanguageNote";
 import { messageAsText, messageHtml } from "../print/letterSheets";
 
 export default function MessagesScreen({ today }: { today: string }) {
   const t = useTranslate();
+  /** A printed message is in one language: Greek, while the English bank is
+   * unreviewed (M10). */
+  const doc = useContentTranslate();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<MessageCategory | "">("");
   const [picked, setPicked] = useState<string | null>(null);
@@ -51,6 +55,7 @@ export default function MessagesScreen({ today }: { today: string }) {
   return (
     <>
       <Panel headingId="messages.heading" introId="messages.intro">
+        <ContentLanguageNote />
         <div className="row wrap">
           <TextField labelId="messages.search" value={query} onChange={setQuery} />
           <label className="field">
@@ -137,11 +142,11 @@ export default function MessagesScreen({ today }: { today: string }) {
             <ExportButton
               labelId="messages.export"
               landscape={false}
-              fileName={t("messages.fileName", {
+              fileName={doc("messages.fileName", {
                 title: message.title,
                 date: formatDate(today),
               })}
-              html={() => messageHtml(t, message, values, today)}
+              html={() => messageHtml(doc, message, values, today)}
             />
           </div>
           {copyMessage && (

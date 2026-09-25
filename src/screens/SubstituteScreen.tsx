@@ -22,6 +22,7 @@
  */
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { ContentLanguageNote } from "../components/ContentLanguageNote";
 import { ExportButton } from "../components/ExportButton";
 import { Button, CellInput, DeferredTextArea, DeferredTextField, Panel } from "../components/Fields";
 import { formatDate } from "../domain/dates";
@@ -86,6 +87,7 @@ export default function SubstituteScreen({
         }
       >
         <p className="hint">{t("folder.live")}</p>
+        <ContentLanguageNote />
         {planner.classes.length === 0 ? (
           <p className="muted">{t("folder.noClasses")}</p>
         ) : (
