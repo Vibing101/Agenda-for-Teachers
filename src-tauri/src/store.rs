@@ -59,6 +59,7 @@ pub fn load(conn: &Connection) -> AppResult<Planner> {
         development_budget: development_budget(conn)?,
         wellbeing_entries: wellbeing_entries(conn)?,
         wellbeing_note: wellbeing_note(conn)?,
+        preferences: preferences(conn)?,
     })
 }
 
@@ -2341,6 +2342,14 @@ fn wellbeing_note(conn: &Connection) -> AppResult<WellbeingNote> {
     )?)
 }
 
+fn preferences(conn: &Connection) -> AppResult<Preferences> {
+    Ok(
+        conn.query_row("SELECT locale FROM preference WHERE id = 1", [], |r| {
+            Ok(Preferences { locale: r.get(0)? })
+        })?,
+    )
+}
+
 pub fn save_staff_contact(conn: &Connection, c: &StaffContact) -> AppResult<i64> {
     if c.id == 0 {
         let position: i64 = conn.query_row(
@@ -2531,6 +2540,17 @@ pub fn save_wellbeing_note(conn: &Connection, n: &WellbeingNote) -> AppResult<()
         "UPDATE wellbeing_note SET sustains = ?1, boundaries = ?2 WHERE id = 1",
         params![n.sustains, n.boundaries],
     )?;
+    Ok(())
+}
+
+/// Switches the interface language. **Writes nothing but that one field** —
+/// not a label, not a vocabulary, not a word the teacher typed — because the
+/// file stores codes and her text, and neither changes with the language.
+pub fn save_locale(conn: &Connection, locale: &str) -> AppResult<()> {
+    if !LOCALES.contains(&locale) {
+        return Err(refused("unknown language"));
+    }
+    conn.execute("UPDATE preference SET locale = ?1 WHERE id = 1", [locale])?;
     Ok(())
 }
 
@@ -5801,5 +5821,60 @@ mod tests {
         assert_eq!(after.leave_records, before.leave_records);
         assert_eq!(after.training_entries, before.training_entries);
         assert_eq!(after.wellbeing_entries, before.wellbeing_entries);
+    }
+
+    // ----------------------------------------------------------- M9 ---
+
+    /// A fresh file opens in Greek, which is what every build before M9 showed.
+    #[test]
+    fn a_fresh_file_opens_in_greek() {
+        let (_dir, conn) = open();
+        assert_eq!(load(&conn).unwrap().preferences.locale, "el");
+    }
+
+    /// **Switching the language writes that one field and nothing else.** The
+    /// file stores codes and the teacher's own text; neither changes with the
+    /// language, so the whole planner apart from `preferences` must compare
+    /// equal before and after — both ways round.
+    #[test]
+    fn switching_the_language_writes_the_preference_and_nothing_else() {
+        let (_dir, conn) = open();
+        save_school_year(
+            &conn,
+            &SchoolYear {
+                year_model: "sep_aug".into(),
+                start_date: "2026-09-14".into(),
+            },
+        )
+        .unwrap();
+        save_cover_record(&conn, &sample_cover()).unwrap();
+        save_leave_record(&conn, &sample_leave()).unwrap();
+        save_training_entry(&conn, &sample_training(None, None)).unwrap();
+        let before = load(&conn).unwrap();
+
+        save_locale(&conn, "en").unwrap();
+        let english = load(&conn).unwrap();
+        assert_eq!(english.preferences.locale, "en");
+        assert_eq!(
+            Planner {
+                preferences: before.preferences.clone(),
+                ..english.clone()
+            },
+            before
+        );
+
+        save_locale(&conn, "el").unwrap();
+        assert_eq!(load(&conn).unwrap(), before);
+    }
+
+    /// An unknown language is refused and the file keeps the one it had.
+    #[test]
+    fn an_unknown_language_is_refused() {
+        let (_dir, conn) = open();
+        save_locale(&conn, "en").unwrap();
+        assert!(save_locale(&conn, "fr").is_err());
+        assert!(save_locale(&conn, "").is_err());
+        assert!(save_locale(&conn, "EN").is_err());
+        assert_eq!(load(&conn).unwrap().preferences.locale, "en");
     }
 }

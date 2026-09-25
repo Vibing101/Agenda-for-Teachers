@@ -59,7 +59,7 @@ mean whichever user the table names.
 | Auth | The Mac's `~/.ssh/id_ed25519`, installed as `administrators_authorized_keys` |
 | Remote shell | Windows PowerShell 5.1 |
 | Guest | Windows 11 Pro, x64 |
-| Repo in the guest | `C:\Dev\Agenda-for-Teachers`, cloned fresh from a bundle at M8 |
+| Repo in the guest | `C:\Dev\Agenda-for-Teachers`, cloned fresh from a bundle at M9 (branch `m9-bilingual-polish`); M8's clone kept aside as `C:\Dev\Agenda-for-Teachers-m8` |
 | Toolchain | VS 2022 Build Tools (C++), Git 2.55, Node 24.19, Rust 1.98.1, all by `winget` over SSH |
 | Sync clients | OneDrive and Google Drive both signed in and running |
 | Snapshot | `clean-baseline`, taken live at M8 after the toolchain and before the app ever ran |
@@ -412,6 +412,27 @@ Two more, specific to what the checks measure:
 - **Typing into the app and looking at it.** Layout, clipping, and whether
   anything is untranslated. The `Νέο τμήμα` data-loss bug at M1 was found this
   way and by nothing else.
+
+### What worked at M9: eyes and hands in the console session
+
+M9 needed the app to render on Windows (92 PDFs, the two-device test, the
+disk-changed demo), so it built small helpers in `C:\Dev\m9vm\`. The pattern:
+a one-shot scheduled task, `/ru kyria /it`, pointing at a `.cmd` wrapper (paths
+with spaces on `G:` fail as a direct `/tr`). With it an agent can:
+
+- **launch the exe** in session 1, so WebView2 has a desktop and the app really
+  loads;
+- **close it cleanly** with `CloseMainWindow()` — which must also run in the
+  console session, since another session sees no window handle;
+- **take a screenshot** (`System.Drawing` `CopyFromScreen`) and `scp` it back;
+- **press a button**: UI Automation finds it by name, but its `Invoke` does
+  **not** fire the page's click handler in WebView2 — the click has to be a real
+  `mouse_event` at the element's bounding rectangle. Put a Greek button name in
+  a UTF-8 file, never on the command line.
+
+**The guest's clock drifts.** At M9 it was 1 h 43 m slow in the right time zone
+(and corrected itself later), so its backups were named in the past. Check
+`Get-Date` against the Mac before reading anything into timestamps.
 
 ### Optional: give the agent eyes
 

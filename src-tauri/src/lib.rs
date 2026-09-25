@@ -705,6 +705,23 @@ fn save_wellbeing_note(
     mutate(&state, |tx| store::save_wellbeing_note(tx, &note))
 }
 
+/// Switches the interface language. A write like any other: it goes through
+/// the fingerprint check, so a file the sync client replaced is never
+/// overwritten by a language switch either.
+#[tauri::command]
+fn save_locale(state: tauri::State<'_, AppState>, locale: String) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_locale(tx, &locale))
+}
+
+/// Titles the main window in the interface language (M9). The title starts as
+/// `tauri.conf.json`'s Greek one; without this it stayed Greek over an English
+/// interface — the one string M9's gate saw left in the wrong language.
+#[tauri::command]
+fn set_window_title(window: tauri::WebviewWindow, title: String) -> AppResult<()> {
+    window.set_title(&title)?;
+    Ok(())
+}
+
 // ------------------------------------------------------------ PDF export ---
 
 /// Writes one document to `exports/` as a real PDF and returns its path.
@@ -974,7 +991,8 @@ pub fn run() {
     // this also means the pre-migration file is preserved: if the schema step
     // to a new milestone ever goes wrong, the teacher's last good file is
     // sitting in `data/backups/`.
-    if let Err(e) = backup::snapshot_now() {
+    // Skipped when the newest snapshot already holds this exact file (M9).
+    if let Err(e) = backup::snapshot_if_changed() {
         eprintln!("launch backup failed: {e}");
     }
     // Create and migrate the data file now rather than lazily on the first
@@ -1064,6 +1082,8 @@ pub fn run() {
             save_wellbeing_entry,
             delete_wellbeing_entry,
             save_wellbeing_note,
+            save_locale,
+            set_window_title,
             export_pdf,
             print_job,
             print_ready,
@@ -1073,7 +1093,7 @@ pub fn run() {
             print_self_test(&app.handle().clone());
             std::thread::spawn(|| loop {
                 std::thread::sleep(BACKUP_INTERVAL);
-                if let Err(e) = backup::snapshot_now() {
+                if let Err(e) = backup::snapshot_if_changed() {
                     eprintln!("periodic backup failed: {e}");
                 }
             });
@@ -1083,8 +1103,20 @@ pub fn run() {
         .expect("error while building the application")
         .run(|_app, event| {
             // Snapshot on a clean shutdown too.
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                if let Err(e) = backup::snapshot_now() {
+            //
+            // **Both events, since M9.** Until M9 only `ExitRequested` was
+            // handled, and a normal macOS quit — Cmd-Q, the Dock's Quit, the
+            // Apple Event a script sends — never raises it: the app goes
+            // straight to `Exit`. So no build before M9 wrote a snapshot on
+            // quitting on a Mac; the one the next launch wrote stood in for
+            // it. Found at the M9 gate by quitting and counting the folder.
+            // Handling both is safe because an automatic snapshot of an
+            // unchanged file is skipped, so the second of the two is a no-op.
+            if matches!(
+                event,
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+            ) {
+                if let Err(e) = backup::snapshot_if_changed() {
                     eprintln!("shutdown backup failed: {e}");
                 }
             }

@@ -20,6 +20,7 @@ import { ExportButton } from "../components/ExportButton";
 import { Button, Panel, TextField } from "../components/Fields";
 import { formatDate } from "../domain/dates";
 import {
+  bankMessage,
   categoryTitleId,
   MESSAGE_CATEGORIES,
   searchMessages,
@@ -37,10 +38,14 @@ export default function MessagesScreen({ today }: { today: string }) {
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   const found = useMemo(() => searchMessages(t, query, category), [t, query, category]);
-  const message = useMemo(
-    () => found.find((m) => m.code === picked) ?? null,
-    [found, picked],
-  );
+  /**
+   * The picked message, resolved in the current language. **Not looked up in
+   * `found`** (changed at M9): a query typed in Greek matches nothing in the
+   * English bank, so a switch of language would otherwise have closed the
+   * message the teacher was filling in. The values she typed are kept against
+   * each placeholder's stable key, so they fill the same slots in English.
+   */
+  const message = useMemo(() => (picked ? bankMessage(t, picked) : null), [t, picked]);
 
   return (
     <>
@@ -95,19 +100,19 @@ export default function MessagesScreen({ today }: { today: string }) {
           <h3>{message.title}</h3>
           {/* The message's own words, with whatever has been filled in so far —
               the same fill the PDF and the clipboard get. */}
-          <p className="prose">{messageAsText(message, values)}</p>
+          <p className="prose">{messageAsText(t, message, values)}</p>
 
           {message.placeholders.length === 0 ? (
             <p className="muted">{t("messages.noPlaceholders")}</p>
           ) : (
             <div className="row wrap">
-              {message.placeholders.map((token) => (
-                <label className="field" key={token}>
+              {message.placeholders.map(({ token, key }) => (
+                <label className="field" key={key}>
                   <span>{token}</span>
                   <input
                     type="text"
-                    value={values[token] ?? ""}
-                    onChange={(e) => setValues((v) => ({ ...v, [token]: e.target.value }))}
+                    value={values[key] ?? ""}
+                    onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
                   />
                 </label>
               ))}
@@ -119,7 +124,7 @@ export default function MessagesScreen({ today }: { today: string }) {
               labelId="messages.copy"
               onClick={async () => {
                 try {
-                  await navigator.clipboard.writeText(messageAsText(message, values));
+                  await navigator.clipboard.writeText(messageAsText(t, message, values));
                   setCopyMessage(t("messages.copied"));
                 } catch {
                   // Clipboard access can refuse — M4 hit this on the timetable

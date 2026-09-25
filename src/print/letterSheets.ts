@@ -25,7 +25,7 @@ import {
   type LetterTemplate,
   type LetterValues,
 } from "../domain/letters";
-import { fillPlaceholders } from "../domain/placeholders";
+import { fillPlaceholders, placeholderKeyOf, type PlaceholderField } from "../domain/placeholders";
 import { formatDate } from "../domain/dates";
 import { isIsoDate } from "../domain/dates";
 import type { BankMessage } from "../domain/messages";
@@ -72,7 +72,8 @@ export function letterDocument(
   values: LetterValues,
   today: string,
 ): PrintDocument {
-  const fill = (text: string) => fillPlaceholders(text, mapDates(values));
+  const keyOf = placeholderKeyOf(t);
+  const fill = (text: string) => fillPlaceholders(text, mapDates(values), keyOf);
 
   const blocks: PrintBlock[] = [];
   const head = fieldRow(t, letter, values);
@@ -137,13 +138,20 @@ export function letterDocument(
 }
 
 /**
- * The values a letter's `[ΑΓΚΥΛΕΣ]` are filled from.
+ * The values a letter's `[ΑΓΚΥΛΕΣ]` are filled from, with dates formatted on
+ * the way through, for the reason [`printedValue`] gives.
  *
- * A token is filled from the field of the same name where there is one — a slip
- * that says `[ΗΜΕΡΟΜΗΝΙΑ]` should print the date already typed at the head of
- * the letter rather than asking for it twice — and otherwise from a value the
- * teacher typed against the token itself. Dates are formatted on the way
- * through, for the reason [`printedValue`] gives.
+ * A token is filled from the value the teacher typed against it, kept under the
+ * token's stable key (`ph.<code>`, M9).
+ *
+ * **Corrected at M9.** This comment used to say a slip's `[ΗΜΕΡΟΜΗΝΙΑ]` is
+ * filled from the letter's own date field "rather than asking for it twice".
+ * It never was: the field is keyed `date` and the token was keyed by its Greek
+ * text, so the two never met, and the invitation has always asked for the
+ * meeting date twice — once at its head and once for its slip. M9 keeps that
+ * behaviour exactly (`ph.date` is not `date`) and raises it with the product
+ * owner rather than changing what a letter asks for as a side effect of the
+ * translation.
  */
 function mapDates(values: LetterValues): Record<string, string> {
   const out: Record<string, string> = {};
@@ -167,9 +175,12 @@ export function letterHtml(
  * This is what the screen offers inputs for, so filling a letter top to bottom
  * leaves nothing behind.
  */
-export function unansweredPlaceholders(t: Translate, letter: LetterTemplate): string[] {
+export function unansweredPlaceholders(
+  t: Translate,
+  letter: LetterTemplate,
+): PlaceholderField[] {
   const fieldKeys = new Set(letter.fields.map((f) => f.key));
-  return letterPlaceholders(t, letter).filter((token) => !fieldKeys.has(token));
+  return letterPlaceholders(t, letter).filter((p) => !fieldKeys.has(p.key));
 }
 
 // ------------------------------------------------------- the message bank ---
@@ -192,7 +203,7 @@ export function messageDocument(
     title: message.title,
     subtitle: t(`msgcat.${message.category}.title` as never),
     meta: [],
-    blocks: [{ kind: "prose", lines: [fillPlaceholders(message.body, values)] }],
+    blocks: [{ kind: "prose", lines: [messageAsText(t, message, values)] }],
     footer: printFooter(t, today),
   };
 }
@@ -214,6 +225,10 @@ export function messageHtml(
  * M4 established the shape for this with the timetable's `timetableAsText()`.
  * **The same fill runs**, so what is copied and what is printed cannot differ.
  */
-export function messageAsText(message: BankMessage, values: Record<string, string>): string {
-  return fillPlaceholders(message.body, values);
+export function messageAsText(
+  t: Translate,
+  message: BankMessage,
+  values: Record<string, string>,
+): string {
+  return fillPlaceholders(message.body, values, placeholderKeyOf(t));
 }

@@ -7,8 +7,11 @@
  * Resolved table. So nothing is authored in English now, but nothing is
  * hardcoded in Greek either — every label is a string id resolved here.
  *
- * Adding English at M9 is: write `en.ts` with the same keys, add one line to
- * `BUNDLES`, and show the toggle. No screen changes.
+ * Adding English at M9 was: write `en.ts` with the same keys, add one line to
+ * `BUNDLES`, and show the toggle. It held for every screen and every document
+ * builder; the two places M9 did have to change are recorded in its release
+ * note (the message bank keyed a filled value by its Greek token, and the shell
+ * pinned the language).
  *
  * What is deliberately *not* here: anything the teacher typed. Student names,
  * notes, class names, custom labels — those are rendered exactly as entered,
@@ -18,6 +21,10 @@ import { el as elUi } from "./el";
 import { lettersEl } from "./lettersEl";
 import { messagesEl } from "./messagesEl";
 import { formsEl } from "./formsEl";
+import { en as enUi } from "./en";
+import { lettersEn } from "./lettersEn";
+import { messagesEn } from "./messagesEn";
+import { formsEn } from "./formsEn";
 
 /**
  * The Greek bundle, assembled from four files that hold four different kinds
@@ -40,8 +47,28 @@ const el = { ...elUi, ...lettersEl, ...messagesEl, ...formsEl };
 export type StringId = keyof typeof el;
 export type Locale = "el" | "en";
 
-/** The language the app ships in today. M9 adds `"en"` alongside it. */
+/**
+ * The English bundle (M9), assembled the same way from the four English files.
+ * Each is typed against its Greek twin, so the compiler refuses a key missing
+ * from either side; `tests/unit/i18nParity.test.ts` refuses it again at test
+ * time, names the key, and checks every `{param}` and `[PLACEHOLDER]` besides.
+ */
+const en: Record<StringId, string> = { ...enUi, ...lettersEn, ...messagesEn, ...formsEn };
+
+/** Every language the interface can be in, in the order the toggle offers them. */
+export const LOCALES: readonly Locale[] = ["el", "en"];
+
+/**
+ * The language a fresh file opens in, and what anything the app does not
+ * recognise falls back to. **Never the OS locale** — the spec says the
+ * language is "persisted as a preference, not tied to the OS locale".
+ */
 export const DEFAULT_LOCALE: Locale = "el";
+
+/** Whether a stored value names a language this app has. */
+export function isLocale(value: unknown): value is Locale {
+  return typeof value === "string" && (LOCALES as readonly string[]).includes(value);
+}
 
 /**
  * Greek is the base bundle. A later bundle may be incomplete while it is being
@@ -50,9 +77,10 @@ export const DEFAULT_LOCALE: Locale = "el";
  */
 const BUNDLES: Partial<Record<Locale, Partial<Record<StringId, string>>>> = {
   el,
+  en,
 };
 
-export { el };
+export { el, en };
 
 /** Values substituted into a string's `{placeholder}` slots. */
 export type Params = Record<string, string | number>;

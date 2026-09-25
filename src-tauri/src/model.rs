@@ -210,6 +210,8 @@ pub struct Planner {
     pub development_budget: DevelopmentBudget,
     pub wellbeing_entries: Vec<WellbeingEntry>,
     pub wellbeing_note: WellbeingNote,
+    /// M9: the interface language. See [`Preferences`].
+    pub preferences: Preferences,
 }
 
 // ------------------------------------------------------------- M2: grades ---
@@ -1140,4 +1142,22 @@ pub struct WellbeingEntry {
 pub struct WellbeingNote {
     pub sustains: String,
     pub boundaries: String,
+}
+
+// ------------------------------------------------------ M9: preferences ---
+
+/// The languages the interface can be in. The code is what the file stores;
+/// the words for each language live in the frontend's bundles.
+pub const LOCALES: [&str; 2] = ["el", "en"];
+
+/// The app's own preferences — one row, and today one field.
+///
+/// **The language is stored here, in the data file, not read from the OS.**
+/// The spec asks for it to be "persisted as a preference, not tied to the OS
+/// locale"; `migrate_to_10` says why the data file was chosen over a file
+/// beside it. A file that has never been switched reads back `el`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Preferences {
+    /// One of [`LOCALES`].
+    pub locale: String,
 }

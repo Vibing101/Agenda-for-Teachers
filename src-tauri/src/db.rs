@@ -19,7 +19,7 @@ use crate::model::GOAL_AREAS;
 use rusqlite::{params, Connection};
 use std::path::Path;
 
-pub const SCHEMA_VERSION: i64 = 9;
+pub const SCHEMA_VERSION: i64 = 10;
 
 pub fn open_at(db_path: &Path) -> AppResult<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -87,6 +87,11 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     if current < 9 {
         migrate_to_9(conn)?;
         conn.pragma_update(None, "user_version", 9)?;
+        current = 9;
+    }
+    if current < 10 {
+        migrate_to_10(conn)?;
+        conn.pragma_update(None, "user_version", 10)?;
     }
     Ok(())
 }
@@ -850,6 +855,39 @@ fn migrate_to_9(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
+/// M9. The one preference the app has: which language its interface is in.
+///
+/// **It lives in the data file, not beside it.** The spec asks for the language
+/// to be "persisted as a preference, not tied to the OS locale", and the two
+/// places it could go behave differently in this app's world. A file beside
+/// `planner.sqlite` would be per device only if it lived *outside* the synced
+/// folder — anywhere inside it syncs like everything else — and the spec keeps
+/// everything the app writes in that one folder. In here it travels with the
+/// teacher's records, so the PC opens in the language she left the Mac in, and
+/// a sheet printed on either machine comes out in the same language. The cost
+/// is that changing the language is a write like any other: it goes through
+/// `mutate()`, the fingerprint check and the disk-changed block. That is the
+/// same guarantee every other record has, not an exception to it.
+///
+/// A single row, like `school_year`. `locale` is checked in Rust rather than by
+/// a `CHECK`, as M7's `print_form.kind` is, so a third language would need no
+/// migration. A file that climbs here reads back Greek, which is what every
+/// build before M9 showed.
+fn migrate_to_10(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "BEGIN;
+
+         CREATE TABLE preference (
+             id     INTEGER PRIMARY KEY CHECK (id = 1),
+             locale TEXT NOT NULL DEFAULT 'el'
+         );
+         INSERT OR IGNORE INTO preference (id) VALUES (1);
+
+         COMMIT;",
+    )?;
+    Ok(())
+}
+
 /// Folds every M1 `class_slot` row into the master timetable, losing none.
 ///
 /// A slot's `(period_label, start_time, end_time)` becomes an hour, and the slot
@@ -1230,7 +1268,6 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
-        assert_eq!(version, 9);
 
         let planner = store::load(&conn).unwrap();
         // Everything M3 wrote is still there, untouched.
@@ -1506,7 +1543,8 @@ mod tests {
     }
 
     /// A data file as the **signed-off M7 build** left it — `user_version = 8`,
-    /// with real M7 rows on it — climbs to 9 and keeps every one of them.
+    /// with real M7 rows on it — climbs to the current schema and keeps every
+    /// one of them. (Written at M8 as "climbs to 9"; renamed at M9.)
     ///
     /// The M7-era rung: M8 is the first milestone to write a migration on top
     /// of what M7 wrote. It carries a saved print form with values, and the
@@ -1517,7 +1555,7 @@ mod tests {
     /// a saved M7 goals form, and asserts the climb invents no development goal
     /// from either of them.
     #[test]
-    fn an_m7_file_with_data_on_it_climbs_to_9_and_keeps_every_row() {
+    fn an_m7_file_with_data_on_it_climbs_to_the_current_schema_and_keeps_every_row() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("planner.sqlite");
 
@@ -1559,7 +1597,6 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
-        assert_eq!(version, 9);
 
         let planner = store::load(&conn).unwrap();
         // Every M7 row, exactly as written.
@@ -1605,6 +1642,88 @@ mod tests {
         assert_eq!(planner.development_budget.notes, "");
         assert_eq!(planner.wellbeing_note.sustains, "");
         assert_eq!(planner.wellbeing_note.boundaries, "");
+    }
+
+    /// A data file as the **signed-off M8 build** left it — `user_version = 9`,
+    /// with a row in **every one of M8's eight tables** — climbs to the current
+    /// schema and keeps every one of them.
+    ///
+    /// The M8-era rung: M9 is the first milestone to write a migration on top
+    /// of what M8 wrote. It carries M8's own contested pair — **a cover and a
+    /// leave on the same date** — and **a training line with a blank cost**,
+    /// which must still read back as "not entered" rather than as zero. The
+    /// climb adds the language preference, and a file that climbs reads back
+    /// Greek, because every build before M9 was Greek.
+    #[test]
+    fn an_m8_file_with_data_on_it_climbs_to_the_current_schema_and_keeps_every_row() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+
+        let conn = Connection::open(&path).unwrap();
+        migrate_to_1(&conn).unwrap();
+        migrate_to_2(&conn).unwrap();
+        migrate_to_3(&conn).unwrap();
+        migrate_to_4(&conn).unwrap();
+        migrate_to_5(&conn).unwrap();
+        migrate_to_6(&conn).unwrap();
+        migrate_to_7(&conn).unwrap();
+        migrate_to_8(&conn).unwrap();
+        migrate_to_9(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 9).unwrap();
+        conn.execute_batch(
+            "INSERT INTO staff_contact (id, position, full_name, role, phone, email)
+             VALUES (1, 0, 'Κ. Ιωάννου', 'Διευθυντής', '22 123456', 'k@example.org');
+             INSERT INTO cover_record (id, date, class_name, covered, teacher, notes)
+             VALUES (1, '2026-11-12', 'Γ2', 'Κεφάλαιο 3', 'Μ. Νικολάου', 'Υπογράφηκε');
+             INSERT INTO leave_record (id, date, reason, documents)
+             VALUES (1, '2026-11-12', 'Ασθένεια', 'Ιατρική βεβαίωση');
+             INSERT INTO development_goal (id, position, goal, status, progress, notes)
+             VALUES (1, 0, 'Μεταπτυχιακό', 'Ξεκίνησε', 'Πρώτο εξάμηνο', '');
+             INSERT INTO training_entry (id, date, activity, organiser, hours, format, cost, certificate)
+             VALUES (1, '2026-10-03', 'Σεμινάριο ΤΠΕ', 'Π.Ι.', 6, 'δια ζώσης', 12.5, 'αναμένεται');
+             INSERT INTO training_entry (id, date, activity, organiser, hours, format, cost, certificate)
+             VALUES (2, '2026-10-10', 'Webinar', 'ΥΠΑΝ', NULL, 'online', NULL, '');
+             UPDATE development_budget SET amount = 300, notes = 'Από τον σύλλογο' WHERE id = 1;
+             INSERT INTO wellbeing_entry (id, date, notes) VALUES (1, '2026-11-13', 'Καλή εβδομάδα');
+             UPDATE wellbeing_note SET sustains = 'Κολύμπι', boundaries = 'Όχι email το βράδυ'
+              WHERE id = 1;",
+        )
+        .unwrap();
+        drop(conn);
+
+        let conn = open_at(&path).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+
+        let planner = store::load(&conn).unwrap();
+        assert_eq!(planner.staff_contacts.len(), 1);
+        assert_eq!(planner.staff_contacts[0].full_name, "Κ. Ιωάννου");
+        assert_eq!(planner.staff_contacts[0].email, "k@example.org");
+        // The same-date pair: both there, one each, neither touched.
+        assert_eq!(planner.cover_records.len(), 1);
+        assert_eq!(planner.cover_records[0].date, "2026-11-12");
+        assert_eq!(planner.cover_records[0].teacher, "Μ. Νικολάου");
+        assert_eq!(planner.leave_records.len(), 1);
+        assert_eq!(planner.leave_records[0].date, "2026-11-12");
+        assert_eq!(planner.leave_records[0].documents, "Ιατρική βεβαίωση");
+        assert_eq!(planner.development_goals.len(), 1);
+        assert_eq!(planner.development_goals[0].progress, "Πρώτο εξάμηνο");
+        // The blank cost is still blank, not zero; the entered one is intact.
+        assert_eq!(planner.training_entries.len(), 2);
+        assert_eq!(planner.training_entries[0].cost, Some(12.5));
+        assert_eq!(planner.training_entries[1].cost, None);
+        assert_eq!(planner.training_entries[1].hours, None);
+        assert_eq!(planner.development_budget.amount, Some(300.0));
+        assert_eq!(planner.development_budget.notes, "Από τον σύλλογο");
+        assert_eq!(planner.wellbeing_entries.len(), 1);
+        assert_eq!(planner.wellbeing_entries[0].notes, "Καλή εβδομάδα");
+        assert_eq!(planner.wellbeing_note.sustains, "Κολύμπι");
+        assert_eq!(planner.wellbeing_note.boundaries, "Όχι email το βράδυ");
+
+        // M9's one row: present, and Greek.
+        assert_eq!(planner.preferences.locale, "el");
     }
 
     /// **No table anywhere carries a week index**, which is the rule M1 set and

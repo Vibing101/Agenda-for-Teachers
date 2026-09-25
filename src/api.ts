@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { Locale, Translate } from "./i18n";
 import type {
   AbsenceEvent,
   AgendaNote,
@@ -68,6 +69,22 @@ export function isAppError(e: unknown): e is AppError {
     typeof (e as AppError).code === "string" &&
     typeof (e as AppError).message === "string"
   );
+}
+
+/**
+ * What the teacher reads when the Rust side reports a failure (M9).
+ *
+ * The Rust side's messages are English, because no user-facing string lives
+ * there; before M9 they were shown on their own, so a Greek interface showed an
+ * English sentence. Now the sentence is the bundle's, in the interface
+ * language, and the system's own message follows the colon as its detail.
+ * `disk_changed` never reaches here — the shell turns it into the block.
+ */
+export function describeError(t: Translate, e: unknown): string {
+  if (!isAppError(e)) return t("error.other", { detail: String(e) });
+  const id =
+    e.code === "db" ? "error.db" : e.code === "io" ? "error.io" : e.code === "pdf" ? "error.pdf" : "error.other";
+  return t(id, { detail: e.message });
 }
 
 /**
@@ -283,6 +300,15 @@ export const api = {
   deleteWellbeingEntry: (id: number) => invoke<Planner>("delete_wellbeing_entry", { id }),
   /** The wellbeing page's two standing boxes. */
   saveWellbeingNote: (note: WellbeingNote) => invoke<Planner>("save_wellbeing_note", { note }),
+
+  /**
+   * Switches the interface language (M9). A write like any other: it goes
+   * through the fingerprint check, so it is refused while the file is blocked.
+   */
+  saveLocale: (locale: Locale) => invoke<Planner>("save_locale", { locale }),
+
+  /** The window's title bar, in the interface language (M9). Not a mutation. */
+  setWindowTitle: (title: string) => invoke<void>("set_window_title", { title }),
 
   /**
    * Writes one document into `exports/` as a real PDF and resolves with its

@@ -11,7 +11,7 @@
  * because the teacher knows the bank by those numbers and because a stable code
  * is what this project stores and labels everywhere else.
  */
-import { placeholdersIn } from "./placeholders";
+import { placeholderFields, type PlaceholderField } from "./placeholders";
 import { foldForSearch } from "./search";
 import type { StringId, Translate } from "../i18n";
 
@@ -76,8 +76,13 @@ export interface BankMessage {
   category: MessageCategory;
   title: string;
   body: string;
-  /** The `[ΑΓΚΥΛΕΣ]` this message asks the teacher to fill, in reading order. */
-  placeholders: string[];
+  /**
+   * The `[ΑΓΚΥΛΕΣ]` this message asks the teacher to fill, in reading order —
+   * each with the token as the current language writes it (the field's
+   * caption) and the stable key its value is kept against, which is the same
+   * in every language (M9).
+   */
+  placeholders: PlaceholderField[];
 }
 
 export function bankMessage(t: Translate, code: MessageCode): BankMessage {
@@ -87,7 +92,7 @@ export function bankMessage(t: Translate, code: MessageCode): BankMessage {
     category: categoryOf(code),
     title: t(messageTitleId(code)),
     body,
-    placeholders: placeholdersIn(body),
+    placeholders: placeholderFields(t, body),
   };
 }
 

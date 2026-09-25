@@ -631,6 +631,10 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
         },
     )
     .unwrap();
+    // M9 — the teacher switches the interface to English. It is stored in the
+    // file, so it must come back after the quit like everything else, and it
+    // must not move when the start date does.
+    store::save_locale(&conn, "en").unwrap();
 
     let saved = store::load(&conn).unwrap();
     drop(conn); // the app quits
@@ -642,7 +646,10 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert!(!paths::data_dir().join("planner.sqlite-shm").exists());
 
     // --- relaunch: a snapshot is taken, and everything is still there ---
-    assert!(backup::snapshot_now().unwrap().is_some());
+    assert!(backup::snapshot_if_changed().unwrap().is_some());
+    assert_eq!(backup::count_snapshots(), 1);
+    // M9: another automatic snapshot of the same, unchanged file adds nothing.
+    assert!(backup::snapshot_if_changed().unwrap().is_some());
     assert_eq!(backup::count_snapshots(), 1);
 
     let conn = db::open().unwrap();
@@ -944,6 +951,7 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert_eq!(reloaded.development_budget.amount, Some(300.0));
     assert_eq!(reloaded.wellbeing_entries[0].notes, "Βοήθησε το περπάτημα");
     assert_eq!(reloaded.wellbeing_note.boundaries, "Όχι email μετά τις 8");
+    assert_eq!(reloaded.preferences.locale, "en");
 
     assert_eq!(moved.classes, reloaded.classes);
     assert_eq!(moved.students, reloaded.students);
@@ -1009,6 +1017,7 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
     assert_eq!(moved.development_budget, reloaded.development_budget);
     assert_eq!(moved.wellbeing_entries, reloaded.wellbeing_entries);
     assert_eq!(moved.wellbeing_note, reloaded.wellbeing_note);
+    assert_eq!(moved.preferences, reloaded.preferences);
     drop(conn);
 
     // Opening and reading must not disturb the file, or every session would

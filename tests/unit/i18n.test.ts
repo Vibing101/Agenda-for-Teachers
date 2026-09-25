@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 // The *merged* bundle — app labels plus M5's letters and message bank — since
 // that is what `StringId` and the lookup are built from.
-import { el, translate, translatorFor, type StringId } from "../../src/i18n";
+import { el, translate, translatorFor, type Locale, type StringId } from "../../src/i18n";
 import {
   ABSENCE_KINDS,
   absenceKindLabel,
@@ -63,10 +63,17 @@ describe("the string lookup", () => {
     expect(translate("el", "storage.latest", {})).toContain("{when}");
   });
 
-  it("falls back to Greek for a locale that has not been written yet", () => {
-    // This is what M9 relies on while `en.ts` is being filled in: a missing key
-    // shows Greek, never a blank button or a raw id.
-    expect(translate("en", "nav.classes")).toBe(el["nav.classes"]);
+  it("returns the English string once the language is English", () => {
+    expect(translate("en", "nav.classes")).toBe("Classes");
+    expect(translate("en", "classes.countValue", { n: 24 })).toBe("24 students");
+  });
+
+  it("falls back to Greek for a language that has no bundle", () => {
+    // The safety net M1 built for M9 and kept after it: a language without a
+    // bundle — or a key missing from one — shows Greek, never a blank button
+    // or a raw id. **It is a net, not the check**: `i18nParity.test.ts` is
+    // what fails when an English string is missing.
+    expect(translate("fr" as Locale, "nav.classes")).toBe(el["nav.classes"]);
   });
 
   it("gives a translator bound to one locale", () => {
