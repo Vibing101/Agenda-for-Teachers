@@ -176,18 +176,30 @@ pub fn snapshot_in(
 /// back a hot journal left by a crash — the same recovery any open does — so
 /// the copy is never of a torn file either. A read transaction writes nothing.
 fn copy_consistently(db: &Path, dest: &Path) -> std::io::Result<()> {
+    copy_consistently_with(db, dest, |from, to| std::fs::copy(from, to).map(|_| ()))
+}
+
+/// [`copy_consistently`], with the byte copy passed in — so a test can act
+/// *during* the copy: try to write to the data file while it runs, or stop it
+/// halfway as a killed app would.
+fn copy_consistently_with(
+    db: &Path,
+    dest: &Path,
+    copy: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+) -> std::io::Result<()> {
     let io = |e: rusqlite::Error| std::io::Error::other(e);
     let partial = partial_name(dest);
     let conn = Connection::open(db).map_err(io)?;
     conn.busy_timeout(LOCK_WAIT).map_err(io)?;
     conn.execute_batch("BEGIN").map_err(io)?;
-    // A read, to take the shared lock: BEGIN alone takes none.
+    // A read, to take the shared lock: BEGIN alone takes none. The lock is
+    // held until the COMMIT below, i.e. for the whole of the copy.
     let copied = conn
         .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
             r.get::<_, i64>(0)
         })
         .map_err(io)
-        .and_then(|_| std::fs::copy(db, &partial));
+        .and_then(|_| copy(db, &partial));
     let _ = conn.execute_batch("COMMIT");
     drop(conn);
     if let Err(e) = copied {
@@ -462,44 +474,92 @@ mod tests {
         );
     }
 
-    /// **A snapshot never copies a write half-done.** A writer holding the
-    /// file's exclusive lock — the moment its commit writes pages — makes the
-    /// snapshot wait; what is copied is the committed file, whole.
+    /// **A snapshot never copies a write half-done: the data file cannot be
+    /// written while the copy runs.** The copy step tries to write to the file
+    /// itself, from another connection that will not wait — and is refused,
+    /// because the snapshot holds the shared lock for the whole copy.
     #[test]
-    fn a_snapshot_waits_for_a_save_in_progress_and_copies_the_committed_file() {
+    fn no_save_can_write_to_the_file_while_a_snapshot_copies_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = a_data_file(dir.path());
+        let dest = dir.path().join("planner-2026-09-19-1200.sqlite");
+
+        let mut written_during_copy = None;
+        copy_consistently_with(&db, &dest, |from, to| {
+            let other = Connection::open(from).unwrap();
+            other.busy_timeout(Duration::from_millis(0)).unwrap();
+            written_during_copy = Some(
+                other
+                    .execute("UPDATE school_year SET start_date = '2027-01-04'", [])
+                    .is_ok(),
+            );
+            std::fs::copy(from, to).map(|_| ())
+        })
+        .unwrap();
+
+        assert_eq!(
+            written_during_copy,
+            Some(false),
+            "a write got in during the copy"
+        );
+        assert_eq!(std::fs::read(&dest).unwrap(), std::fs::read(&db).unwrap());
+    }
+
+    /// **A save that meets a snapshot waits for it rather than failing.** A
+    /// reader holding the shared lock — as a snapshot does for the milliseconds
+    /// of its copy — makes an ordinary `db::open_at` write wait, then succeed.
+    #[test]
+    fn a_save_waits_for_a_snapshot_rather_than_failing() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = a_data_file(dir.path());
+
+        let reader = Connection::open(&db).unwrap();
+        reader.execute_batch("BEGIN").unwrap();
+        let _: i64 = reader
+            .query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get(0))
+            .unwrap();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            reader.execute_batch("COMMIT").unwrap();
+        });
+
+        let writer = crate::db::open_at(&db).unwrap();
+        let saved = writer.execute("UPDATE school_year SET start_date = '2026-09-21'", []);
+        release.join().unwrap();
+        assert!(
+            saved.is_ok(),
+            "the save failed instead of waiting: {saved:?}"
+        );
+    }
+
+    /// **A copy stopped halfway never leaves a file under a snapshot's name.**
+    /// The copy writes half the bytes and the app dies (a panic stands in for
+    /// the kill: nothing after it runs). What is left in the folder must not
+    /// parse as a snapshot — and the next snapshot clears it away.
+    #[test]
+    fn a_copy_stopped_halfway_leaves_nothing_that_looks_like_a_snapshot() {
         let dir = tempfile::tempdir().unwrap();
         let db = a_data_file(dir.path());
         let backups = dir.path().join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+        let dest = backups.join("planner-2026-09-19-1200.sqlite");
 
-        let writer = crate::db::open_at(&db).unwrap();
-        writer.execute_batch("BEGIN EXCLUSIVE").unwrap();
-        writer
-            .execute("UPDATE school_year SET start_date = '2026-09-21'", [])
-            .unwrap();
-        let release = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(400));
-            writer.execute_batch("COMMIT").unwrap();
-        });
+        let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = copy_consistently_with(&db, &dest, |from, to| {
+                let bytes = std::fs::read(from).unwrap();
+                std::fs::write(to, &bytes[..bytes.len() / 2]).unwrap();
+                panic!("the app was killed mid-copy");
+            });
+        }));
+        assert!(killed.is_err());
+        assert!(list_snapshots(&backups).unwrap().is_empty());
+        assert!(!dest.exists());
 
-        let started = std::time::Instant::now();
-        let path = snapshot_in(&db, &backups, at("2026-09-19 12:00"), false)
-            .unwrap()
-            .unwrap();
-        assert!(
-            started.elapsed() >= Duration::from_millis(300),
-            "the copy waited for the commit"
+        snapshot_in(&db, &backups, at("2026-09-19 12:01"), false).unwrap();
+        assert_eq!(
+            snapshots_in(&backups),
+            vec!["planner-2026-09-19-1201.sqlite"]
         );
-        release.join().unwrap();
-
-        let copy = Connection::open(&path).unwrap();
-        let check: String = copy
-            .query_row("PRAGMA integrity_check", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(check, "ok");
-        let start: String = copy
-            .query_row("SELECT start_date FROM school_year", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(start, "2026-09-21", "the committed write, whole");
     }
 
     /// Month boundaries are calendar months, not 30-day blocks: the last
