@@ -2,7 +2,11 @@
 
 **Date:** 2026-09-25
 **Branch:** `m9-bilingual-polish`
-**Signed off by:** — (awaiting the product owner)
+**Signed off by:** Product owner, 2026-09-25, "signing off everything", and
+asking for the merge. That sign-off covers the layout-fidelity judgement
+(criterion 2). It is recorded as given; this note does not claim that the
+bilingual read of the English draft (below) has been done, and it stays on the
+list before handover.
 
 **Which situation this leaves behind.** Everything an agent can do for M9 is
 done and passed on both operating systems, including the real two-device gate
