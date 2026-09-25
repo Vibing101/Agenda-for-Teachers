@@ -71,6 +71,11 @@ pub struct Status {
     db_path: String,
     db_exists: bool,
     schema_version: i64,
+    /// The release this build is (M10): the one version `package.json`,
+    /// `Cargo.toml` and `tauri.conf.json` all carry, shown beside the schema
+    /// version so a teacher — or whoever helps her — can say which build is
+    /// open. A test holds the three manifests to one number.
+    app_version: &'static str,
     backup_count: usize,
     last_backup: Option<String>,
     /// True when the file on disk no longer matches what we last read, i.e. the
@@ -146,6 +151,7 @@ fn status(state: tauri::State<'_, AppState>) -> AppResult<Status> {
         db_path: db_path.display().to_string(),
         db_exists: db_path.exists(),
         schema_version,
+        app_version: env!("CARGO_PKG_VERSION"),
         backup_count: backup::count_snapshots(),
         last_backup: backup::latest_snapshot_iso(),
         disk_changed: disk_changed(&state),
@@ -1127,6 +1133,22 @@ pub fn run() {
 mod tests {
     use super::*;
     use crate::store::tests_support::sample_student;
+
+    /// The version the storage panel shows comes from `Cargo.toml`; the
+    /// installer's and the bundle's names come from `tauri.conf.json`; npm's
+    /// from `package.json`. Three places for one number is how a handover
+    /// folder ends up holding a `1.0.0` installer for a `0.1.0` app, so they
+    /// are held to each other here.
+    #[test]
+    fn the_three_manifests_carry_one_version() {
+        let version = |json: &str| -> String {
+            let value: serde_json::Value = serde_json::from_str(json).unwrap();
+            value["version"].as_str().unwrap().to_string()
+        };
+        let cargo = env!("CARGO_PKG_VERSION");
+        assert_eq!(version(include_str!("../tauri.conf.json")), cargo);
+        assert_eq!(version(include_str!("../../package.json")), cargo);
+    }
 
     #[test]
     fn a_session_that_never_read_the_file_is_not_blocked() {

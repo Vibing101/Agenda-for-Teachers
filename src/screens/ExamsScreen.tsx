@@ -28,6 +28,7 @@ import {
   type Exam,
 } from "../domain/exams";
 import type { Planner } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import type { Run } from "./types";
 
@@ -85,7 +86,7 @@ export default function ExamsScreen({
           <p className="muted">{t("exams.noMatches")}</p>
         ) : (
           <>
-            <p className="muted">{t("exams.count", { n: shown.length })}</p>
+            <p className="muted">{countOf(t, "exams.count", shown.length)}</p>
             <ul className="rows">
               {shown.map((exam, index) => (
                 <ExamRow

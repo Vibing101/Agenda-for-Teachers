@@ -17,6 +17,7 @@ import {
   type StaffContact,
 } from "../domain/staff";
 import type { Planner } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import type { Run } from "./types";
 
@@ -64,8 +65,8 @@ export default function StaffScreen({ planner, run }: { planner: Planner; run: R
         <>
           <p className="muted">
             {shown.length === all.length
-              ? t("staff.count", { n: all.length })
-              : t("staff.countFiltered", { shown: shown.length, n: all.length })}
+              ? countOf(t, "staff.count", all.length)
+              : countOf(t, "staff.countFiltered", all.length, { shown: shown.length })}
           </p>
           <ul className="rows">
             {shown.map((contact) => (

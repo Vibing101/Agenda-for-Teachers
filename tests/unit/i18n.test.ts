@@ -9,7 +9,15 @@
 import { describe, expect, it } from "vitest";
 // The *merged* bundle — app labels plus M5's letters and message bank — since
 // that is what `StringId` and the lookup are built from.
-import { el, translate, translatorFor, type Locale, type StringId } from "../../src/i18n";
+import {
+  countOf,
+  el,
+  en,
+  translate,
+  translatorFor,
+  type Locale,
+  type StringId,
+} from "../../src/i18n";
 import {
   ABSENCE_KINDS,
   absenceKindLabel,
@@ -56,7 +64,7 @@ describe("the string lookup", () => {
   });
 
   it("fills in placeholders", () => {
-    expect(translate("el", "classes.countValue", { n: 24 })).toBe("24 μαθητές");
+    expect(translate("el", "classes.countValue.other", { n: 24 })).toBe("24 μαθητές");
   });
 
   it("leaves an unknown placeholder alone rather than blanking it", () => {
@@ -65,7 +73,7 @@ describe("the string lookup", () => {
 
   it("returns the English string once the language is English", () => {
     expect(translate("en", "nav.classes")).toBe("Classes");
-    expect(translate("en", "classes.countValue", { n: 24 })).toBe("24 students");
+    expect(translate("en", "classes.countValue.other", { n: 24 })).toBe("24 students");
   });
 
   it("falls back to Greek for a language that has no bundle", () => {
@@ -78,6 +86,58 @@ describe("the string lookup", () => {
 
   it("gives a translator bound to one locale", () => {
     expect(translatorFor("el")("nav.students")).toBe("Μαθητές");
+  });
+});
+
+describe("counts (M10)", () => {
+  // Until M10 a count had one string, so the app read "1 μηνύματα" and
+  // "1 messages". Both languages use the singular for exactly one and the
+  // plural for everything else, zero included.
+  it("says one in the singular and anything else in the plural, in Greek", () => {
+    const t = translatorFor("el");
+    expect(countOf(t, "messages.count", 1)).toBe("1 μήνυμα");
+    expect(countOf(t, "messages.count", 3)).toBe("3 μηνύματα");
+    expect(countOf(t, "messages.count", 0)).toBe("0 μηνύματα");
+    expect(countOf(t, "classes.countValue", 1)).toBe("1 μαθητής");
+    expect(countOf(t, "trips.consentPending", 1)).toBe("1 εκκρεμεί");
+    expect(countOf(t, "trips.consentPending", 2)).toBe("2 εκκρεμούν");
+  });
+
+  it("says one in the singular and anything else in the plural, in English", () => {
+    const t = translatorFor("en");
+    expect(countOf(t, "messages.count", 1)).toBe("1 message");
+    expect(countOf(t, "messages.count", 3)).toBe("3 messages");
+    expect(countOf(t, "messages.count", 0)).toBe("0 messages");
+    expect(countOf(t, "wellbeing.count", 1)).toBe("1 entry");
+  });
+
+  it("passes other params through and keeps {n} the count", () => {
+    const t = translatorFor("el");
+    expect(countOf(t, "staff.countFiltered", 1, { shown: 1 })).toBe("1 από 1 επαφή");
+    expect(countOf(t, "staff.countFiltered", 5, { shown: 2 })).toBe("2 από 5 επαφές");
+    expect(countOf(t, "budget.spentValue", 1, { amount: "12.50" })).toBe(
+      "12.50 € από 1 επιμόρφωση με έξοδο",
+    );
+  });
+
+  it("has both halves of every pair in both languages, and no count left unpaired", () => {
+    for (const bundle of [el, en] as Record<string, string>[]) {
+      const ids = Object.keys(bundle);
+      for (const id of ids.filter((k) => k.endsWith(".one"))) {
+        expect(ids, id).toContain(id.replace(/\.one$/, ".other"));
+      }
+      // A string that counts with {n} and a noun must be a pair. The ones
+      // allowed to stay single either number a thing ("Εβδομάδα {n}", "{n} /
+      // 12") or have no noun to agree with ("{n} χωρίς έξοδο", "{n} with no
+      // cost"); anything else with a word straight after {n} is caught here.
+      const unpaired = ids.filter(
+        (k) =>
+          !/\.(one|other)$/.test(k) &&
+          /\{n\} \p{L}/u.test(bundle[k]) &&
+          !/\{n\} (χωρίς|εκτός|with|outside)(?=\s)/u.test(bundle[k]),
+      );
+      expect(unpaired).toEqual([]);
+    }
   });
 });
 

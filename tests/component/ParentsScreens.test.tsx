@@ -66,7 +66,7 @@ describe("the parent communication log", () => {
     await waitFor(() => expect(screen.getByText("2 επικοινωνίες")).toBeInTheDocument());
 
     await user.selectOptions(screen.getByLabelText("Φίλτρο μαθητή"), String(ELENI));
-    await waitFor(() => expect(screen.getByText("1 επικοινωνίες")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("1 επικοινωνία")).toBeInTheDocument());
 
     // A filter is a view, not an edit.
     expect(backend.planner.parent_contacts).toEqual(before);

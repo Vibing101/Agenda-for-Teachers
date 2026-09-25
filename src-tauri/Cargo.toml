@@ -1,6 +1,6 @@
 [package]
 name = "teacher-planner"
-version = "0.1.0"
+version = "1.0.0"
 description = "Ατζέντα Εκπαιδευτικού — teacher planner"
 authors = ["Teacher Planner"]
 edition = "2021"

@@ -24,6 +24,7 @@ import {
 import { useStoredDraft } from "../components/useStoredDraft";
 import { formatHourTimes, hoursOfClass } from "../domain/timetable";
 import { emptyClass, type Planner, type SchoolClass, type Seat } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import { weekdayLabel } from "../i18n/vocabularies";
 import type { Run } from "./types";
@@ -78,7 +79,7 @@ export default function ClassesScreen({ planner, run }: { planner: Planner; run:
                 >
                   <strong>{c.name.trim() || t("common.unnamed")}</strong>
                   <span className="muted">
-                    {c.subject} · {t("classes.countValue", { n: rosterSize(c.id) })}
+                    {c.subject} · {countOf(t, "classes.countValue", rosterSize(c.id))}
                   </span>
                 </button>
               </li>

@@ -159,6 +159,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           db_path: "/Drive/Ατζέντα/data/planner.sqlite",
           db_exists: true,
           schema_version: 10,
+          app_version: "1.0.0",
           backup_count: 2,
           last_backup: "2026-09-19T07:30:00+03:00",
           disk_changed: diskChanged,

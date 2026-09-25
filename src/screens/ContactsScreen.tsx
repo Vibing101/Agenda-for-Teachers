@@ -29,6 +29,7 @@ import {
 } from "../domain/parents";
 import type { Planner } from "../domain/types";
 import { CONTACT_FORMATS, contactFormatLabel } from "../i18n/vocabularies";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import { contactLogHtml } from "../print/parentSheets";
 import type { Run } from "./types";
@@ -133,7 +134,7 @@ export default function ContactsScreen({
             <p className="muted">{t("contacts.noMatches")}</p>
           ) : (
             <>
-              <p className="muted">{t("contacts.count", { n: shown.length })}</p>
+              <p className="muted">{countOf(t, "contacts.count", shown.length)}</p>
               <ul className="rows">
                 {shown.map((contact, index) => (
                   <ContactRow

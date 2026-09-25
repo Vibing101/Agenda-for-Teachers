@@ -26,6 +26,7 @@ import {
   searchMessages,
   type MessageCategory,
 } from "../domain/messages";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import { messageAsText, messageHtml } from "../print/letterSheets";
 
@@ -72,7 +73,7 @@ export default function MessagesScreen({ today }: { today: string }) {
           <p className="muted">{t("messages.none")}</p>
         ) : (
           <>
-            <p className="muted">{t("messages.count", { n: found.length })}</p>
+            <p className="muted">{countOf(t, "messages.count", found.length)}</p>
             <ul className="rows">
               {found.map((m) => (
                 <li key={m.code}>

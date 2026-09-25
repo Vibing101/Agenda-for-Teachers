@@ -31,6 +31,7 @@ import {
 } from "../domain/trips";
 import type { Planner, Student } from "../domain/types";
 import { CONSENT_STATES, consentStateLabel } from "../i18n/vocabularies";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import type { Run } from "./types";
 
@@ -55,7 +56,7 @@ export default function TripsScreen({ planner, run }: { planner: Planner; run: R
         <p className="muted">{t("trips.none")}</p>
       ) : (
         <>
-          <p className="muted">{t("trips.count", { n: trips.length })}</p>
+          <p className="muted">{countOf(t, "trips.count", trips.length)}</p>
           <ul className="rows">
             {trips.map((trip, index) => (
               <TripCard
@@ -154,13 +155,13 @@ function TripCard({
               {tally.refused > 0 && (
                 <>
                   {" · "}
-                  <span className="muted">{t("trips.consentRefused", { n: tally.refused })}</span>
+                  <span className="muted">{countOf(t, "trips.consentRefused", tally.refused)}</span>
                 </>
               )}
               {tally.pending > 0 && (
                 <>
                   {" · "}
-                  <span className="muted">{t("trips.consentPending", { n: tally.pending })}</span>
+                  <span className="muted">{countOf(t, "trips.consentPending", tally.pending)}</span>
                 </>
               )}
             </p>

@@ -76,7 +76,7 @@ describe("the incident log", () => {
     const before = structuredClone(backend.planner.incidents);
 
     await user.selectOptions(screen.getByLabelText("Φίλτρο μαθητή"), String(MARIA));
-    await waitFor(() => expect(screen.getByText("1 περιστατικά")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("1 περιστατικό")).toBeInTheDocument());
     expect(screen.getByRole("group", { name: "Περιστατικό 1" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Περιστατικό 2" })).not.toBeInTheDocument();
 

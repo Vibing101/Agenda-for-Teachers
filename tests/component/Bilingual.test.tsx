@@ -543,7 +543,7 @@ describe("every screen in English", () => {
     // The category hint is not searched; the body of c01.m02 is.
     await user.clear(screen.getByLabelText("Search"));
     await user.type(screen.getByLabelText("Search"), "CHANNEL OF COMMUNICATION");
-    expect(screen.getByText("1 messages")).toBeInTheDocument();
+    expect(screen.getByText("1 message")).toBeInTheDocument();
     expect(screen.getByText("A short introduction")).toBeInTheDocument();
   });
 });

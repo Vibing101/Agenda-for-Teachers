@@ -41,6 +41,7 @@ import {
   appointmentStatusLabel,
   weekdayLabel,
 } from "../i18n/vocabularies";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import { appointmentWeekHtml } from "../print/parentSheets";
 import type { Run } from "./types";
@@ -106,7 +107,7 @@ export default function AppointmentsScreen({
           <p className="muted">{t("appointments.none")}</p>
         ) : (
           <>
-            <p className="muted">{t("appointments.count", { n: week.appointments.length })}</p>
+            <p className="muted">{countOf(t, "appointments.count", week.appointments.length)}</p>
             <table className="grid">
               <thead>
                 <tr>

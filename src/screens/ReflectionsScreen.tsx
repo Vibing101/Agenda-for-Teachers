@@ -21,6 +21,7 @@ import {
   type LessonReflection,
 } from "../domain/reflections";
 import type { Planner } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import type { Run } from "./types";
 
@@ -65,7 +66,7 @@ export default function ReflectionsScreen({ planner, run }: { planner: Planner; 
         <p className="muted">{t("reflections.noMatches")}</p>
       ) : (
         <>
-          <p className="muted">{t("reflections.count", { n: shown.length })}</p>
+          <p className="muted">{countOf(t, "reflections.count", shown.length)}</p>
           <ul className="rows">
             {shown.map((reflection, index) => (
               <ReflectionRow

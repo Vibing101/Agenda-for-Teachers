@@ -19,6 +19,7 @@ import {
   type LeaveRecord,
 } from "../domain/covers";
 import type { Planner } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import type { Run } from "./types";
 
@@ -49,7 +50,7 @@ function CoverPanel({ covers, run }: { covers: CoverRecord[]; run: Run }) {
         <p className="muted">{t("covers.none")}</p>
       ) : (
         <>
-          <p className="muted">{t("covers.count", { n: covers.length })}</p>
+          <p className="muted">{countOf(t, "covers.count", covers.length)}</p>
           <ul className="rows">
             {covers.map((record, i) => (
               <CoverRow key={record.id} record={record} index={i + 1} run={run} />
@@ -118,7 +119,7 @@ function LeavePanel({ leaves, run }: { leaves: LeaveRecord[]; run: Run }) {
         <p className="muted">{t("leave.none")}</p>
       ) : (
         <>
-          <p className="muted">{t("leave.count", { n: leaves.length })}</p>
+          <p className="muted">{countOf(t, "leave.count", leaves.length)}</p>
           <ul className="rows">
             {leaves.map((record, i) => (
               <LeaveRow key={record.id} record={record} index={i + 1} run={run} />

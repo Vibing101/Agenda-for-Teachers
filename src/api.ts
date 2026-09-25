@@ -51,6 +51,8 @@ export interface Status {
   db_path: string;
   db_exists: boolean;
   schema_version: number;
+  /** The release this build is, from `Cargo.toml` (M10). */
+  app_version: string;
   backup_count: number;
   last_backup: string | null;
   disk_changed: boolean;

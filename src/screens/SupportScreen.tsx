@@ -51,6 +51,7 @@ import {
   type SupportPlan,
 } from "../domain/support";
 import type { Planner, Student } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import { GOAL_PROGRESS, goalProgressLabel, senStatusLabel } from "../i18n/vocabularies";
 import { supportOverviewHtml } from "../print/supportSheet";
@@ -403,7 +404,7 @@ function Overview({ planner, today }: { planner: Planner; today: string }) {
         <p className="muted">{t("overview.none")}</p>
       ) : (
         <>
-          <p className="muted">{t("overview.count", { n: rows.length })}</p>
+          <p className="muted">{countOf(t, "overview.count", rows.length)}</p>
           <div className="timetable-scroll">
             <table className="overview">
               <thead>

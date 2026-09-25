@@ -303,7 +303,7 @@ describe("Ανάπτυξη και καριέρα", () => {
     await waitFor(() =>
       expect(backend.planner.training_entries.find((e) => e.id === TRAINING_COMMA)!.cost).toBeNull(),
     );
-    expect(panel("Προϋπολογισμός και σύνοψη").getByText("0.00 € από 1 επιμορφώσεις με έξοδο")).toBeInTheDocument();
+    expect(panel("Προϋπολογισμός και σύνοψη").getByText("0.00 € από 1 επιμόρφωση με έξοδο")).toBeInTheDocument();
   });
 
   it("saves the budget typed with a comma", async () => {

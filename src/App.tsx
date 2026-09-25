@@ -610,6 +610,8 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
             <dd>
               {status.db_path} {status.db_exists ? "" : t("storage.notCreated")}
             </dd>
+            <dt>{t("storage.appVersion")}</dt>
+            <dd>{status.app_version}</dd>
             <dt>{t("storage.schemaVersion")}</dt>
             <dd>{status.schema_version}</dd>
             <dt>{t("storage.backups")}</dt>

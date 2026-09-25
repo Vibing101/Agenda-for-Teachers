@@ -102,3 +102,31 @@ export type Translate = (id: StringId, params?: Params) => string;
 export function translatorFor(locale: Locale): Translate {
   return (id, params) => translate(locale, id, params);
 }
+
+/**
+ * A string that counts something, and so comes as a pair: `<id>.one` and
+ * `<id>.other` (M10). The type names the `<id>` of every pair the bundle has,
+ * so a count string without both halves does not compile.
+ */
+export type CountId = {
+  [K in StringId]: K extends `${infer Base}.one`
+    ? `${Base}.other` extends StringId
+      ? Base
+      : never
+    : never;
+}[StringId];
+
+/**
+ * A count, worded for how many there are: "1 μήνυμα" and "3 μηνύματα", "1
+ * message" and "3 messages".
+ *
+ * Until M10 every count used one plural string and read "1 μηνύματα". **Greek
+ * and English share the rule this needs**: the singular for exactly one, the
+ * plural for everything else, zero included ("0 μηνύματα", "0 messages"). A
+ * language with more forms would need more than a pair, and this is the one
+ * place that would change. `{n}` is always the count; other params pass through.
+ */
+export function countOf(t: Translate, id: CountId, n: number, params?: Params): string {
+  const form: StringId = `${id}.${n === 1 ? "one" : "other"}` as StringId;
+  return t(form, { ...params, n });
+}
