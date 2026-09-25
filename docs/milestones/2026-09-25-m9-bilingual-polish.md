@@ -440,5 +440,10 @@ the figure it was for (the folder, 6 pages on WebView2).
 ## A note on CI
 
 The repository is public, so CI costs no minutes. The full gate was run on the
-dev Mac and natively in the VM before pushing; code and docs go in one push, and
+dev Mac and natively in the VM before pushing; code and docs went in one push, and
 no commit message on the branch carries the CI-skip marker.
+
+**CI was green on both runners on the first run**: run
+[36113736766](https://github.com/Vibing101/Agenda-for-Teachers/actions/runs/36113736766)
+at `901da08`, `macos-latest` 5m50s and `windows-latest` 8m32s, no retries
+(PR #2). This commit, which records it, is docs-only and runs CI again.
