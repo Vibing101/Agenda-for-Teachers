@@ -15,12 +15,20 @@
  * printed sheets — is what made the sentence true again.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, isAppError, type Status } from "./api";
+import { api, describeError, isAppError, type Status } from "./api";
 import { Button } from "./components/Fields";
 import { todayIso } from "./domain/dates";
 import type { Planner } from "./domain/types";
-import { DEFAULT_LOCALE, translatorFor, type StringId } from "./i18n";
-import { LocaleContext, useTranslate } from "./i18n/useTranslate";
+import {
+  DEFAULT_LOCALE,
+  isLocale,
+  LOCALES,
+  translatorFor,
+  type Locale,
+  type Params,
+  type StringId,
+} from "./i18n";
+import { LocaleContext } from "./i18n/useTranslate";
 import AgendaScreen from "./screens/AgendaScreen";
 import AnnualPlanScreen from "./screens/AnnualPlanScreen";
 import AppointmentsScreen from "./screens/AppointmentsScreen";
@@ -252,21 +260,40 @@ function firstPageOf(section: Section): Page | null {
  *   itself leaves it out and the shell reads the local calendar.
  */
 export default function App({ today }: { today?: string } = {}) {
-  // The app ships Greek-only through M8; M9 turns this into state behind a
-  // toggle. Every string already resolves through the context, so that change
-  // is here and nowhere else.
-  const locale = DEFAULT_LOCALE;
-  const value = useMemo(() => ({ locale, t: translatorFor(locale) }), [locale]);
-  return (
-    <LocaleContext.Provider value={value}>
-      <Shell fixedToday={today} />
-    </LocaleContext.Provider>
-  );
+  return <Shell fixedToday={today} />;
+}
+
+/** What the shell's message line is showing — see `message` in `Shell`. */
+type Notice = { id: StringId; params?: Params } | { failure: unknown };
+
+/**
+ * The interface language: **the one the data file says**, or Greek until the
+ * file has been read or if it names a language this app does not have.
+ *
+ * M9. Until M8 this was the constant `DEFAULT_LOCALE`, with a comment saying M9
+ * would turn it into state behind a toggle. It is not React state of its own:
+ * it is read from the planner, like everything else the teacher chose, so the
+ * one copy of it is the one in the file. **Nothing here consults the OS** —
+ * not `navigator.language`, not `Intl` — because the spec says the language is
+ * "persisted as a preference, not tied to the OS locale", and
+ * `tests/component/Bilingual.test.tsx` holds that with the browser claiming
+ * each language in turn.
+ */
+function localeOf(planner: Planner | null): Locale {
+  const stored = planner?.preferences?.locale;
+  return isLocale(stored) ? stored : DEFAULT_LOCALE;
 }
 
 function Shell({ fixedToday }: { fixedToday?: string }) {
-  const t = useTranslate();
   const [planner, setPlanner] = useState<Planner | null>(null);
+  const locale = localeOf(planner);
+  // Every screen reads its strings through this context, so switching the
+  // language re-renders all of them with no screen knowing a language exists.
+  const localeValue = useMemo(() => ({ locale, t: translatorFor(locale) }), [locale]);
+  const t = localeValue.t;
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
   const [status, setStatus] = useState<Status | null>(null);
   const [section, setSection] = useState<Section>("year");
   /** Which sub-page of `section` is showing, for the sections that have them. */
@@ -291,7 +318,13 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
    * the spec asks it to open straight into.
    */
   const [meetingFocus, setMeetingFocus] = useState<number | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  /**
+   * The line under the header: a failure, or a sentence of the app's own.
+   * Kept as *what happened* rather than as a finished string (M9), so it is
+   * worded at render time in whichever language is on — and so the callbacks
+   * below need no translator of their own.
+   */
+  const [message, setMessage] = useState<Notice | null>(null);
   const [saving, setSaving] = useState(false);
   /**
    * Set when the data file changed on disk since we read it — most likely the
@@ -307,7 +340,7 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
       setStatus(s);
       if (s.disk_changed) setBlocked(true);
     } catch (e) {
-      setMessage(isAppError(e) ? e.message : String(e));
+      setMessage({ failure: e });
     }
   }, []);
 
@@ -316,7 +349,7 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
       try {
         setPlanner(await api.load());
       } catch (e) {
-        setMessage(isAppError(e) ? e.message : String(e));
+        setMessage({ failure: e });
       }
       await refreshStatus();
     })();
@@ -339,7 +372,7 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
         if (isAppError(e) && e.code === "disk_changed") {
           setBlocked(true);
         } else {
-          setMessage(isAppError(e) ? e.message : String(e));
+          setMessage({ failure: e });
         }
         return null;
       } finally {
@@ -353,10 +386,10 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
     try {
       setPlanner(await api.reload());
       setBlocked(false);
-      setMessage(t("blocked.reloaded"));
+      setMessage({ id: "blocked.reloaded" });
       await refreshStatus();
     } catch (e) {
-      setMessage(isAppError(e) ? e.message : String(e));
+      setMessage({ failure: e });
     }
   }
 
@@ -364,17 +397,40 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
     try {
       const path = await api.makeBackup();
       setMessage(
-        path ? t("storage.backupWritten", { path }) : t("storage.nothingToBackUp"),
+        path ? { id: "storage.backupWritten", params: { path } } : { id: "storage.nothingToBackUp" },
       );
       await refreshStatus();
     } catch (e) {
-      setMessage(isAppError(e) ? e.message : String(e));
+      setMessage({ failure: e });
     }
   }
 
   return (
+    <LocaleContext.Provider value={localeValue}>
     <main className="app">
       <header>
+        {/* M9's toggle. In the header rather than the storage panel because
+            it changes every screen, and the header is on every screen. A
+            switch is a write to the data file like any other, so it goes
+            through `run` and the fingerprint check, and it is disabled while
+            the file is blocked — the reload comes first. */}
+        <div className="language" role="group" aria-label={t("lang.label")}>
+          {LOCALES.map((l) => (
+            <button
+              key={l}
+              type="button"
+              lang={l}
+              className={l === locale ? "tab selected" : "tab"}
+              aria-pressed={l === locale}
+              disabled={blocked || planner === null}
+              onClick={() => {
+                if (l !== locale) void run(() => api.saveLocale(l));
+              }}
+            >
+              {t(`lang.${l}`)}
+            </button>
+          ))}
+        </div>
         <h1>{t("app.title")}</h1>
         <p className="subtitle">{t("app.subtitle")}</p>
         <nav>
@@ -420,7 +476,11 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
         </section>
       )}
 
-      {message && <p className="message">{message}</p>}
+      {message && (
+        <p className="message">
+          {"failure" in message ? describeError(t, message.failure) : t(message.id, message.params)}
+        </p>
+      )}
       {saving && <p className="message">{t("common.saving")}</p>}
 
       {planner === null ? (
@@ -562,5 +622,6 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
         </div>
       </section>
     </main>
+    </LocaleContext.Provider>
   );
 }

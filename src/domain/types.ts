@@ -179,6 +179,20 @@ export interface Planner {
   development_budget: DevelopmentBudget;
   wellbeing_entries: WellbeingEntry[];
   wellbeing_note: WellbeingNote;
+  /** M9: the interface language, stored in the file — see [`Preferences`]. */
+  preferences: Preferences;
+}
+
+/**
+ * The app's own preferences, one row in the data file (M9).
+ *
+ * `locale` is the language code the teacher last chose. It is typed as a plain
+ * string because it is whatever the file holds; the shell checks it against the
+ * languages the app actually has before using it. **It is never read from the
+ * OS**, per the spec: "persisted as a preference, not tied to the OS locale".
+ */
+export interface Preferences {
+  locale: string;
 }
 
 /** A blank card, so "new student" and "loaded student" are the same shape. */

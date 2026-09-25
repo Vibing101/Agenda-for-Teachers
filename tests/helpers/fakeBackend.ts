@@ -122,6 +122,7 @@ export function emptyPlanner(): Planner {
     development_budget: { amount: null, notes: "" },
     wellbeing_entries: [],
     wellbeing_note: { sustains: "", boundaries: "" },
+    preferences: { locale: "el" },
   };
 }
 
@@ -157,7 +158,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           app_folder: "/Drive/Ατζέντα",
           db_path: "/Drive/Ατζέντα/data/planner.sqlite",
           db_exists: true,
-          schema_version: 9,
+          schema_version: 10,
           backup_count: 2,
           last_backup: "2026-09-19T07:30:00+03:00",
           disk_changed: diskChanged,
@@ -730,6 +731,11 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           break;
         case "save_wellbeing_note":
           planner.wellbeing_note = { ...(args.note as WellbeingNote) };
+          break;
+        case "save_locale":
+          // The Rust side refuses a language it does not know; so does this.
+          if (args.locale !== "el" && args.locale !== "en") throw new Error("unknown language");
+          planner.preferences = { locale: String(args.locale) };
           break;
         case "export_pdf":
           // The real export opens a hidden window and drives the platform's

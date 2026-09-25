@@ -1275,4 +1275,20 @@ export const el = {
   "wellbeing.standing": "Για όλη τη χρονιά",
   "wellbeing.sustains": "Τι με κρατάει σε φόρμα",
   "wellbeing.boundaries": "Όρια που θέλω να κρατήσω",
+
+  // --------------------------------------------------------------- M9 ---
+  // The language toggle. Each language is named in its own language, in both
+  // bundles, so the teacher can always find her way back to hers.
+  "lang.label": "Γλώσσα",
+  "lang.el": "Ελληνικά",
+  "lang.en": "English",
+
+  // What the teacher sees when the Rust side reports a failure. The detail
+  // after the colon is the system's own message, which neither bundle
+  // translates. Before M9 the system's English message was shown on its own,
+  // in a Greek interface.
+  "error.db": "Δεν ήταν δυνατή η ανάγνωση ή η εγγραφή του αρχείου δεδομένων: {detail}",
+  "error.io": "Δεν ήταν δυνατή η ανάγνωση ή η εγγραφή ενός αρχείου: {detail}",
+  "error.pdf": "Δεν ήταν δυνατή η δημιουργία του PDF: {detail}",
+  "error.other": "Κάτι πήγε στραβά: {detail}",
 } as const;

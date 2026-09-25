@@ -705,6 +705,14 @@ fn save_wellbeing_note(
     mutate(&state, |tx| store::save_wellbeing_note(tx, &note))
 }
 
+/// Switches the interface language. A write like any other: it goes through
+/// the fingerprint check, so a file the sync client replaced is never
+/// overwritten by a language switch either.
+#[tauri::command]
+fn save_locale(state: tauri::State<'_, AppState>, locale: String) -> AppResult<Planner> {
+    mutate(&state, |tx| store::save_locale(tx, &locale))
+}
+
 // ------------------------------------------------------------ PDF export ---
 
 /// Writes one document to `exports/` as a real PDF and returns its path.
@@ -974,7 +982,8 @@ pub fn run() {
     // this also means the pre-migration file is preserved: if the schema step
     // to a new milestone ever goes wrong, the teacher's last good file is
     // sitting in `data/backups/`.
-    if let Err(e) = backup::snapshot_now() {
+    // Skipped when the newest snapshot already holds this exact file (M9).
+    if let Err(e) = backup::snapshot_if_changed() {
         eprintln!("launch backup failed: {e}");
     }
     // Create and migrate the data file now rather than lazily on the first
@@ -1064,6 +1073,7 @@ pub fn run() {
             save_wellbeing_entry,
             delete_wellbeing_entry,
             save_wellbeing_note,
+            save_locale,
             export_pdf,
             print_job,
             print_ready,
@@ -1073,7 +1083,7 @@ pub fn run() {
             print_self_test(&app.handle().clone());
             std::thread::spawn(|| loop {
                 std::thread::sleep(BACKUP_INTERVAL);
-                if let Err(e) = backup::snapshot_now() {
+                if let Err(e) = backup::snapshot_if_changed() {
                     eprintln!("periodic backup failed: {e}");
                 }
             });
@@ -1084,7 +1094,7 @@ pub fn run() {
         .run(|_app, event| {
             // Snapshot on a clean shutdown too.
             if let tauri::RunEvent::ExitRequested { .. } = event {
-                if let Err(e) = backup::snapshot_now() {
+                if let Err(e) = backup::snapshot_if_changed() {
                     eprintln!("shutdown backup failed: {e}");
                 }
             }

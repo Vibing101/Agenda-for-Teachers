@@ -151,16 +151,17 @@ export default function LettersScreen({ today }: { today: string }) {
         <>
           <h3>{t("letters.placeholders")}</h3>
           <div className="row wrap">
-            {tokens.map((token) => (
+            {tokens.map(({ token, key }) => (
               // The caption is the token itself — the source's own
-              // `[ΟΝΟΜΑΤΕΠΩΝΥΜΟ]`, which is Greek but comes from the language
-              // bundle rather than from a literal here.
-              <label className="field" key={token}>
+              // `[ΟΝΟΜΑΤΕΠΩΝΥΜΟ]`, from the language bundle rather than a
+              // literal here. The value is kept against the token's stable key,
+              // so it survives a switch of language (M9).
+              <label className="field" key={key}>
                 <span>{token}</span>
                 <input
                   type="text"
-                  value={values[token] ?? ""}
-                  onChange={(e) => setValue(token, e.target.value)}
+                  value={values[key] ?? ""}
+                  onChange={(e) => setValue(key, e.target.value)}
                 />
               </label>
             ))}

@@ -23,7 +23,7 @@
  * full-page A4 portrait certificate inside a coloured border, rendered and
  * looked at to be sure. They are modelled as one page each.
  */
-import { placeholdersInAll } from "./placeholders";
+import { placeholderKeyOf, placeholdersInAll, type PlaceholderField } from "./placeholders";
 import type { StringId, Translate } from "../i18n";
 
 export const LETTER_CODES = [
@@ -289,13 +289,17 @@ export function letterKeys(letter: LetterTemplate): string[] {
  * bundle*, not from the structure: a translated slip may word its sentence
  * differently and ask for its tokens in another order, and this reads them back
  * out of whatever the bundle actually says.
+ *
+ * Each comes with the stable key its value is kept against (M9), so a slip
+ * filled in while the interface was Greek prints the same name in English.
  */
-export function letterPlaceholders(t: Translate, letter: LetterTemplate): string[] {
+export function letterPlaceholders(t: Translate, letter: LetterTemplate): PlaceholderField[] {
+  const keyOf = placeholderKeyOf(t);
   return placeholdersInAll(
     letter.blocks.flatMap((b) => {
       if (b.kind === "prose") return [t(b.textId)];
       if (b.kind === "slip") return [t(b.textId)];
       return [];
     }),
-  );
+  ).map((token) => ({ token, key: keyOf(token) }));
 }

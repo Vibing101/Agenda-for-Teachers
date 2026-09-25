@@ -20,7 +20,7 @@
  * render of the screen it sits on.
  */
 import { useState } from "react";
-import { api, isAppError } from "../api";
+import { api, describeError } from "../api";
 import type { StringId } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import { Button } from "./Fields";
@@ -55,7 +55,7 @@ export function ExportButton({
             const path = await api.exportPdf(fileName, html(), landscape);
             setMessage(t("grades.exported", { path }));
           } catch (e) {
-            setMessage(isAppError(e) ? e.message : String(e));
+            setMessage(describeError(t, e));
           } finally {
             setBusy(false);
           }

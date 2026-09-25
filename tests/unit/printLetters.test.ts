@@ -99,7 +99,7 @@ describe("the seven letters", () => {
       // Every key the letter asks for, plus every token its own text asks for.
       const values: Record<string, string> = {};
       for (const key of letterKeys(letter)) values[key] = `τιμή ${key}`;
-      for (const token of letterPlaceholders(t, letter)) values[token] = `τιμή ${token}`;
+      for (const { token, key } of letterPlaceholders(t, letter)) values[key] = `τιμή ${token}`;
       values[AWARD_NAME_KEY] = "Ελένη Παπαδοπούλου";
       values[AWARD_REASON_KEY] = "τη συνέπεια και την προσπάθειά της";
 
@@ -197,7 +197,9 @@ describe("the 150-message bank", () => {
         // Unfilled first: the hard case, since every token must become a rule.
         expect(messageHtml(t, message, {}, TODAY).match(ANY_PLACEHOLDER), code).toBeNull();
 
-        const values = Object.fromEntries(message.placeholders.map((p) => [p, `τιμή ${p}`]));
+        const values = Object.fromEntries(
+          message.placeholders.map((p) => [p.key, `τιμή ${p.token}`]),
+        );
         expect(messageHtml(t, message, values, TODAY).match(ANY_PLACEHOLDER), code).toBeNull();
       }
     }
@@ -205,8 +207,8 @@ describe("the 150-message bank", () => {
 
   it("copies exactly what it prints", () => {
     const message = bankMessage(t, "c01.m01");
-    const values = { "ΟΝΟΜΑΤΕΠΩΝΥΜΟ": "Μ. Νικολάου", "ΜΑΘΗΜΑ": "Μαθηματικά" };
-    const text = messageAsText(message, values);
+    const values = { "ph.fullName": "Μ. Νικολάου", "ph.subject": "Μαθηματικά" };
+    const text = messageAsText(t, message, values);
     expect(text).toContain("Μ. Νικολάου");
     // The printed document carries the same filled sentence.
     expect(messageHtml(t, message, values, TODAY)).toContain("Μ. Νικολάου");
@@ -216,7 +218,7 @@ describe("the 150-message bank", () => {
   it("keeps the source's own placeholder tokens rather than inventing any", () => {
     // The first message names the teacher, her subject, her class and her email
     // — exactly as the source's editable edition does.
-    expect(bankMessage(t, "c01.m01").placeholders).toEqual([
+    expect(bankMessage(t, "c01.m01").placeholders.map((p) => p.token)).toEqual([
       "ΟΝΟΜΑΤΕΠΩΝΥΜΟ",
       "ΜΑΘΗΜΑ",
       "ΤΜΗΜΑ",

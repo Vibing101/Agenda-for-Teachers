@@ -44,10 +44,10 @@ describe("the app shell", () => {
   it("shows where the data lives, including the schema version", async () => {
     mount();
     expect(await screen.findByText("/Drive/Ατζέντα/data/planner.sqlite")).toBeInTheDocument();
-    // M7's forward migration: `user_version = 8`. This line is also the
+    // M9's forward migration: `user_version = 10`. This line is also the
     // cheapest check that a manual pass is looking at the build under test —
     // see the bundle-identifier hazard in `docs/MILESTONE_PROMPT.md`.
-    expect(screen.getByText("9")).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument();
   });
 
   it("reaches the four M3 sections", async () => {
