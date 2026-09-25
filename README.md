@@ -18,10 +18,10 @@ server, and no runtime for the teacher to install.
 - **Windows testing:** [docs/WINDOWS_VM.md](docs/WINDOWS_VM.md) — the VM that
   runs the Windows half of gate step 5, and what still needs a human.
 - **Release notes:** [docs/milestones/](docs/milestones/), one per milestone.
-- **For the teacher:** [docs/user/](docs/user/) — the installation guide and the
-  day-to-day workflow, **in Greek**, written for the person using the app rather
-  than building it. The screen-by-screen guide waits until the app stops moving;
-  see that folder's own index for what is deliberately not written yet.
+- **For the teacher:** [docs/user/](docs/user/) — the installation guides, the
+  day-to-day workflow and the screen-by-screen user guide, **in Greek**, written
+  for the person using the app rather than building it. Each of those texts ends
+  with what is deliberately not built yet, so nobody hunts for it.
 
 ## Source material
 
