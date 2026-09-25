@@ -10,10 +10,17 @@
  */
 import { useMemo, useState } from "react";
 import { api } from "../api";
+import { ExportButton } from "../components/ExportButton";
 import { Button, Panel, SelectField, TextArea, TextField } from "../components/Fields";
 import { useStoredDraft } from "../components/useStoredDraft";
 import { formatDate, isIsoDate } from "../domain/dates";
-import { lastWeekStart, firstMonday, monthsOfYear, WEEKS_IN_YEAR } from "../domain/schoolYear";
+import {
+  annualGoalsInOrder,
+  lastWeekStart,
+  firstMonday,
+  monthsOfYear,
+  WEEKS_IN_YEAR,
+} from "../domain/schoolYear";
 import type {
   AnnualGoal,
   GradingPeriod,
@@ -37,19 +44,34 @@ import {
   type ImportantDateKind,
   type YearModel,
 } from "../i18n/vocabularies";
+import { goalsSheetHtml } from "../print/goalsSheet";
 import type { Run } from "./types";
 
 /** The three grading periods are a fixed set, so their names are plain strings. */
 const periodHeading = (ordinal: number) => `year.period.${ordinal}` as StringId;
 
-export default function YearScreen({ planner, run }: { planner: Planner; run: Run }) {
+export default function YearScreen({
+  planner,
+  run,
+  today,
+}: {
+  planner: Planner;
+  run: Run;
+  /** The day the shell read, for the printed goals' footer and file name. */
+  today: string;
+}) {
   return (
     <>
       <YearSetup year={planner.school_year} run={run} />
       <Periods periods={planner.grading_periods} run={run} />
       <Holidays holidays={planner.holidays} run={run} />
       <ImportantDates dates={planner.important_dates} run={run} />
-      <Goals goals={planner.annual_goals} run={run} />
+      <Goals
+        goals={annualGoalsInOrder(planner.annual_goals)}
+        year={planner.school_year}
+        run={run}
+        today={today}
+      />
     </>
   );
 }
@@ -317,7 +339,17 @@ function ImportantDates({ dates, run }: { dates: ImportantDate[]; run: Run }) {
   );
 }
 
-function Goals({ goals, run }: { goals: AnnualGoal[]; run: Run }) {
+function Goals({
+  goals,
+  year,
+  run,
+  today,
+}: {
+  goals: AnnualGoal[];
+  year: SchoolYear;
+  run: Run;
+  today: string;
+}) {
   const t = useTranslate();
   const [draft, setDraft] = useStoredDraft(goals);
 
@@ -325,7 +357,20 @@ function Goals({ goals, run }: { goals: AnnualGoal[]; run: Run }) {
     setDraft((rows) => rows.map((r) => (r.area === area ? { ...r, ...patch } : r)));
 
   return (
-    <Panel headingId="year.goals" introId="year.goalsIntro">
+    <Panel
+      headingId="year.goals"
+      introId="year.goalsIntro"
+      actions={
+        // M10: the six goals "printed as one table". It prints the cards as
+        // they are on screen — the draft, saved or not — because what prints
+        // is what the teacher is looking at (M4.5).
+        <ExportButton
+          labelId="goalsSheet.export"
+          fileName={t("goalsSheet.fileName", { date: formatDate(today) })}
+          html={() => goalsSheetHtml(t, draft, year, today)}
+        />
+      }
+    >
       {/* M8: the open-ended development goals are elsewhere, on purpose. */}
       <p className="note">{t("year.goalsSeparate")}</p>
       <div className="columns">

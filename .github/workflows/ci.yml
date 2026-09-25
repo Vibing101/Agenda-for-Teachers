@@ -230,6 +230,10 @@ jobs:
           Write-Host "Observed on this runner: tagged build launched via Start-Process = $launched"
           Write-Host "::warning::Informational only. This does NOT tell you whether SmartScreen would stop the teacher — only a real Explorer double-click on a desktop machine does, and that is gate step 5. Windows code signing remains an open decision; see Carried risks in docs/REBUILD_SPEC.md."
 
+      # M10: the plain teacher-planner.exe too, not only the installer. The
+      # teacher runs the exe from her synced folder (the app keeps its data
+      # beside its own executable), so it is the Windows file in the handover
+      # folder; the installer would put her data outside that folder.
       - name: Upload the packaged build
         if: always()
         uses: actions/upload-artifact@v4
@@ -238,5 +242,6 @@ jobs:
           path: |
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/teacher-planner.exe
           if-no-files-found: ignore
           retention-days: 14

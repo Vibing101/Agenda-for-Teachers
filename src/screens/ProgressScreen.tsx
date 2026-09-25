@@ -29,6 +29,7 @@ import {
 } from "../domain/progress";
 import { WEEKS_IN_YEAR } from "../domain/schoolYear";
 import type { Planner } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import type { PlanFocus } from "./PlanScreen";
 
@@ -80,7 +81,7 @@ export default function ProgressScreen({
         <div className="agenda-heading">
           <h3>{t("progress.range", { from: fromWeek, to: lastWeek })}</h3>
           <span className="muted">
-            {t("progress.written", { n: writtenCount(matrix) })}
+            {countOf(t, "progress.written", writtenCount(matrix))}
           </span>
         </div>
         <div className="actions">

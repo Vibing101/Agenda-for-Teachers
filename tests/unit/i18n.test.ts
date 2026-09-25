@@ -9,7 +9,24 @@
 import { describe, expect, it } from "vitest";
 // The *merged* bundle — app labels plus M5's letters and message bank — since
 // that is what `StringId` and the lookup are built from.
-import { el, translate, translatorFor, type Locale, type StringId } from "../../src/i18n";
+import { en as enUi } from "../../src/i18n/en";
+import { formsEl } from "../../src/i18n/formsEl";
+import { formsEn } from "../../src/i18n/formsEn";
+import { lettersEl } from "../../src/i18n/lettersEl";
+import { lettersEn } from "../../src/i18n/lettersEn";
+import { messagesEl } from "../../src/i18n/messagesEl";
+import { messagesEn } from "../../src/i18n/messagesEn";
+import {
+  contentLocale,
+  countOf,
+  el,
+  en,
+  englishBundle,
+  translate,
+  translatorFor,
+  type Locale,
+  type StringId,
+} from "../../src/i18n";
 import {
   ABSENCE_KINDS,
   absenceKindLabel,
@@ -56,7 +73,7 @@ describe("the string lookup", () => {
   });
 
   it("fills in placeholders", () => {
-    expect(translate("el", "classes.countValue", { n: 24 })).toBe("24 μαθητές");
+    expect(translate("el", "classes.countValue.other", { n: 24 })).toBe("24 μαθητές");
   });
 
   it("leaves an unknown placeholder alone rather than blanking it", () => {
@@ -65,7 +82,7 @@ describe("the string lookup", () => {
 
   it("returns the English string once the language is English", () => {
     expect(translate("en", "nav.classes")).toBe("Classes");
-    expect(translate("en", "classes.countValue", { n: 24 })).toBe("24 students");
+    expect(translate("en", "classes.countValue.other", { n: 24 })).toBe("24 students");
   });
 
   it("falls back to Greek for a language that has no bundle", () => {
@@ -78,6 +95,95 @@ describe("the string lookup", () => {
 
   it("gives a translator bound to one locale", () => {
     expect(translatorFor("el")("nav.students")).toBe("Μαθητές");
+  });
+});
+
+describe("the English content, held back until reviewed (M10)", () => {
+  const content = { ...lettersEl, ...messagesEl, ...formsEl } as Record<string, string>;
+  const drafts = { ...lettersEn, ...messagesEn, ...formsEn } as Record<string, string>;
+  const ui = enUi as Record<string, string>;
+
+  it("keeps every label of the English interface, whichever way the switch is", () => {
+    for (const reviewed of [false, true]) {
+      const bundle = englishBundle(reviewed) as Record<string, string>;
+      for (const [id, text] of Object.entries(ui)) expect(bundle[id], id).toBe(text);
+    }
+  });
+
+  it("serves the Greek letters, messages and form content while unreviewed", () => {
+    const bundle = englishBundle(false) as Record<string, string>;
+    for (const [id, text] of Object.entries(content)) expect(bundle[id], id).toBe(text);
+  });
+
+  it("serves the English drafts once reviewed", () => {
+    const bundle = englishBundle(true) as Record<string, string>;
+    for (const [id, text] of Object.entries(drafts)) expect(bundle[id], id).toBe(text);
+  });
+
+  it("is what the app ships: the bundle in use is the unreviewed one", () => {
+    expect(en).toEqual(englishBundle(false));
+    expect(translate("en", "letter.invitation.title")).toBe("Πρόσκληση");
+    expect(translate("en", "nav.letters")).toBe("Letters");
+  });
+
+  it("prints content documents in Greek from an English interface until reviewed", () => {
+    expect(contentLocale("en", false)).toBe("el");
+    expect(contentLocale("en", true)).toBe("en");
+    expect(contentLocale("el", false)).toBe("el");
+    expect(contentLocale("el", true)).toBe("el");
+    expect(contentLocale("en")).toBe("el");
+  });
+});
+
+describe("counts (M10)", () => {
+  // Until M10 a count had one string, so the app read "1 μηνύματα" and
+  // "1 messages". Both languages use the singular for exactly one and the
+  // plural for everything else, zero included.
+  it("says one in the singular and anything else in the plural, in Greek", () => {
+    const t = translatorFor("el");
+    expect(countOf(t, "messages.count", 1)).toBe("1 μήνυμα");
+    expect(countOf(t, "messages.count", 3)).toBe("3 μηνύματα");
+    expect(countOf(t, "messages.count", 0)).toBe("0 μηνύματα");
+    expect(countOf(t, "classes.countValue", 1)).toBe("1 μαθητής");
+    expect(countOf(t, "trips.consentPending", 1)).toBe("1 εκκρεμεί");
+    expect(countOf(t, "trips.consentPending", 2)).toBe("2 εκκρεμούν");
+  });
+
+  it("says one in the singular and anything else in the plural, in English", () => {
+    const t = translatorFor("en");
+    expect(countOf(t, "messages.count", 1)).toBe("1 message");
+    expect(countOf(t, "messages.count", 3)).toBe("3 messages");
+    expect(countOf(t, "messages.count", 0)).toBe("0 messages");
+    expect(countOf(t, "wellbeing.count", 1)).toBe("1 entry");
+  });
+
+  it("passes other params through and keeps {n} the count", () => {
+    const t = translatorFor("el");
+    expect(countOf(t, "staff.countFiltered", 1, { shown: 1 })).toBe("1 από 1 επαφή");
+    expect(countOf(t, "staff.countFiltered", 5, { shown: 2 })).toBe("2 από 5 επαφές");
+    expect(countOf(t, "budget.spentValue", 1, { amount: "12.50" })).toBe(
+      "12.50 € από 1 επιμόρφωση με έξοδο",
+    );
+  });
+
+  it("has both halves of every pair in both languages, and no count left unpaired", () => {
+    for (const bundle of [el, en] as Record<string, string>[]) {
+      const ids = Object.keys(bundle);
+      for (const id of ids.filter((k) => k.endsWith(".one"))) {
+        expect(ids, id).toContain(id.replace(/\.one$/, ".other"));
+      }
+      // A string that counts with {n} and a noun must be a pair. The ones
+      // allowed to stay single either number a thing ("Εβδομάδα {n}", "{n} /
+      // 12") or have no noun to agree with ("{n} χωρίς έξοδο", "{n} with no
+      // cost"); anything else with a word straight after {n} is caught here.
+      const unpaired = ids.filter(
+        (k) =>
+          !/\.(one|other)$/.test(k) &&
+          /\{n\} \p{L}/u.test(bundle[k]) &&
+          !/\{n\} (χωρίς|εκτός|with|outside)(?=\s)/u.test(bundle[k]),
+      );
+      expect(unpaired).toEqual([]);
+    }
   });
 });
 

@@ -14,6 +14,7 @@ import { useStoredDraft } from "../components/useStoredDraft";
 import { dayOfMonth, formatDate, isIsoDate, monthOf } from "../domain/dates";
 import { monthOrder } from "../domain/schoolYear";
 import { emptyStudent, type Planner, type Student } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import { monthLabel, SEN_STATUSES, senStatusLabel, type SenStatus } from "../i18n/vocabularies";
 import type { Run } from "./types";
@@ -133,7 +134,7 @@ function Index({
         <p className="muted">{t("students.noMatches")}</p>
       ) : (
         <>
-          <p className="muted">{t("students.countValue", { n: shown.length })}</p>
+          <p className="muted">{countOf(t, "students.countValue", shown.length)}</p>
           <ul className="chips">
             {shown.map((s) => (
               <li key={s.id}>

@@ -107,13 +107,15 @@ function paginateSheet(sheet: HTMLElement, pages: HTMLElement, measure: Measure)
 
   const head = table?.querySelector("thead") ?? null;
 
-  // The things that flow, in document order: every table row, then every
-  // letter block. A register has only the first kind and a letter only the
-  // second; nothing stops a document having both.
-  const items: Element[] = [
-    ...Array.from(table?.tBodies[0]?.rows ?? []),
-    ...Array.from(sheet.querySelectorAll<HTMLElement>(":scope > .block")),
-  ];
+  // The things that flow, in document order: a block is itself, a table is
+  // its rows. A register has only rows and a letter only blocks; M10's minutes
+  // have blocks above their table and so needed the order to be the document's
+  // rather than "rows, then blocks" — which every sheet before them was anyway.
+  const items: Element[] = [];
+  for (const child of Array.from(sheet.children)) {
+    if (child === table) items.push(...Array.from(table.tBodies[0]?.rows ?? []));
+    else if (child.classList.contains("block")) items.push(child);
+  }
 
   let current = newPage(pages, header, classes);
   let onPage = 0;

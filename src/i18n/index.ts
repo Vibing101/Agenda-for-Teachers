@@ -25,6 +25,7 @@ import { en as enUi } from "./en";
 import { lettersEn } from "./lettersEn";
 import { messagesEn } from "./messagesEn";
 import { formsEn } from "./formsEn";
+import { ENGLISH_CONTENT_REVIEWED } from "./contentReview";
 
 /**
  * The Greek bundle, assembled from four files that hold four different kinds
@@ -52,8 +53,21 @@ export type Locale = "el" | "en";
  * Each is typed against its Greek twin, so the compiler refuses a key missing
  * from either side; `tests/unit/i18nParity.test.ts` refuses it again at test
  * time, names the key, and checks every `{param}` and `[PLACEHOLDER]` besides.
+ *
+ * **Since M10 the content half is Greek until it has been reviewed** (see
+ * `contentReview.ts`): the app's labels come from `en.ts`, and the letters, the
+ * message bank and the forms' fixed text come from their Greek files, on
+ * purpose, until `ENGLISH_CONTENT_REVIEWED` says otherwise. Taking the switch
+ * as an argument is what lets a test build both bundles.
  */
-const en: Record<StringId, string> = { ...enUi, ...lettersEn, ...messagesEn, ...formsEn };
+export function englishBundle(contentReviewed: boolean): Record<StringId, string> {
+  const content = contentReviewed
+    ? { ...lettersEn, ...messagesEn, ...formsEn }
+    : { ...lettersEl, ...messagesEl, ...formsEl };
+  return { ...enUi, ...content };
+}
+
+const en: Record<StringId, string> = englishBundle(ENGLISH_CONTENT_REVIEWED);
 
 /** Every language the interface can be in, in the order the toggle offers them. */
 export const LOCALES: readonly Locale[] = ["el", "en"];
@@ -64,6 +78,19 @@ export const LOCALES: readonly Locale[] = ["el", "en"];
  * language is "persisted as a preference, not tied to the OS locale".
  */
 export const DEFAULT_LOCALE: Locale = "el";
+
+/**
+ * The language the product's *content* is printed in when the interface is in
+ * `locale` (M10). The same as the interface's, except English while the English
+ * content is unreviewed, when it is Greek — so a letter or a message comes out
+ * as one Greek document rather than Greek text under an English footer.
+ */
+export function contentLocale(
+  locale: Locale,
+  contentReviewed: boolean = ENGLISH_CONTENT_REVIEWED,
+): Locale {
+  return locale === "en" && !contentReviewed ? "el" : locale;
+}
 
 /** Whether a stored value names a language this app has. */
 export function isLocale(value: unknown): value is Locale {
@@ -101,4 +128,32 @@ export type Translate = (id: StringId, params?: Params) => string;
 
 export function translatorFor(locale: Locale): Translate {
   return (id, params) => translate(locale, id, params);
+}
+
+/**
+ * A string that counts something, and so comes as a pair: `<id>.one` and
+ * `<id>.other` (M10). The type names the `<id>` of every pair the bundle has,
+ * so a count string without both halves does not compile.
+ */
+export type CountId = {
+  [K in StringId]: K extends `${infer Base}.one`
+    ? `${Base}.other` extends StringId
+      ? Base
+      : never
+    : never;
+}[StringId];
+
+/**
+ * A count, worded for how many there are: "1 μήνυμα" and "3 μηνύματα", "1
+ * message" and "3 messages".
+ *
+ * Until M10 every count used one plural string and read "1 μηνύματα". **Greek
+ * and English share the rule this needs**: the singular for exactly one, the
+ * plural for everything else, zero included ("0 μηνύματα", "0 messages"). A
+ * language with more forms would need more than a pair, and this is the one
+ * place that would change. `{n}` is always the count; other params pass through.
+ */
+export function countOf(t: Translate, id: CountId, n: number, params?: Params): string {
+  const form: StringId = `${id}.${n === 1 ? "one" : "other"}` as StringId;
+  return t(form, { ...params, n });
 }

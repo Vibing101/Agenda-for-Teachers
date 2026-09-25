@@ -381,39 +381,62 @@ sequence.
 | **Backups, as tuned at M9** | **The schedule is unchanged. Taking a snapshot changed in four ways** (M9): it is written under a temporary name and renamed; it is copied under SQLite's shared lock, so it can never catch a commit half-written; an automatic snapshot (launch, 30 minutes, quit) is skipped when the newest snapshot already holds the same bytes — the storage panel's button still always writes one; and **a quit on macOS now takes its snapshot** — until M9 only `ExitRequested` was handled, which a normal Mac quit never raises | Measured, not assumed: a near-empty schema-9 file is 397,312 bytes; a heavy year (150 students, the attendance grid filled every school day, 15 marks each, weekly plans and notes) is **3.85 MB**. The 7-day tier dominates the folder; see the M9 release note for a year's cost. **Two things the schedule does not do, found by testing it**: thinning is not monotonic in time (an older snapshot of a day thinned while in the daily tier could briefly have been kept by a later pass as its month's representative — a newer snapshot of that day always survives), and a clock set a year forward thins everything that exists to one per month, irreversibly. The newest snapshot of every month survives any pass at any clock, and two devices thinning one folder converge; both are tested |
 | **Code signing** — *updated* | **Out of scope for M9; listed as the first blocker before the app is handed to the teacher** (product owner, 2026-09-25, asked at M9 as the M0-era "Code signing" row required) | The M0-era row said "revisit before M9". It was revisited: no certificate is bought or configured in M9 |
 
+| **M10 — Handover readiness** | **A milestone the roadmap did not have**, created by the product owner after M9 to hold what stands between the signed-off M9 build and the teacher. Its scope was set item by item on 2026-09-25, and every row below records one of those calls | The brief left each item as a question for the product owner, and the agent asked before planning |
+| **Code signing** — *M10* | **Out of M10 as well** (product owner, 2026-09-25). v1.0.0 ships unsigned. The procedure for whoever signs later is `docs/CODE_SIGNING.md`; nothing in `tauri.conf.json` or CI was changed | Still the first item on the list of what stands between the build and the teacher. The teacher-facing guide tells her what SmartScreen and Gatekeeper will ask |
+| **What prints, answered** (M10) | **Print: a meeting's minutes, M1's six annual goals, and the conduct sheet bundled with the grade sheet. Do not print: M6's surfaces (exam tracker, trips, textbooks, annual plan, progress matrix) and the covers register** (product owner, 2026-09-25) | Five Open questions raised at M2, M5, M6 and M8, answered together. The three that print are one document definition each on the existing contract, in both languages |
+| **How a meeting's minutes print** | **One portrait A4 sheet per meeting, from an export button on the meeting's own card, laid out as M7's blank *Πρακτικό συνεδρίασης* form**: a row of fields (kind, date, time, duration, class), the attendees and the agenda as captioned areas, the agreements as the sheet's table (who / what / by when), then the notes (M10). An empty agreement list is said in words | That form is the source's own minutes page, so its layout is the one a teacher recognises. The sheet reads the card's own selectors (`allMeetings`, `agreementsOfMeeting`, `meetingClass`) and nothing else, verbatim. **The blank form still reads nothing**; the two stay the two different artefacts M7's row describes |
+| **The document contract's one M10 addition** | **`PrintDocument.lead`: blocks that flow above the table**, and the paginator walks a sheet's items in document order instead of "all rows, then all blocks" (M10) | The minutes are the first sheet with blocks *above* a register. Every earlier sheet already had its rows before its blocks, so each paginates exactly as before, and M2's to M9's paginator tests are unchanged and green. A test pins the new order, and a mutation that restored the old order failed it |
+| **How the six annual goals print** | **One landscape table, one row per area in the order the cards are shown, one column per card field; it prints what the six cards show — saved or not** (M10) | "Printed as one table" is the spec's own phrase. The cards save one at a time with their own button, so the screen can show a draft that is not stored yet. M4.5's rule is that what prints is what the teacher is looking at, so the export builds from the cards' draft. The order comes from one selector, `annualGoalsInOrder`, shared by the cards and the sheet |
+| **The grade sheet and the conduct sheet** | **One PDF from the gradebook's button (*Εξαγωγή PDF βαθμών και συμπεριφοράς*), the two sheets bundled by `renderPrintBundle()`; the conduct sheet keeps its own button for printing it alone** (M10) | M2's open question, answered by the product owner. They stay two documents with their own headers, each starting a page, in one landscape file. Keeping the conduct sheet's own button costs nothing and keeps a use the teacher already had |
+| **The English content** (M10) | **Greek content only until reviewed.** In the English interface, the seven letters, the 150 messages (with their categories and placeholder names) and the forms' content (the checklist's items and the folder's suggestions) are served from the Greek files, and **a letter or a message prints wholly in Greek**, footer and file name included. A form or the folder prints English captions around the Greek content. One switch, `ENGLISH_CONTENT_REVIEWED` in `src/i18n/contentReview.ts`, turns the English drafts on (product owner, 2026-09-25) | The drafts are an unreviewed machine translation, and they go to parents. The English files stay in the build, held key for key and placeholder for placeholder by `i18nParity.test.ts`, and `Bilingual.test.tsx` exercises them with the switch on. So the day a review lands, turning them on is one line. The screens that hold content say why it is Greek, in English. **Supersedes, for now, the M9 row's "switching the language changes all of them"** as far as the content is concerned |
+| **Counts** (M10) | **Every count is a pair, `<id>.one` and `<id>.other`, chosen by `countOf()`: the singular for exactly one, the plural for anything else, zero included**, in both languages | Greek and English share that rule, so a pair is enough. 22 strings became pairs. A test fails on any string that puts a noun after `{n}` without being a pair. The four with no noun after `{n}` ("{n} χωρίς έξοδο") and the fixed 53-week count stay single, and the test allows them by name. A mutation adding one unpaired count string failed it |
+| **The `Email` label in Greek** (M10) | **Stays `Email`** (product owner, 2026-09-25) | M1's open question. It is a common Greek loanword; recorded so that it is a decision rather than an accident |
+| **The invitation's two date fields, and the certificates' layout** (M10) | **Both left as they are** (product owner, 2026-09-25) | M9's two open items. The invitation keeps asking for the meeting date at its head and again for its slip. The certificates keep their top-weighted content and the footer inside the frame |
+| **Backup snapshots stay uncompressed** (M10) | **No compression** (product owner, 2026-09-25) | M9's question. The restore procedure stays "copy a backup into place", which is what `docs/user/restore.md` teaches and what M10's restore rehearsal checked on both OSes |
+| **The app's version** (M10) | **`1.0.0`, one number in `package.json`, `Cargo.toml` and `tauri.conf.json`, shown as *Έκδοση εφαρμογής* beside the schema version; tag `v1.0.0`** on the merge commit after the product owner's sign-off | A Rust test fails if the three manifests disagree. The version on screen is the Rust side's own `CARGO_PKG_VERSION`, so it is the binary's and not a copy |
+| **What the teacher runs, and from where** (M10) | **The `.app` and the `.exe` in the synced folder — never the NSIS installer or the `.dmg`.** The handover folder keeps those two in an `installers/` folder of their own, and the teacher-facing guide says not to use them | The app keeps `data/` beside its executable. That is the spec's design. It means an installed copy — `%LOCALAPPDATA%\Teacher Planner`, or `/Applications` from the `.dmg` — would keep the teacher's data **outside the synced folder**, on one computer. The pre-M10 guide implied she would use the installer. It was rewritten. **Raised in the M10 PR**, since the brief asked for both files in the handover folder |
+
 
 ### Open — flag back rather than silently decide
 
 - **The English letters and messages need a bilingual read before a teacher
-  sends one.** M9's English content is an unreviewed machine draft (Resolved
-  above). Whoever reads it should read it against the Greek: the letters and
+  sends one.** *M10: until that read happens, the English interface shows and
+  prints the Greek content instead (Resolved, "The English content"). The read
+  is still wanted, and turning the drafts on after it is one line.* M9's English
+  content is an unreviewed machine draft (Resolved above). Whoever reads it should read it against the Greek: the letters and
   the fifteen categories' first messages are rendered side by side in the M9
   fidelity pack. Raised at M9 (2026-09-25).
 
-- **Every "should X print?" question below now costs two languages.** A new
+- **Every "should X print?" question below now costs two languages. —
+  ANSWERED at M10 (2026-09-25)**: minutes, the annual goals and the conduct
+  sheet with the grade sheet print; M6's surfaces and the covers register do
+  not. See Resolved. A new
   printed sheet needs its captions in `el.ts` and `en.ts` and must be looked at
   in both, since M7 and M9 each found layout defects only by rendering. That
   makes each of the open printing questions more expensive to answer later than
   it was before M9. Raised at M9 (2026-09-25), not answered.
 
-- **The invitation asks for the meeting date twice.** Its head has a `ΗΜΕΡΟΜΗΝΙΑ`
+- **The invitation asks for the meeting date twice. — ANSWERED at M10: left as
+  it is** (product owner). Its head has a `ΗΜΕΡΟΜΗΝΙΑ`
   field and its reply slip a `[ΗΜΕΡΟΜΗΝΙΑ]` token, and they are separate inputs.
   An M5 comment said the slip's token was filled from the head's field; it
   never was (the field is keyed `date`, the token was keyed by its Greek text).
   M9 corrected the comment and kept the behaviour. Filling the slip from the
   head would be one line in `letterSheets.ts`. Raised at M9 (2026-09-25).
 
-- **Two details of the printed certificates, for a judgement.** The content sits
+- **Two details of the printed certificates, for a judgement. — ANSWERED at
+  M10: left as they are** (product owner). The content sits
   in the top two-thirds of the frame, where the source centres it, and the
   sheet's footer ("Printed …") prints inside the frame — on the award itself.
   Neither is clipping or a spill, so M9 did not change them. Raised at M9
   (2026-09-25).
 
-- **Counts are not pluralised, in either language.** "1 messages", "1
+- **Counts are not pluralised, in either language. — DONE at M10** (Resolved,
+  "Counts"). "1 messages", "1
   students"; Greek has the same shape ("1 μηνύματα"). A plural form per count
   string, in both bundles, would fix it. Raised at M9 (2026-09-25).
 
-- **Should snapshots be compressed?** A heavy year's file is 3.85 MB and
+- **Should snapshots be compressed? — ANSWERED at M10: no** (product owner). A heavy year's file is 3.85 MB and
   compresses to 0.71 MB with gzip; the 7-day tier alone can hold dozens of
   copies. Compressing would change the spec's restore procedure ("copy a backup
   over `planner.sqlite`"), so it is not a tuning call. Raised at M9 (2026-09-25).
@@ -469,7 +492,7 @@ sequence.
   several people and would need a join table rather than one column. Raised at
   M8 (2026-09-24).
 
-- **Should the covers register print?** Page 13's last column is `Υπογραφή /
+- **Should the covers register print? — ANSWERED at M10: no** (product owner). Page 13's last column is `Υπογραφή /
   Παρατηρήσεις` — a signature, which suggests a sheet the teacher hands to the
   deputy head to sign. The spec's "PDF output" section does not name it and
   M8's scope line names no PDF, so M8 ships none (the M2/M3 precedent). It
@@ -497,7 +520,8 @@ sequence.
   need when you leave — it is one vocabulary and one migration. Raised at M6
   (2026-09-23).
 
-- **Should M1's six annual-goal areas print?** The "PDF output" section names
+- **Should M1's six annual-goal areas print? — ANSWERED at M10: yes, and built**
+  (Resolved, "How the six annual goals print"). The "PDF output" section names
   "annual goals" among the surfaces that produce a real PDF file, and module 1
   says the six areas are "printed as one table". **Nothing has built it.** M1's
   own scope line named no PDF and M1 predates the print machinery entirely;
@@ -521,7 +545,8 @@ sequence.
   question about whether a filled letter should persist at all. The trips screen
   points at the letter in a hint instead. Raised at M6 (2026-09-23).
 
-- **Should any of M6's six new surfaces print?** M6 ships none, because its
+- **Should any of M6's six new surfaces print? — ANSWERED at M10: no**
+  (product owner). M6 ships none, because its
   scope line names none and the M2/M3 precedent is that a milestone ships its
   scope line exactly. But four of them are registers of the same shape as the
   ones M4.5 and M5 gave PDFs to — the exam tracker, the trips register, the
@@ -557,7 +582,8 @@ sequence.
   about a status field anywhere (SupportPlan's, which it says is "written by the
   teacher, never computed"). Raised at M1 (2026-09-19).
 
-- **Is the `Email` label meant to stay in English?** It is the only English
+- **Is the `Email` label meant to stay in English? — ANSWERED at M10: yes, it
+  stays `Email` in Greek too** (product owner). It is the only English
   string on the student card; every other label is Greek. It is a common Greek
   loanword, so this may well be deliberate — but it is currently an implicit
   choice rather than a recorded one. Raised at M1 (2026-09-20). *(M9: in the
@@ -587,7 +613,8 @@ sequence.
   surfaces.** The app's pagination is its own since M2, so each is a document
   definition rather than new machinery. Raised at M4 (2026-09-21).
 
-- **Should a meeting's minutes print?** M5 gives a PDF to the letters, the
+- **Should a meeting's minutes print? — ANSWERED at M10: yes, and built**
+  (Resolved, "How a meeting's minutes print"). M5 gives a PDF to the letters, the
   message bank, the communication log and the parent-appointment week — every
   surface this document promises one somewhere. It gives **none to the
   staff/council/class meetings**, because nothing in the spec asks for one: the
@@ -683,7 +710,8 @@ sequence.
   the defaults. Raised at M2 (2026-09-20); one migration changes it either way.
 
 - **Should the conduct sheet print as part of the grade-sheet PDF or as its own
-  file?** M2 ships it as its own, matching the source product, which keeps
+  file? — ANSWERED at M10: as part of it, with its own button kept** (Resolved,
+  "The grade sheet and the conduct sheet"). M2 ships it as its own, matching the source product, which keeps
   "Συμπεριφορά και στάση" as a separate page — and M7 is the only place the
   spec asks for several pages bundled into one PDF. Raised at M2 (2026-09-20).
   **Now cheap (M7):** `renderPrintBundle()` puts several documents in one file,
@@ -751,7 +779,12 @@ sequence.
   end user, not at M9**, because it can stop her using the app at all on Windows.
   **M9 (2026-09-25): the product owner confirmed signing is out of scope for
   this release; it is the first item on M9's list of what stands between this
-  build and the teacher.**
+  build and the teacher.** **M10 (2026-09-25): out of M10 too.** v1.0.0 ships
+  unsigned. The procedure for whoever signs is `docs/CODE_SIGNING.md`. The
+  teacher-facing guide tells her what to expect, and tells her to run the
+  `.exe` from the synced folder rather than the installer. So SmartScreen now
+  meets the exe she double-clicks, if that file carries Mark of the Web, rather
+  than an installer she runs once.
 
   Two corrections from that run. **First, the CI tripwire does not actually
   measure SmartScreen.** It launches the tagged exe with `Start-Process` and

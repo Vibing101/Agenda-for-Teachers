@@ -20,6 +20,7 @@ import {
   wellbeingWeek,
   type WellbeingEntry,
 } from "../domain/wellbeing";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import type { Run } from "./types";
 
@@ -55,7 +56,7 @@ export default function WellbeingScreen({
           <p className="muted">{t("wellbeing.none")}</p>
         ) : (
           <>
-            <p className="muted">{t("wellbeing.count", { n: entries.length })}</p>
+            <p className="muted">{countOf(t, "wellbeing.count", entries.length)}</p>
             <ul className="rows">
               {entries.map((entry, i) => (
                 <EntryRow

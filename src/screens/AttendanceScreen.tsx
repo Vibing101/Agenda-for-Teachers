@@ -37,6 +37,7 @@ import {
 import { step } from "../domain/agenda";
 import { dayOfMonth, formatDate, monthOf } from "../domain/dates";
 import type { Planner, SchoolClass } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import {
   ABSENCE_KINDS,
@@ -377,7 +378,7 @@ function Register({
         <p className="muted">{t("absences.none")}</p>
       ) : (
         <>
-          <p className="muted">{t("absences.count", { n: events.length })}</p>
+          <p className="muted">{countOf(t, "absences.count", events.length)}</p>
           <ul className="rows">
             {events.map((event, index) => (
               <EventRow

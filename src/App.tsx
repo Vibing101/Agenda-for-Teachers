@@ -494,7 +494,7 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
       ) : (
         <fieldset className="sections" disabled={blocked}>
           {section === "year" && (page ?? "yearSetup") === "yearSetup" && (
-            <YearScreen planner={planner} run={run} />
+            <YearScreen planner={planner} run={run} today={today} />
           )}
           {section === "year" && page === "staff" && <StaffScreen planner={planner} run={run} />}
           {section === "year" && page === "covers" && (
@@ -548,7 +548,7 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
             />
           )}
           {section === "parents" && page === "meetings" && (
-            <MeetingsScreen planner={planner} run={run} focusId={meetingFocus} />
+            <MeetingsScreen planner={planner} run={run} focusId={meetingFocus} today={today} />
           )}
           {section === "parents" && page === "letters" && <LettersScreen today={today} />}
           {section === "parents" && page === "messages" && <MessagesScreen today={today} />}
@@ -610,6 +610,8 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
             <dd>
               {status.db_path} {status.db_exists ? "" : t("storage.notCreated")}
             </dd>
+            <dt>{t("storage.appVersion")}</dt>
+            <dd>{status.app_version}</dd>
             <dt>{t("storage.schemaVersion")}</dt>
             <dd>{status.schema_version}</dd>
             <dt>{t("storage.backups")}</dt>

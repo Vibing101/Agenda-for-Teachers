@@ -66,7 +66,7 @@ describe("the parent communication log", () => {
     await waitFor(() => expect(screen.getByText("2 επικοινωνίες")).toBeInTheDocument());
 
     await user.selectOptions(screen.getByLabelText("Φίλτρο μαθητή"), String(ELENI));
-    await waitFor(() => expect(screen.getByText("1 επικοινωνίες")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("1 επικοινωνία")).toBeInTheDocument());
 
     // A filter is a view, not an edit.
     expect(backend.planner.parent_contacts).toEqual(before);
@@ -291,7 +291,7 @@ describe("the parent-appointment grid", () => {
 
 describe("staff and council meetings", () => {
   it("lists every meeting with its agreements", () => {
-    renderScreen(MeetingsScreen, parentsFixture(), invoke, {});
+    renderScreen(MeetingsScreen, parentsFixture(), invoke, { today: TODAY });
     const card = within(screen.getByRole("group", { name: "Συνεδρίαση 1" }));
     // Newest first: 20.11 is the most recent.
     expect(card.getByLabelText("Ημερομηνία")).toHaveValue("2026-11-20");
@@ -311,7 +311,7 @@ describe("staff and council meetings", () => {
   /** **The "new record" trap**, for the third of M5's four creation buttons. */
   it("leaves every existing meeting unchanged when a new one is added", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(MeetingsScreen, parentsFixture(), invoke, {});
+    const backend = renderScreen(MeetingsScreen, parentsFixture(), invoke, { today: TODAY });
     const before = structuredClone(backend.planner.staff_meetings);
     expect(before).toHaveLength(3);
 
@@ -328,7 +328,7 @@ describe("staff and council meetings", () => {
   /** **The "new record" trap**, for the fourth — a child record this time. */
   it("leaves every existing agreement unchanged when a new one is added", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(MeetingsScreen, parentsFixture(), invoke, {});
+    const backend = renderScreen(MeetingsScreen, parentsFixture(), invoke, { today: TODAY });
     const before = structuredClone(backend.planner.meeting_agreements);
     expect(before).toHaveLength(2);
 
@@ -351,7 +351,7 @@ describe("staff and council meetings", () => {
 
   it("writes an edited agreement to that agreement only", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(MeetingsScreen, parentsFixture(), invoke, {});
+    const backend = renderScreen(MeetingsScreen, parentsFixture(), invoke, { today: TODAY });
     const before = structuredClone(backend.planner.meeting_agreements);
 
     const council = within(screen.getByRole("group", { name: "Συνεδρίαση 2" }));
@@ -373,7 +373,7 @@ describe("staff and council meetings", () => {
 
   it("deletes a meeting and its agreements, and leaves the rest", async () => {
     const user = userEvent.setup();
-    const backend = renderScreen(MeetingsScreen, parentsFixture(), invoke, {});
+    const backend = renderScreen(MeetingsScreen, parentsFixture(), invoke, { today: TODAY });
 
     const council = within(screen.getByRole("group", { name: "Συνεδρίαση 2" }));
     await user.click(council.getByRole("button", { name: "Διαγραφή συνεδρίασης" }));

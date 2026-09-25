@@ -27,6 +27,7 @@ import {
 } from "../domain/resources";
 import type { Planner } from "../domain/types";
 import { RESOURCE_CATEGORIES, resourceCategoryLabel } from "../i18n/vocabularies";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import type { Run } from "./types";
 
@@ -51,7 +52,7 @@ export default function LibraryScreen({ planner, run }: { planner: Planner; run:
           <p className="muted">{t("books.none")}</p>
         ) : (
           <>
-            <p className="muted">{t("books.count", { n: books.length })}</p>
+            <p className="muted">{countOf(t, "books.count", books.length)}</p>
             <ul className="rows">
               {books.map((book, index) => (
                 <TextbookRow key={book.id} book={book} index={index + 1} run={run} />

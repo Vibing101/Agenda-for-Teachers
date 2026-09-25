@@ -50,6 +50,15 @@ describe("the app shell", () => {
     expect(screen.getByText("10")).toBeInTheDocument();
   });
 
+  it("shows the app's version beside the schema version (M10)", async () => {
+    mount();
+    const version = await screen.findByText("Έκδοση εφαρμογής");
+    // The value is the Rust side's own `CARGO_PKG_VERSION`, carried in the
+    // status; the term sits directly above the schema version's.
+    expect(version.nextElementSibling?.textContent).toBe("1.0.0");
+    expect(version.nextElementSibling?.nextElementSibling?.textContent).toBe("Έκδοση σχήματος");
+  });
+
   it("reaches the four M3 sections", async () => {
     mount();
     const user = userEvent.setup();

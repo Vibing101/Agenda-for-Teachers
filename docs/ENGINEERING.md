@@ -129,3 +129,22 @@ here instead of repeating it.
 - Every UI string, all 7 letters, and all 150 messages have both a Greek and an English version; switching the language toggle changes all of them, with no string left showing a placeholder or the wrong language.
 - A side-by-side check of at least 3 PDF outputs against the source product's equivalent page confirms acceptable layout fidelity (page size, general structure, Greek rendering) — a judgment call for the product owner to sign off on, not an automated check.
 - The real two-device test passes: write data on a simulated "device 1", let a real cloud-sync client (Drive or OneDrive) finish syncing, launch on "device 2", confirm the data is there and correct.
+
+**M10 — Handover readiness**
+
+*Not in the original roadmap: the product owner created it after M9, to hold
+what stands between the signed-off M9 build and handing the app to the teacher.
+Scope, as the product owner set it on 2026-09-25: code signing **out** (the
+procedure is written down instead); meeting minutes, M1's six annual goals and
+the conduct sheet bundled with the grade sheet **print**; M6's surfaces and the
+covers register do **not**; letters, messages and form content stay **Greek**
+in the English interface until reviewed; counts are **pluralised**; the Greek
+`Email` label is kept as it is; snapshots are **not** compressed; the invitation
+and the certificates are left as they are; version `1.0.0`, tag `v1.0.0`.*
+
+- Every artefact in the handover folder is built from one tagged commit, its SHA-256 is recorded, and it launches from inside a synced folder on its OS.
+- A restore from `data/backups/`, done exactly as the teacher-facing docs say, gives back the snapshot's records exactly (record-level equality), on both OSes.
+- The real two-device test passes on the release build, on both Drive and OneDrive.
+- Each new sheet — a meeting's minutes, the six annual goals, and the grade sheet bundled with the conduct sheet — renders in both languages on both OSes, with matching page counts, embedded fonts and no `[BRACKETS]`.
+- In the English interface, the seven letters, the 150 messages and the forms' and folder's content show and print in Greek, and a letter or message prints wholly in Greek; with the English content switched on, the same surfaces show the English drafts. Tested both ways.
+- Every count the app shows reads correctly for one and for many, in both languages.

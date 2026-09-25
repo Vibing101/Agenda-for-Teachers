@@ -28,7 +28,12 @@ import {
   descriptiveGradeLabel,
   passFailGradeLabel,
 } from "../i18n/vocabularies";
-import { renderPrintDocument, type PrintCell, type TableDocument } from "./document";
+import {
+  renderPrintBundle,
+  renderPrintDocument,
+  type PrintCell,
+  type TableDocument,
+} from "./document";
 
 /**
  * What one cell reads as on paper.
@@ -200,6 +205,29 @@ export function gradeSheetHtml(
   today: string,
 ): string {
   return renderPrintDocument(gradeSheetDocument(t, planner, classId, today));
+}
+
+/**
+ * The grade sheet and the conduct sheet as **one** PDF (M10).
+ *
+ * M2 printed them as two files, matching the source's two pages, and asked
+ * whether they should be one; the product owner's answer on 2026-09-25 is that
+ * they should. They stay two *documents* — each with its own header, each
+ * starting a page of its own — bundled into one file by M7's
+ * `renderPrintBundle()`, which is why this needed no new machinery: both are
+ * landscape, and a bundle carries one orientation. The conduct sheet keeps its
+ * own button for printing it alone.
+ */
+export function gradeAndConductHtml(
+  t: Translate,
+  planner: Planner,
+  classId: number,
+  today: string,
+): string {
+  return renderPrintBundle([
+    gradeSheetDocument(t, planner, classId, today),
+    conductSheetDocument(t, planner, classId, today),
+  ]);
 }
 
 export function conductSheetHtml(

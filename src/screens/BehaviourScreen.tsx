@@ -31,6 +31,7 @@ import {
 } from "../domain/behaviour";
 import { formatDate } from "../domain/dates";
 import type { Planner } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import { incidentSheetHtml } from "../print/behaviourSheet";
 import type { Run } from "./types";
@@ -133,7 +134,7 @@ export default function BehaviourScreen({
             <p className="muted">{t("behaviour.noMatches")}</p>
           ) : (
             <>
-              <p className="muted">{t("behaviour.count", { n: shown.length })}</p>
+              <p className="muted">{countOf(t, "behaviour.count", shown.length)}</p>
               <ul className="rows">
                 {shown.map((incident, index) => (
                   <IncidentRow

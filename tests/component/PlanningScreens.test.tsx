@@ -235,8 +235,8 @@ describe("trips and their consents", () => {
 
     // One given of three, one refused, one not recorded.
     expect(card.getByText("1 από 3")).toBeInTheDocument();
-    expect(card.getByText("1 αρνήσεις")).toBeInTheDocument();
-    expect(card.getByText("1 εκκρεμούν")).toBeInTheDocument();
+    expect(card.getByText("1 άρνηση")).toBeInTheDocument();
+    expect(card.getByText("1 εκκρεμεί")).toBeInTheDocument();
     expect(card.getByText(/δεν συμπληρώνεται χειροκίνητα/)).toBeInTheDocument();
     expect(card.queryByLabelText("Συγκαταθέσεις")).not.toBeInTheDocument();
   });

@@ -32,6 +32,7 @@ import {
 } from "../domain/development";
 import { formatDecimal, formatMoney } from "../domain/numbers";
 import type { Planner } from "../domain/types";
+import { countOf } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import type { Run } from "./types";
 
@@ -63,7 +64,7 @@ function TrainingPanel({ entries, run }: { entries: TrainingEntry[]; run: Run })
         <p className="muted">{t("training.none")}</p>
       ) : (
         <>
-          <p className="muted">{t("training.count", { n: entries.length })}</p>
+          <p className="muted">{countOf(t, "training.count", entries.length)}</p>
           <ul className="rows">
             {entries.map((entry, i) => (
               <TrainingRow key={entry.id} entry={entry} index={i + 1} run={run} />
@@ -214,7 +215,7 @@ function BudgetPanel({ planner, run }: { planner: Planner; run: Run }) {
             : t("budget.noWindow")}
         </dd>
         <dt>{t("budget.spent")}</dt>
-        <dd>{t("budget.spentValue", { amount: formatMoney(s.spent), n: s.costed })}</dd>
+        <dd>{countOf(t, "budget.spentValue", s.costed, { amount: formatMoney(s.spent) })}</dd>
         <dt>{t("budget.hours")}</dt>
         <dd>{t("budget.hoursValue", { hours: formatDecimal(s.hours) })}</dd>
         <dt>{t("budget.remaining")}</dt>
