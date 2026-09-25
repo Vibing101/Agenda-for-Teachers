@@ -713,6 +713,15 @@ fn save_locale(state: tauri::State<'_, AppState>, locale: String) -> AppResult<P
     mutate(&state, |tx| store::save_locale(tx, &locale))
 }
 
+/// Titles the main window in the interface language (M9). The title starts as
+/// `tauri.conf.json`'s Greek one; without this it stayed Greek over an English
+/// interface — the one string M9's gate saw left in the wrong language.
+#[tauri::command]
+fn set_window_title(window: tauri::WebviewWindow, title: String) -> AppResult<()> {
+    window.set_title(&title)?;
+    Ok(())
+}
+
 // ------------------------------------------------------------ PDF export ---
 
 /// Writes one document to `exports/` as a real PDF and returns its path.
@@ -1074,6 +1083,7 @@ pub fn run() {
             delete_wellbeing_entry,
             save_wellbeing_note,
             save_locale,
+            set_window_title,
             export_pdf,
             print_job,
             print_ready,

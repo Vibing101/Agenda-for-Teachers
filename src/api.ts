@@ -307,6 +307,9 @@ export const api = {
    */
   saveLocale: (locale: Locale) => invoke<Planner>("save_locale", { locale }),
 
+  /** The window's title bar, in the interface language (M9). Not a mutation. */
+  setWindowTitle: (title: string) => invoke<void>("set_window_title", { title }),
+
   /**
    * Writes one document into `exports/` as a real PDF and resolves with its
    * path. The document is built here, in the frontend, because that is where

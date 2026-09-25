@@ -164,6 +164,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           disk_changed: diskChanged,
         };
       }
+      if (command === "set_window_title") return null;
       if (command === "make_backup") return "/Drive/Ατζέντα/data/backups/planner-2026-09-19-0730.sqlite";
       if (command === "load") return snapshot();
       if (command === "reload") {

@@ -162,6 +162,15 @@ describe("the language toggle", () => {
     }
     expect(screen.getByText("Where your data is kept")).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
+    expect(document.title).toBe("Teacher's Agenda");
+    // The title bar is asked to follow, through Tauri's window API.
+    await waitFor(() =>
+      expect(
+        invoke.mock.calls.some(
+          ([cmd, args]) => cmd === "set_window_title" && JSON.stringify(args).includes("Teacher's Agenda"),
+        ),
+      ).toBe(true),
+    );
     // …and the Greek is gone.
     for (const name of ["Τάξεις", "Μαθητές", "Βαθμοί", "Σχολικό έτος", "Πού αποθηκεύονται τα δεδομένα"]) {
       expect(screen.queryByText(name)).toBeNull();

@@ -293,7 +293,13 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
   const t = localeValue.t;
   useEffect(() => {
     document.documentElement.lang = locale;
-  }, [locale]);
+    // The title bar too: it starts as `tauri.conf.json`'s Greek title, and was
+    // the one string M9's gate saw left in Greek on an English screen.
+    document.title = t("app.title");
+    api.setWindowTitle(t("app.title")).catch(() => {
+      // Not worth a message: the title bar is cosmetic.
+    });
+  }, [locale, t]);
   const [status, setStatus] = useState<Status | null>(null);
   const [section, setSection] = useState<Section>("year");
   /** Which sub-page of `section` is showing, for the sections that have them. */
