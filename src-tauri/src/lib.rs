@@ -1093,7 +1093,19 @@ pub fn run() {
         .expect("error while building the application")
         .run(|_app, event| {
             // Snapshot on a clean shutdown too.
-            if let tauri::RunEvent::ExitRequested { .. } = event {
+            //
+            // **Both events, since M9.** Until M9 only `ExitRequested` was
+            // handled, and a normal macOS quit — Cmd-Q, the Dock's Quit, the
+            // Apple Event a script sends — never raises it: the app goes
+            // straight to `Exit`. So no build before M9 wrote a snapshot on
+            // quitting on a Mac; the one the next launch wrote stood in for
+            // it. Found at the M9 gate by quitting and counting the folder.
+            // Handling both is safe because an automatic snapshot of an
+            // unchanged file is skipped, so the second of the two is a no-op.
+            if matches!(
+                event,
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+            ) {
                 if let Err(e) = backup::snapshot_if_changed() {
                     eprintln!("shutdown backup failed: {e}");
                 }

@@ -368,7 +368,56 @@ sequence.
 | **Three details of the M8 brief were wrong about its source pages** | **The pages win** (M8) | Page 13's register has **five** columns, not seven (two pairs are merged); page 224's has **seven**, not eight (`Επιμόρφωση / Δραστηριότητα` is one); page 222's standing box is **two** boxes. Found by rendering the pages, per M5's and M7's lesson; recorded because the next agent will read the brief |
 
 
+| **Where the interface language is stored** | **In the data file: a one-row `preference` table added by `migrate_to_10`, holding a language code** (M9). A fresh file, and every file that climbs from M8, reads `el` | The spec asks for the language to be "persisted as a preference, not tied to the OS locale", and there were two candidates. A file *beside* `planner.sqlite` would only be per-device if it lived outside the synced folder — anything inside it syncs — and the spec keeps everything the app writes in that one folder. In the data file, the language travels with the teacher's records: the PC opens in the language she left the Mac in, and a sheet printed on either machine comes out the same. The cost, accepted: **switching the language is a write**, through `mutate()`, the fingerprint check and the disk-changed block, like every other record — so it is refused while the file is blocked, and the toggle is disabled until the reload. `locale` is checked in Rust, not by a `CHECK`, as M7's form `kind` is |
+| **Where the language toggle sits** | **The header, top right, on every screen: two small buttons, each language named in itself — *Ελληνικά* and *English*** (M9) | Not a new top-level tab (the brief ruled that out), and not the storage panel at the foot, because the toggle changes every screen and the header is the one thing on every screen. Each language is named in its own language, in both bundles, so a teacher who switched by mistake can find her way back. The only Greek allowed inside an English string is `lang.el`, and `i18nParity.test.ts` holds that |
+| **Where the language comes from** | **The data file only — never `navigator.language`, `Intl` or anything else of the OS's.** An unknown code falls back to Greek (M9) | The spec's own words. Tested with the browser claiming English over a Greek file and Greek over an English one |
+| **What a filled `[PLACEHOLDER]` is kept against** | **A stable code: `ph.<code>`, whose text in each language is a string id** in `messagesEl.ts` / `messagesEn.ts` (M9). `domain/placeholders.ts` lists the 72 codes and maps a token back to its code in whichever language is on | **An M5 defect, found as the brief predicted.** The message bank kept a filled value against the token's own Greek text — `values["ΜΑΘΗΜΑ"]` — so switching to English, where the slot reads `[SUBJECT]`, would have lost every value and printed a ruled blank in its place, against the spec's "the English version of that same letter with the same filled-in placeholders". The letters' reply slips had the same shape. The token text is still what the screen shows as the field's caption, in the language that is on. A test holds that every message and letter asks for **the same codes** in both languages |
+| **The picked message across a language switch** | **Stays open** (M9). The message screen resolves the picked code in the current language instead of looking it up in the search results | A query typed in Greek matches nothing in the English bank, so the message the teacher was filling would otherwise have closed as she switched |
+| **Sorting and search in an English interface** | **Unchanged: names still sort with `localeCompare(…, "el")`, and the search fold is language-blind** (M9) | What is sorted is teacher-entered text — Greek names, whatever the interface language — so Greek collation is still right. The other `localeCompare` calls compare ISO dates and clock times, where locale is irrelevant. `foldForSearch` strips accents and case for Latin as for Greek; a test searches the English bank by an English phrase in capitals |
+| **A failure reported by the Rust side** | **Worded in the interface language, with the system's own message after a colon** (`error.db`, `error.io`, `error.pdf`, `error.other`) (M9) | The Rust side holds no user-facing string, so its messages are English. Before M9 they were shown on their own — an English sentence in a Greek interface. The shell now keeps *what happened* rather than a finished sentence, so a message on screen re-words itself when the language changes |
+| **The English content's authorship** | **An unreviewed machine-translated draft, written by the M9 agent, and marked so at the top of `lettersEn.ts`, `messagesEn.ts` and `formsEn.ts`** (M9), per the "English translation authorship" row | The app's labels (`en.ts`) are the app's own and are not so marked. The letters and messages go to parents; until someone who reads both languages has read them, they are proposals. The teacher-facing docs say so too |
+| **English symbols and grades** | **The month card's key is `· a l e` (present, absent, late, excused); descriptive grades print `A–D`** (M9) | The file stores codes (`present`…, `a`…`d`), never the symbol, so the symbols are labels like any other. English uses its own initials |
+| **Whether the teacher-facing docs get an English version** | **No — Greek only** (product owner, 2026-09-25, asked at M9) | `docs/user/` is updated for the toggle, and "Αγγλικά" is gone from its not-yet list |
+| **Backups, as tuned at M9** | **The schedule is unchanged. Taking a snapshot changed in four ways** (M9): it is written under a temporary name and renamed; it is copied under SQLite's shared lock, so it can never catch a commit half-written; an automatic snapshot (launch, 30 minutes, quit) is skipped when the newest snapshot already holds the same bytes — the storage panel's button still always writes one; and **a quit on macOS now takes its snapshot** — until M9 only `ExitRequested` was handled, which a normal Mac quit never raises | Measured, not assumed: a near-empty schema-9 file is 397,312 bytes; a heavy year (150 students, the attendance grid filled every school day, 15 marks each, weekly plans and notes) is **3.85 MB**. The 7-day tier dominates the folder; see the M9 release note for a year's cost. **Two things the schedule does not do, found by testing it**: thinning is not monotonic in time (an older snapshot of a day thinned while in the daily tier could briefly have been kept by a later pass as its month's representative — a newer snapshot of that day always survives), and a clock set a year forward thins everything that exists to one per month, irreversibly. The newest snapshot of every month survives any pass at any clock, and two devices thinning one folder converge; both are tested |
+| **Code signing** — *updated* | **Out of scope for M9; listed as the first blocker before the app is handed to the teacher** (product owner, 2026-09-25, asked at M9 as the M0-era "Code signing" row required) | The M0-era row said "revisit before M9". It was revisited: no certificate is bought or configured in M9 |
+
+
 ### Open — flag back rather than silently decide
+
+- **The English letters and messages need a bilingual read before a teacher
+  sends one.** M9's English content is an unreviewed machine draft (Resolved
+  above). Whoever reads it should read it against the Greek: the letters and
+  the fifteen categories' first messages are rendered side by side in the M9
+  fidelity pack. Raised at M9 (2026-09-25).
+
+- **Every "should X print?" question below now costs two languages.** A new
+  printed sheet needs its captions in `el.ts` and `en.ts` and must be looked at
+  in both, since M7 and M9 each found layout defects only by rendering. That
+  makes each of the open printing questions more expensive to answer later than
+  it was before M9. Raised at M9 (2026-09-25), not answered.
+
+- **The invitation asks for the meeting date twice.** Its head has a `ΗΜΕΡΟΜΗΝΙΑ`
+  field and its reply slip a `[ΗΜΕΡΟΜΗΝΙΑ]` token, and they are separate inputs.
+  An M5 comment said the slip's token was filled from the head's field; it
+  never was (the field is keyed `date`, the token was keyed by its Greek text).
+  M9 corrected the comment and kept the behaviour. Filling the slip from the
+  head would be one line in `letterSheets.ts`. Raised at M9 (2026-09-25).
+
+- **Two details of the printed certificates, for a judgement.** The content sits
+  in the top two-thirds of the frame, where the source centres it, and the
+  sheet's footer ("Printed …") prints inside the frame — on the award itself.
+  Neither is clipping or a spill, so M9 did not change them. Raised at M9
+  (2026-09-25).
+
+- **Counts are not pluralised, in either language.** "1 messages", "1
+  students"; Greek has the same shape ("1 μηνύματα"). A plural form per count
+  string, in both bundles, would fix it. Raised at M9 (2026-09-25).
+
+- **Should snapshots be compressed?** A heavy year's file is 3.85 MB and
+  compresses to 0.71 MB with gzip; the 7-day tier alone can hold dozens of
+  copies. Compressing would change the spec's restore procedure ("copy a backup
+  over `planner.sqlite`"), so it is not a tuning call. Raised at M9 (2026-09-25).
+
 
 - **Should the *Κωδικοί και πρόσβαση* form be fillable in the app at all?**
   The spec asks for all eleven forms to be "fillable, nameable, saveable", and
@@ -511,7 +560,9 @@ sequence.
 - **Is the `Email` label meant to stay in English?** It is the only English
   string on the student card; every other label is Greek. It is a common Greek
   loanword, so this may well be deliberate — but it is currently an implicit
-  choice rather than a recorded one. Raised at M1 (2026-09-20).
+  choice rather than a recorded one. Raised at M1 (2026-09-20). *(M9: in the
+  English interface it is simply "Email"; the question is about the Greek one
+  and is still open.)*
 
 - **Does anything in M4 produce a PDF? — CLOSED.** Answered by the product
   owner on 2026-09-22 (yes, as M4.5) and **delivered by M4.5 on 2026-09-22**:
@@ -698,6 +749,9 @@ sequence.
   "this program is dangerous" and stop at. Code signing with an Authenticode
   certificate removes it. **This needs a decision before the app is handed to the
   end user, not at M9**, because it can stop her using the app at all on Windows.
+  **M9 (2026-09-25): the product owner confirmed signing is out of scope for
+  this release; it is the first item on M9's list of what stands between this
+  build and the teacher.**
 
   Two corrections from that run. **First, the CI tripwire does not actually
   measure SmartScreen.** It launches the tagged exe with `Start-Process` and
