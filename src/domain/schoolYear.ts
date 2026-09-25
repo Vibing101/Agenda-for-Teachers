@@ -10,7 +10,8 @@
  * migrating, and so no way for a record to be silently relocated or lost.
  */
 import { addDays, daysBetween, isIsoDate, mondayOf, monthOf } from "./dates";
-import type { YearModel } from "../i18n/vocabularies";
+import { GOAL_AREAS, type YearModel } from "../i18n/vocabularies";
+import type { AnnualGoal } from "./types";
 
 /** The source product's fixed count, and the spec's. */
 export const WEEKS_IN_YEAR = 53;
@@ -105,4 +106,15 @@ export function monthOrder(model: YearModel, startDate: string): number[] {
   const seen = new Set(derived);
   for (let m = 1; m <= 12; m += 1) if (!seen.has(m)) derived.push(m);
   return Array.from(new Set(derived));
+}
+
+/**
+ * The six annual goals in the order the source lists their areas — the order
+ * the *Στόχοι για τη χρονιά* cards are shown in and the printed table's rows
+ * (M10). One selector for both, so the paper cannot list them differently from
+ * the screen (M4.5's rule).
+ */
+export function annualGoalsInOrder(goals: readonly AnnualGoal[]): AnnualGoal[] {
+  const rank = (g: AnnualGoal) => GOAL_AREAS.indexOf(g.area);
+  return [...goals].sort((a, b) => rank(a) - rank(b));
 }

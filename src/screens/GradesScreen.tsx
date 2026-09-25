@@ -58,7 +58,7 @@ import {
   type ConductLevel,
   type GradeColumnKind,
 } from "../i18n/vocabularies";
-import { conductSheetHtml, gradeSheetHtml } from "../print/gradeSheets";
+import { conductSheetHtml, gradeAndConductHtml } from "../print/gradeSheets";
 import type { Run } from "./types";
 
 export default function GradesScreen({
@@ -390,12 +390,12 @@ function Gradebook({
       headingId="grades.sheet"
       actions={
         <ExportButton
-          labelId="grades.exportSheet"
-          fileName={t("grades.sheetFileName", {
+          labelId="grades.exportBundle"
+          fileName={t("grades.bundleFileName", {
             class: schoolClass.name.trim() || t("common.unnamed"),
             date: formatDate(today),
           })}
-          html={() => gradeSheetHtml(t, planner, schoolClass.id, today)}
+          html={() => gradeAndConductHtml(t, planner, schoolClass.id, today)}
         />
       }
     >

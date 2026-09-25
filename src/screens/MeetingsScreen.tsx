@@ -16,7 +16,9 @@
  */
 import { useMemo } from "react";
 import { api } from "../api";
+import { ExportButton } from "../components/ExportButton";
 import { Button, DeferredTextField, Panel } from "../components/Fields";
+import { formatDate } from "../domain/dates";
 import {
   agreementsOfMeeting,
   allMeetings,
@@ -29,17 +31,21 @@ import {
 import type { Planner } from "../domain/types";
 import { MEETING_KINDS, meetingKindLabel } from "../i18n/vocabularies";
 import { useTranslate } from "../i18n/useTranslate";
+import { minutesHtml } from "../print/meetingSheet";
 import type { Run } from "./types";
 
 export default function MeetingsScreen({
   planner,
   run,
   focusId,
+  today,
 }: {
   planner: Planner;
   run: Run;
   /** A meeting the upcoming panel asked to be opened. */
   focusId?: number | null;
+  /** The day the shell read, for a printed minutes' footer (M10). */
+  today: string;
 }) {
   const t = useTranslate();
   const meetings = useMemo(() => allMeetings(planner), [planner]);
@@ -68,6 +74,7 @@ export default function MeetingsScreen({
               planner={planner}
               run={run}
               focused={focusId === meeting.id}
+              today={today}
             />
           ))}
         </ul>
@@ -82,12 +89,14 @@ function MeetingCard({
   planner,
   run,
   focused,
+  today,
 }: {
   meeting: StaffMeeting;
   index: number;
   planner: Planner;
   run: Run;
   focused: boolean;
+  today: string;
 }) {
   const t = useTranslate();
   const save = (patch: Partial<StaffMeeting>) =>
@@ -170,6 +179,17 @@ function MeetingCard({
             labelId="meetings.notes"
             value={meeting.notes}
             onCommit={(notes) => save({ notes })}
+          />
+          {/* M10: this meeting's minutes, from what the card holds. Portrait,
+              like M7's blank minutes form, whose layout it follows. */}
+          <ExportButton
+            labelId="minutes.export"
+            landscape={false}
+            fileName={t("minutes.fileName", {
+              kind: t(meetingKindLabel(meeting.kind)),
+              date: formatDate(meeting.date || today),
+            })}
+            html={() => minutesHtml(t, planner, meeting, today)}
           />
           <Button
             labelId="meetings.remove"

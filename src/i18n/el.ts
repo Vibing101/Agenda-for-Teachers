@@ -272,11 +272,9 @@ export const el = {
   "grades.summaryStudents": "Μαθητές",
   "grades.overallAverage": "Γενικός μέσος όρος",
 
-  "grades.exportSheet": "Εξαγωγή PDF βαθμών",
   "grades.exportConduct": "Εξαγωγή PDF συμπεριφοράς",
   "grades.exporting": "Δημιουργία PDF…",
   "grades.exported": "Το PDF γράφτηκε: {path}",
-  "grades.sheetFileName": "Βαθμοί — {class} — {date}",
   "grades.conductFileName": "Συμπεριφορά και στάση — {class} — {date}",
 
   "grades.printClass": "ΤΑΞΗ",
@@ -1316,4 +1314,30 @@ export const el = {
   "error.io": "Δεν ήταν δυνατή η ανάγνωση ή η εγγραφή ενός αρχείου: {detail}",
   "error.pdf": "Δεν ήταν δυνατή η δημιουργία του PDF: {detail}",
   "error.other": "Κάτι πήγε στραβά: {detail}",
+
+  // ---------------------------------------------------- M10: new sheets ---
+  // A meeting's minutes, printed from Γονείς & Ομάδα → Συνεδριάσεις. The
+  // captions follow the source's minutes page, as M7's blank form does.
+  "minutes.export": "Εξαγωγή PDF πρακτικού",
+  "minutes.fileName": "Πρακτικό — {kind} — {date}",
+  "minutes.title": "Πρακτικό συνεδρίασης",
+  "minutes.subtitle": "Πρακτικά, συμφωνίες και ενέργειες",
+  "minutes.kind": "ΕΙΔΟΣ ΣΥΝΕΔΡΙΑΣΗΣ",
+  "minutes.date": "ΗΜΕΡΟΜΗΝΙΑ",
+  "minutes.time": "ΩΡΑ",
+  "minutes.duration": "ΔΙΑΡΚΕΙΑ",
+  "minutes.class": "ΤΜΗΜΑ",
+  "minutes.present": "ΠΑΡΟΝΤΕΣ",
+  "minutes.agenda": "ΗΜΕΡΗΣΙΑ ΔΙΑΤΑΞΗ",
+  "minutes.notes": "ΣΗΜΕΙΩΣΕΙΣ",
+  "minutes.noAgreements": "Δεν καταγράφηκαν συμφωνίες σε αυτή τη συνεδρίαση.",
+  // M1's six annual goals, "printed as one table".
+  "goalsSheet.export": "Εξαγωγή PDF στόχων",
+  "goalsSheet.fileName": "Στόχοι για τη χρονιά — {date}",
+  "goalsSheet.area": "Τομέας",
+  "goalsSheet.yearStart": "ΕΝΑΡΞΗ ΣΧΟΛΙΚΟΥ ΕΤΟΥΣ",
+  "goalsSheet.note": "Ό,τι δείχνουν οι έξι κάρτες, όπως είναι γραμμένο.",
+  // The grade sheet and the conduct sheet, one file.
+  "grades.exportBundle": "Εξαγωγή PDF βαθμών και συμπεριφοράς",
+  "grades.bundleFileName": "Βαθμοί και συμπεριφορά — {class} — {date}",
 } as const;

@@ -229,13 +229,13 @@ describe("the language toggle", () => {
       return handle(command, args);
     };
     await user.click(topTab("Grades"));
-    await user.click(screen.getByRole("button", { name: "Export grades as PDF" }));
+    await user.click(screen.getByRole("button", { name: "Export grades and conduct as PDF" }));
     expect(
       await screen.findByText("The PDF could not be created: the print window timed out"),
     ).toBeInTheDocument();
 
     await switchTo(user, "Ελληνικά");
-    await user.click(screen.getByRole("button", { name: "Εξαγωγή PDF βαθμών" }));
+    await user.click(screen.getByRole("button", { name: "Εξαγωγή PDF βαθμών και συμπεριφοράς" }));
     expect(
       await screen.findByText("Δεν ήταν δυνατή η δημιουργία του PDF: the print window timed out"),
     ).toBeInTheDocument();
@@ -251,16 +251,16 @@ describe("printed output follows the language at the moment of generation", () =
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: "Σχολικό έτος" });
     await user.click(topTab("Βαθμοί"));
-    const greek = await exportWith(user, backend, "Εξαγωγή PDF βαθμών");
+    const greek = await exportWith(user, backend, "Εξαγωγή PDF βαθμών και συμπεριφοράς");
     expect(htmlText(greek.html)).toContain("Βαθμοί τάξης");
 
     await switchTo(user, "English");
-    const english = await exportWith(user, backend, "Export grades as PDF");
+    const english = await exportWith(user, backend, "Export grades and conduct as PDF");
     const text = htmlText(english.html);
     expect(text).toContain("Class grades");
     expect(text).toContain("PASS MARK");
     expect(text).not.toContain("Βαθμοί τάξης");
-    expect(english.fileName).toMatch(/^Grades — /);
+    expect(english.fileName).toMatch(/^Grades and conduct — /);
     // Dates stay dd.MM.yyyy and numbers keep a dot, in English too.
     expect(text).toMatch(/Printed \d{2}\.\d{2}\.\d{4}/);
     expect(text).not.toMatch(/\d,\d/);

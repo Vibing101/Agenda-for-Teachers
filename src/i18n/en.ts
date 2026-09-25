@@ -280,11 +280,9 @@ export const en = {
   "grades.summaryStudents": "Students",
   "grades.overallAverage": "Overall average",
 
-  "grades.exportSheet": "Export grades as PDF",
   "grades.exportConduct": "Export behaviour as PDF",
   "grades.exporting": "Creating the PDF…",
   "grades.exported": "The PDF was written: {path}",
-  "grades.sheetFileName": "Grades — {class} — {date}",
   "grades.conductFileName": "Behaviour and attitude — {class} — {date}",
 
   "grades.printClass": "CLASS",
@@ -1316,4 +1314,26 @@ export const en = {
   "error.io": "A file could not be read or written: {detail}",
   "error.pdf": "The PDF could not be created: {detail}",
   "error.other": "Something went wrong: {detail}",
+
+  // ---------------------------------------------------- M10: new sheets ---
+  "minutes.export": "Export minutes as PDF",
+  "minutes.fileName": "Minutes — {kind} — {date}",
+  "minutes.title": "Meeting minutes",
+  "minutes.subtitle": "Minutes, agreements and actions",
+  "minutes.kind": "KIND OF MEETING",
+  "minutes.date": "DATE",
+  "minutes.time": "TIME",
+  "minutes.duration": "DURATION",
+  "minutes.class": "CLASS",
+  "minutes.present": "PRESENT",
+  "minutes.agenda": "AGENDA",
+  "minutes.notes": "NOTES",
+  "minutes.noAgreements": "No agreements were recorded at this meeting.",
+  "goalsSheet.export": "Export goals as PDF",
+  "goalsSheet.fileName": "Goals for the year — {date}",
+  "goalsSheet.area": "Area",
+  "goalsSheet.yearStart": "SCHOOL YEAR STARTS",
+  "goalsSheet.note": "What the six cards show, exactly as written.",
+  "grades.exportBundle": "Export grades and conduct as PDF",
+  "grades.bundleFileName": "Grades and conduct — {class} — {date}",
 } as const satisfies Record<keyof typeof el, string>;

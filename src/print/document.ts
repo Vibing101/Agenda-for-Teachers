@@ -177,6 +177,15 @@ export interface PrintDocument {
    * where a block in `blocks` would print below it.
    */
   head?: PrintBlock[];
+  /**
+   * Blocks that flow **above** the table, where `blocks` flow below it. Added
+   * at M10 for a meeting's minutes, whose source layout is a row of fields,
+   * then who was there and what was discussed, and only then the agreements —
+   * the one register on the page. They flow like `blocks` (a long agenda can
+   * push the table onto the next page) and, unlike `head`, are not repeated on
+   * every page.
+   */
+  lead?: PrintBlock[];
   /** A letter's blocks, printed under the table if there is one. */
   blocks?: PrintBlock[];
   /** The small print under the table, if the source sheet has one. */
@@ -793,6 +802,7 @@ function sheetHtml(doc: PrintDocument, landscape: boolean, first: boolean): stri
       `</tbody></table>`
     : "";
 
+  const lead = (doc.lead ?? []).map(block).join("\n");
   const blocks = (doc.blocks ?? []).map(block).join("\n");
   // Header blocks are part of the header, so they must not be picked up as
   // flowing blocks: they lose the `block` class the paginator looks for.
@@ -831,6 +841,7 @@ function sheetHtml(doc: PrintDocument, landscape: boolean, first: boolean): stri
     `<header><h1>${escapeHtml(doc.title)}</h1>`,
     doc.subtitle ? `<p class="subtitle">${escapeHtml(doc.subtitle)}</p>` : "",
     `<div class="meta">${meta}</div>${head}</header>`,
+    lead,
     table,
     blocks,
     `<footer>`,

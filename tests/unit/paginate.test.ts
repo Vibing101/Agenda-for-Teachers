@@ -98,6 +98,46 @@ describe("paginating a sheet", () => {
     expect(root.querySelector(".page header h1")?.textContent).toBe("Βαθμοί τάξης");
   });
 
+  it("flows blocks above a table, then its rows, then blocks below, in that order (M10)", () => {
+    // A meeting's minutes: fields and captioned areas, then the agreements
+    // register, then a closing area. Every item in document order, and a page
+    // break that lands in the rows repeats the column headers.
+    const doc: PrintDocument = {
+      title: "Πρακτικό",
+      meta: [],
+      lead: [
+        { kind: "prose", lines: ["ΠΡΙΝ-1"] },
+        { kind: "prose", lines: ["ΠΡΙΝ-2"] },
+      ],
+      table: {
+        head: [{ text: "Ποιος" }, { text: "Τι" }],
+        rows: Array.from({ length: 6 }, (_, i) => [{ text: `Σ${i + 1}` }, { text: "" }]),
+      },
+      blocks: [{ kind: "prose", lines: ["ΜΕΤΑ"] }],
+      footer: "Ατζέντα Εκπαιδευτικού",
+    };
+    const root = document.createElement("div");
+    root.innerHTML = renderPrintDocument(doc, false);
+    document.body.appendChild(root);
+    // Every item is 100 tall on a 785-tall portrait page: seven to a page.
+    const measure: Measure = (el) => el.querySelectorAll("tbody tr, p.prose").length * 100;
+    paginate(root, measure);
+
+    const order = Array.from(root.querySelectorAll(".page")).map((page) =>
+      Array.from(page.querySelectorAll("tbody tr td:first-child, p.prose")).map(
+        (e) => e.textContent,
+      ),
+    );
+    expect(order).toEqual([
+      ["ΠΡΙΝ-1", "ΠΡΙΝ-2", "Σ1", "Σ2", "Σ3", "Σ4", "Σ5"],
+      ["Σ6", "ΜΕΤΑ"],
+    ]);
+    const pages = root.querySelectorAll(".page");
+    expect(pages[1].querySelector("thead")?.textContent).toContain("Ποιος");
+    // The lead blocks are not a header: they are not repeated.
+    expect(pages[1].textContent).not.toContain("ΠΡΙΝ-1");
+  });
+
   it("carries the page geometry the Rust side captures against", () => {
     // These two numbers are the contract between the document and the native
     // capture: the app lays out A4 blocks and Rust takes A4 rectangles.
