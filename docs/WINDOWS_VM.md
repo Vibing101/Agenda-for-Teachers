@@ -434,6 +434,19 @@ with spaces on `G:` fail as a direct `/tr`). With it an agent can:
 (and corrected itself later), so its backups were named in the past. Check
 `Get-Date` against the Mac before reading anything into timestamps.
 
+### M10 (2026-09-25): sshd gone from the guest
+
+At M10's start, SSH timed out during the banner exchange with the VM running and
+its desktop up. An ACPI power-button press was ignored; a restart was typed into
+*Run* through `VBoxManage controlvm MilestoneTesting keyboardputscancode` /
+`keyboardputstring` (Win+R is `e0 5b 13 93 e0 db`, Enter is `1c 9c`). At the
+console, `Get-Service sshd` then reported **no such service** — only
+`ssh-agent` registered, the half-state §3b describes — and the product owner
+found the guest's folders in no state to reinstall from. **M10's Windows half
+was not run.** The next agent should expect to either rebuild OpenSSH by §3b
+(wipe first) or revert to `clean-baseline`, which discards everything done in
+the guest since M8.
+
 ### Optional: give the agent eyes
 
 A scheduled task running **as the logged-in user** can capture the interactive
