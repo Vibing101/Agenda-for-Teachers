@@ -26,10 +26,6 @@ pub fn open_at(db_path: &Path) -> AppResult<Connection> {
         std::fs::create_dir_all(parent)?;
     }
     let conn = Connection::open(db_path)?;
-    // M9: a save that lands while the 30-minute snapshot is copying the file
-    // waits the few milliseconds the copy takes, rather than failing with
-    // "database is locked". See `backup::copy_consistently`.
-    conn.busy_timeout(crate::backup::LOCK_WAIT)?;
     conn.pragma_update(None, "journal_mode", "DELETE")?;
     conn.pragma_update(None, "synchronous", "FULL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;

@@ -15,9 +15,11 @@
 //!   half-committed. The 30-minute snapshot runs on its own thread, and a save
 //!   landing in the same few milliseconds could otherwise be copied with some
 //!   of its pages written and some not — a backup that fails `integrity_check`.
-//!   The lock makes the copy wait for the commit (and a commit wait for the
-//!   copy); `db::open_at` gives every connection a busy timeout so neither
-//!   side reports "database is locked" for a wait of milliseconds.
+//!   The lock makes the copy wait for the commit, and a commit wait for the
+//!   copy. Neither side reports "database is locked" for a wait of
+//!   milliseconds, because rusqlite gives every connection a five-second busy
+//!   timeout by default — a test holds that, so a change of library that
+//!   dropped it would be noticed.
 //! * **An automatic snapshot of an unchanged file is skipped.** Launch, the
 //!   30-minute timer and a clean quit each used to copy the file whether or not
 //!   anything had changed, so an afternoon with the app left open wrote a dozen
@@ -30,7 +32,6 @@ use chrono::{DateTime, Datelike, Local, NaiveDateTime, TimeZone};
 use rusqlite::Connection;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 const STAMP: &str = "%Y-%m-%d-%H%M";
 const PREFIX: &str = "planner-";
@@ -39,9 +40,6 @@ const SUFFIX: &str = ".sqlite";
 /// snapshot, so an interrupted one is never counted, kept or thinned — and
 /// the next snapshot clears it away.
 const PARTIAL: &str = ".partial";
-/// How long a snapshot waits for a save in progress to finish, and a save
-/// for a snapshot. A copy of this file takes milliseconds.
-pub const LOCK_WAIT: Duration = Duration::from_secs(5);
 
 /// Parses the timestamp back out of a snapshot filename.
 /// Returns `None` for anything that is not one of our snapshots, so a stray
@@ -189,8 +187,8 @@ fn copy_consistently_with(
 ) -> std::io::Result<()> {
     let io = |e: rusqlite::Error| std::io::Error::other(e);
     let partial = partial_name(dest);
+    // rusqlite's default five-second busy timeout lets this wait out a commit.
     let conn = Connection::open(db).map_err(io)?;
-    conn.busy_timeout(LOCK_WAIT).map_err(io)?;
     conn.execute_batch("BEGIN").map_err(io)?;
     // A read, to take the shared lock: BEGIN alone takes none. The lock is
     // held until the COMMIT below, i.e. for the whole of the copy.
@@ -274,6 +272,7 @@ pub fn latest_snapshot_iso() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     fn at(s: &str) -> NaiveDateTime {
         NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M").unwrap()
@@ -508,6 +507,9 @@ mod tests {
     /// **A save that meets a snapshot waits for it rather than failing.** A
     /// reader holding the shared lock — as a snapshot does for the milliseconds
     /// of its copy — makes an ordinary `db::open_at` write wait, then succeed.
+    /// This holds rusqlite's default busy timeout, which nothing in this app
+    /// sets explicitly: M9 added a call to set it and then found, by removing
+    /// the call and watching this test still pass, that it was the default.
     #[test]
     fn a_save_waits_for_a_snapshot_rather_than_failing() {
         let dir = tempfile::tempdir().unwrap();
