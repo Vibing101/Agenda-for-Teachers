@@ -34,6 +34,9 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 const STAMP: &str = "%Y-%m-%d-%H%M";
+/// The name a snapshot takes when a different one already has this minute's
+/// (M9). Parsed alongside [`STAMP`], so thinning treats it like any other.
+const STAMP_SECONDS: &str = "%Y-%m-%d-%H%M%S";
 const PREFIX: &str = "planner-";
 const SUFFIX: &str = ".sqlite";
 /// What a snapshot is called while it is being written. It never parses as a
@@ -46,7 +49,9 @@ const PARTIAL: &str = ".partial";
 /// file in `backups/` is left alone rather than deleted.
 pub fn timestamp_of(file_name: &str) -> Option<NaiveDateTime> {
     let stamp = file_name.strip_prefix(PREFIX)?.strip_suffix(SUFFIX)?;
-    NaiveDateTime::parse_from_str(stamp, STAMP).ok()
+    NaiveDateTime::parse_from_str(stamp, STAMP)
+        .or_else(|_| NaiveDateTime::parse_from_str(stamp, STAMP_SECONDS))
+        .ok()
 }
 
 pub fn snapshot_name(at: NaiveDateTime) -> String {
@@ -157,8 +162,14 @@ pub fn snapshot_in(
         }
     }
 
-    let dest = dir.join(snapshot_name(now));
-    // Within the same minute the name collides; that snapshot is already current.
+    let mut dest = dir.join(snapshot_name(now));
+    // Within the same minute the name collides. If that snapshot already holds
+    // these bytes it is current. **If it does not** — a quick session, or a
+    // file the sync client replaced within the minute — the new one takes a
+    // name with seconds (M9): until M9 it was silently not written.
+    if dest.exists() && !same_bytes(db, &dest)? {
+        dest = dir.join(format!("{PREFIX}{}{SUFFIX}", now.format(STAMP_SECONDS)));
+    }
     if !dest.exists() {
         copy_consistently(db, &dest)?;
     }
@@ -567,6 +578,38 @@ mod tests {
     /// Month boundaries are calendar months, not 30-day blocks: the last
     /// snapshot of 31 January and the first of 1 February are one minute apart
     /// and both survive as their months' keepers.
+    /// Two different states of the file in one minute are two snapshots. Until
+    /// M9 the second was skipped because its minute's name was taken.
+    #[test]
+    fn a_changed_file_within_the_same_minute_is_still_snapshotted() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = a_data_file(dir.path());
+        let backups = dir.path().join("backups");
+        let t = |s: &str| NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").unwrap();
+        let (first, second) = (t("2026-09-19 10:01:05"), t("2026-09-19 10:01:40"));
+        snapshot_in(&db, &backups, first, true).unwrap();
+        let conn = crate::db::open_at(&db).unwrap();
+        conn.execute("UPDATE school_year SET start_date = '2026-09-07'", [])
+            .unwrap();
+        drop(conn);
+        let path = snapshot_in(&db, &backups, second, true).unwrap().unwrap();
+        assert_eq!(
+            snapshots_in(&backups),
+            vec![
+                "planner-2026-09-19-1001.sqlite",
+                "planner-2026-09-19-100140.sqlite"
+            ]
+        );
+        assert_eq!(std::fs::read(path).unwrap(), std::fs::read(&db).unwrap());
+        assert_eq!(
+            timestamp_of("planner-2026-09-19-100140.sqlite"),
+            Some(second)
+        );
+        // And an unchanged file in the same minute still adds nothing.
+        snapshot_in(&db, &backups, second, true).unwrap();
+        assert_eq!(snapshots_in(&backups).len(), 2);
+    }
+
     #[test]
     fn a_month_boundary_is_the_calendar_month() {
         let now = at("2026-09-19 12:00");
