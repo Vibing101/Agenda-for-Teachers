@@ -18,10 +18,10 @@ server, and no runtime for the teacher to install.
 - **Windows testing:** [docs/WINDOWS_VM.md](docs/WINDOWS_VM.md) — the VM that
   runs the Windows half of gate step 5, and what still needs a human.
 - **Release notes:** [docs/milestones/](docs/milestones/), one per milestone.
-- **For the teacher:** [docs/user/](docs/user/) — the installation guide and the
-  day-to-day workflow, **in Greek**, written for the person using the app rather
-  than building it. The screen-by-screen guide waits until the app stops moving;
-  see that folder's own index for what is deliberately not written yet.
+- **For the teacher:** [docs/user/](docs/user/) — the installation guides, the
+  day-to-day workflow and the screen-by-screen user guide, **in Greek**, written
+  for the person using the app rather than building it. Each of those texts ends
+  with what is deliberately not built yet, so nobody hunts for it.
 
 ## Source material
 
@@ -150,7 +150,7 @@ npm run tauri build -- --target universal-apple-darwin
 | File | What it is |
 |---|---|
 | `macos/Teacher Planner.app` | the app bundle — this is what the teacher runs |
-| `dmg/Teacher Planner_0.1.0_universal.dmg` | the disk image, for handing over |
+| `dmg/Teacher Planner_1.0.0_universal.dmg` | the disk image. Kept in the handover folder's `installers/`, **not** for the teacher: dragging to `/Applications` would put her data outside the synced folder (M10) |
 
 **5. Verify it is really universal**, because a single-architecture build
 succeeds just as quietly:
@@ -165,7 +165,7 @@ drop the `--target` and look in `src-tauri/target/release/bundle/`.
 
 > **Unsigned.** The app is not code-signed or notarised, so the first launch
 > needs a right-click → **Open** rather than a double-click. See *Carried risks*
-> in the spec.
+> in the spec, and [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) for how to sign.
 
 ### Windows — `.exe` and the installer
 
@@ -188,8 +188,8 @@ npm run tauri build
 
 | File | What it is |
 |---|---|
-| `src-tauri\target\release\teacher-planner.exe` | the bare executable |
-| `src-tauri\target\release\bundle\nsis\Teacher Planner_0.1.0_x64-setup.exe` | the NSIS installer, for handing over |
+| `src-tauri\target\release\teacher-planner.exe` | the bare executable — **this is what the teacher runs**, from her synced folder |
+| `src-tauri\target\release\bundle\nsis\Teacher Planner_1.0.0_x64-setup.exe` | the NSIS installer. Kept in `installers/`, **not** for the teacher: it installs outside the synced folder (M10) |
 
 **4. Confirm the signing status**, so it is never assumed:
 
