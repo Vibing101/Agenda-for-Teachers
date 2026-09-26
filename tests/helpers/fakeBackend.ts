@@ -402,7 +402,8 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
               !(
                 m.class_id === mark.class_id &&
                 m.student_id === mark.student_id &&
-                m.date === mark.date
+                m.date === mark.date &&
+                m.period_id === mark.period_id
               ),
           );
           if (mark.state.trim() !== "") {

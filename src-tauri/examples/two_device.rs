@@ -300,6 +300,7 @@ fn write_everything(conn: &rusqlite::Connection) {
             class_id: class_a,
             student_id: student,
             date: "2026-11-05".into(),
+            period_id: 0,
             state: "present".into(),
         },
     )

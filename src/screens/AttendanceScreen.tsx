@@ -14,30 +14,34 @@
  * to the teacher, because otherwise seeing them together invites the
  * assumption that they agree.
  *
- * The grid's columns are the days of the month, built from `domain/attendance`,
- * which builds them from M3's `monthGrid()`. A cell is `(class, student, actual
- * date)`; nothing here knows a month number or a day index.
+ * The grid's columns are the lessons of the month — each day split into the
+ * timetable hours the class has on it — built by `domain/attendance`. A cell
+ * is `(class, student, actual date, hour)`; nothing here knows a month number
+ * or a day index.
  *
  * Every cell and every field commits straight to storage on change or on blur,
  * for the same reason the gradebook's and the timetable's do.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { ExportButton } from "../components/ExportButton";
 import { Button, CheckboxField, DeferredTextField, Panel, SelectField } from "../components/Fields";
 import {
   emptyEvent,
   eventsOfClass,
+  inSameMonth,
   markAt,
-  monthDays,
+  monthColumns,
   monthRows,
   monthTotals,
   type AbsenceEvent,
+  type DayColumn,
+  type LessonSlot,
 } from "../domain/attendance";
 import { step } from "../domain/agenda";
 import { dayOfMonth, formatDate, monthOf } from "../domain/dates";
 import type { Planner, SchoolClass } from "../domain/types";
-import { countOf } from "../i18n";
+import { countOf, type Translate } from "../i18n";
 import { useTranslate } from "../i18n/useTranslate";
 import {
   ABSENCE_KINDS,
@@ -54,22 +58,47 @@ import {
 import { absenceRegisterHtml, monthCardHtml } from "../print/attendanceSheets";
 import type { Run } from "./types";
 
+/**
+ * Where the Today view asks the grid to open: one class, one lesson. The grid
+ * opens on that class and month and puts the cursor in that lesson's column.
+ */
+export interface AttendanceFocus {
+  classId: number;
+  date: string;
+  periodId: number;
+}
+
 export default function AttendanceScreen({
   planner,
   run,
   today,
+  focus,
 }: {
   planner: Planner;
   run: Run;
   /** The day the shell read from the calendar. Never read here directly. */
   today: string;
+  focus?: AttendanceFocus | null;
 }) {
   const t = useTranslate();
-  const [classId, setClassId] = useState<number | null>(planner.classes[0]?.id ?? null);
+  const [classId, setClassId] = useState<number | null>(
+    focus?.classId ?? planner.classes[0]?.id ?? null,
+  );
   /** Any day inside the month on show. The grid derives the rest from it. */
-  const [month, setMonth] = useState(today);
+  const [month, setMonth] = useState(focus?.date ?? today);
+
+  // A new request from the Today view moves the grid, as PlanScreen's focus does.
+  useEffect(() => {
+    if (focus) {
+      setClassId(focus.classId);
+      setMonth(focus.date);
+    }
+  }, [focus]);
 
   const schoolClass = planner.classes.find((c) => c.id === classId) ?? null;
+  // Only while the grid is still on the class and month the request was for.
+  const highlight =
+    focus && focus.classId === classId && inSameMonth(focus.date, month) ? focus : null;
 
   if (planner.classes.length === 0) {
     return (
@@ -87,6 +116,7 @@ export default function AttendanceScreen({
         schoolClass={schoolClass}
         month={month}
         today={today}
+        highlight={highlight}
         onPickClass={setClassId}
         onPickMonth={setMonth}
       />
@@ -122,9 +152,36 @@ function ClassPicker({
   );
 }
 
+/** The translated reason a day is greyed out, for its tooltip. */
+function offLabel(t: Translate, column: DayColumn): string {
+  switch (column.off) {
+    case "weekend":
+      return t("attendance.offWeekend");
+    case "holiday":
+      return column.offName || t("attendance.offHoliday");
+    case "leave":
+      return t("attendance.offLeave");
+    default:
+      return t("attendance.noLesson");
+  }
+}
+
+/** A lesson's hour as the column shows it: the timetable's own name. */
+function lessonLabel(t: Translate, lesson: LessonSlot): string {
+  return lesson.period?.name.trim() || t("attendance.lessonUnknown");
+}
+
+/** The same as a key, so one lesson's column can be found again. */
+const lessonKey = (date: string, periodId: number) => `${date}:${periodId}`;
+
 /**
- * The source's "Απουσίες του μήνα" card: the roster down the side, the days of
- * the month across the top, one symbol per cell.
+ * The source's "Απουσίες του μήνα" card: the roster down the side, and across
+ * the top every day of the month split into **its lessons** — one column per
+ * timetable hour the class has that day. Absences are counted per lesson.
+ *
+ * Weekends, holidays and the teacher's days of leave are greyed out, so a
+ * column the teacher should not be filling in looks like one. The roster
+ * columns stay put when the grid scrolls sideways.
  */
 function MonthGrid({
   planner,
@@ -132,6 +189,7 @@ function MonthGrid({
   schoolClass,
   month,
   today,
+  highlight,
   onPickClass,
   onPickMonth,
 }: {
@@ -140,12 +198,28 @@ function MonthGrid({
   schoolClass: SchoolClass | null;
   month: string;
   today: string;
+  highlight: AttendanceFocus | null;
   onPickClass: (id: number) => void;
   onPickMonth: (date: string) => void;
 }) {
   const t = useTranslate();
-  const days = monthDays(month);
+  const columns = schoolClass ? monthColumns(planner, schoolClass.id, month) : [];
   const rows = schoolClass ? monthRows(planner, schoolClass.id, month) : [];
+  const hasHours = schoolClass
+    ? planner.timetable_cells.some((c) => c.class_id === schoolClass.id)
+    : false;
+  const scroller = useRef<HTMLDivElement>(null);
+  const focusKey = highlight ? lessonKey(highlight.date, highlight.periodId) : null;
+
+  // Opened from the Today view: put the cursor on the first student in that
+  // lesson, which also scrolls the column into view.
+  useEffect(() => {
+    if (!focusKey) return;
+    const first = scroller.current?.querySelector<HTMLSelectElement>(
+      `select[data-lesson="${focusKey}"]`,
+    );
+    first?.focus();
+  }, [focusKey, schoolClass?.id]);
 
   return (
     <Panel
@@ -201,48 +275,100 @@ function MonthGrid({
             <strong>{t(attendanceSymbolLabel(state))}</strong> {t(attendanceStateLabel(state))}
           </span>
         ))}
+        <span className="symbol-key">
+          <span className="off-swatch" aria-hidden="true" /> {t("attendance.offKey")}
+        </span>
       </p>
+
+      {schoolClass && !hasHours && <p className="note">{t("attendance.noHours")}</p>}
 
       {rows.length === 0 ? (
         <p className="muted">{t("attendance.noRoster")}</p>
       ) : (
-        <div className="timetable-scroll">
+        <div className="timetable-scroll" ref={scroller}>
           <table className="attendance">
             <thead>
               <tr>
-                <th>{t("attendance.rosterNo")}</th>
-                <th>{t("attendance.roster")}</th>
-                {days.map((day) => (
-                  <th key={day} scope="col">
-                    {dayOfMonth(day)}
+                <th rowSpan={2} className="sticky-no">
+                  {t("attendance.rosterNo")}
+                </th>
+                <th rowSpan={2} className="sticky-name">
+                  {t("attendance.roster")}
+                </th>
+                {columns.map((column) => (
+                  <th
+                    key={column.date}
+                    scope="col"
+                    colSpan={Math.max(column.lessons.length, 1)}
+                    className={dayClass(column)}
+                    title={column.off ? offLabel(t, column) : undefined}
+                  >
+                    {dayOfMonth(column.date)}
                   </th>
                 ))}
                 {ATTENDANCE_STATES.map((state) => (
-                  <th key={state} scope="col" className="total">
+                  <th key={state} rowSpan={2} scope="col" className="total">
                     {t(attendanceSymbolLabel(state))}
                   </th>
                 ))}
+              </tr>
+              <tr>
+                {columns.flatMap((column) =>
+                  column.lessons.length === 0
+                    ? [
+                        <th
+                          key={column.date}
+                          className={dayClass(column)}
+                          aria-label={offLabel(t, column)}
+                        />,
+                      ]
+                    : column.lessons.map((lesson, index) => (
+                        <th
+                          key={lessonKey(lesson.date, lesson.periodId)}
+                          scope="col"
+                          className={
+                            dayClass(column, index) +
+                            (lessonKey(lesson.date, lesson.periodId) === focusKey
+                              ? " focused"
+                              : "")
+                          }
+                          title={lesson.period ? undefined : t("attendance.lessonUnknown")}
+                        >
+                          {lesson.period?.name.trim() || "?"}
+                        </th>
+                      )),
+                )}
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => {
                 const totals = monthTotals(row);
+                const name = row.student.full_name.trim() || t("common.unnamed");
                 return (
                   <tr key={row.student.id}>
-                    <td className="muted">{row.rosterNo}</td>
-                    <th scope="row">{row.student.full_name.trim() || t("common.unnamed")}</th>
-                    {days.map((day) => (
-                      <td key={day}>
-                        <Cell
-                          planner={planner}
-                          run={run}
-                          classId={schoolClass!.id}
-                          studentId={row.student.id}
-                          studentName={row.student.full_name.trim() || t("common.unnamed")}
-                          date={day}
-                        />
-                      </td>
-                    ))}
+                    <td className="muted sticky-no">{row.rosterNo}</td>
+                    <th scope="row" className="sticky-name">
+                      {name}
+                    </th>
+                    {columns.flatMap((column) =>
+                      column.lessons.length === 0
+                        ? [<td key={column.date} className={dayClass(column)} />]
+                        : column.lessons.map((lesson, index) => (
+                            <td
+                              key={lessonKey(lesson.date, lesson.periodId)}
+                              className={dayClass(column, index)}
+                            >
+                              <Cell
+                                planner={planner}
+                                run={run}
+                                classId={schoolClass!.id}
+                                studentId={row.student.id}
+                                studentName={name}
+                                lesson={lesson}
+                              />
+                            </td>
+                          )),
+                    )}
                     {ATTENDANCE_STATES.map((state) => (
                       <td key={state} className="total">
                         {totals[state] || ""}
@@ -264,11 +390,24 @@ function MonthGrid({
 }
 
 /**
- * One cell of the grid.
+ * The classes a day's cells carry: greyed when the day is off, quieter when
+ * the class simply has no lesson, and a left rule where each day begins so a
+ * two-lesson day reads as one day.
+ */
+function dayClass(column: DayColumn, index = 0): string {
+  const classes = ["lesson"];
+  if (index === 0) classes.push("day-start");
+  if (column.off) classes.push("off");
+  else if (column.lessons.length === 0) classes.push("no-lesson");
+  return classes.join(" ");
+}
+
+/**
+ * One cell of the grid: one student in one lesson.
  *
  * A plain `<select>` of the four states plus a blank. The blank writes an empty
- * state, which the storage layer turns into a deleted row — an unmarked day is
- * the absence of a record, never a fifth code.
+ * state, which the storage layer turns into a deleted row — an unmarked lesson
+ * is the absence of a record, never a fifth code.
  */
 function Cell({
   planner,
@@ -276,23 +415,25 @@ function Cell({
   classId,
   studentId,
   studentName,
-  date,
+  lesson,
 }: {
   planner: Planner;
   run: Run;
   classId: number;
   studentId: number;
   studentName: string;
-  date: string;
+  lesson: LessonSlot;
 }) {
   const t = useTranslate();
-  const mark = markAt(planner, classId, studentId, date);
+  const mark = markAt(planner, classId, studentId, lesson.date, lesson.periodId);
   return (
     <select
       className="attendance-cell"
+      data-lesson={lessonKey(lesson.date, lesson.periodId)}
       aria-label={t("attendance.cell", {
         student: studentName,
-        date: formatDate(date),
+        date: formatDate(lesson.date),
+        lesson: lessonLabel(t, lesson),
       })}
       value={mark?.state ?? ""}
       onChange={(e) =>
@@ -300,7 +441,8 @@ function Cell({
           api.saveAttendanceMark({
             class_id: classId,
             student_id: studentId,
-            date,
+            date: lesson.date,
+            period_id: lesson.periodId,
             // An empty value is a cleared cell; the backend deletes the row.
             state: e.target.value as AttendanceState,
           }),

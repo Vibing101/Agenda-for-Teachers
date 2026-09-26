@@ -380,6 +380,7 @@ export const en = {
   "today.noNote": "No note for today.",
   "today.plans": "The week's plans",
   "today.openPlan": "Open plan",
+  "today.openAttendance": "Take attendance",
   "today.planEmpty": "No plan this week",
   "today.weekNote": "Notes for the week",
 
@@ -464,7 +465,7 @@ export const en = {
   "nav.cards": "Cards",
 
   "attendance.heading": "Absences for the month",
-  "attendance.intro": "One card per month · you mark it day by day.",
+  "attendance.intro": "One card per month · you mark it lesson by lesson.",
   "attendance.pickClass": "Class",
   "attendance.noClasses": "There is no class yet. Add one under Classes.",
   "attendance.noRoster": "The class has no students on its list yet.",
@@ -472,7 +473,15 @@ export const en = {
   "attendance.symbols": "Symbols",
   "attendance.roster": "Full name",
   "attendance.rosterNo": "No.",
-  "attendance.cell": "{student}, {date}",
+  "attendance.cell": "{student}, {date}, {lesson}",
+  "attendance.lessonUnknown": "Unknown hour",
+  "attendance.noLesson": "No lesson",
+  "attendance.offWeekend": "Weekend",
+  "attendance.offHoliday": "Holiday",
+  "attendance.offLeave": "Leave",
+  "attendance.offKey": "grey: weekends, holidays and days of leave",
+  "attendance.noHours":
+    "This class has no hours on the timetable yet. Absences are marked per lesson, so add its hours under Timetable first.",
   "attendance.unmarked": "Not marked",
   "attendance.summary": "Month totals",
   "attendance.independent":

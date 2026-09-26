@@ -182,12 +182,20 @@ describe("the printed absence register", () => {
 describe("the printed month card", () => {
   const doc = monthCardDocument(t, supportPlanner(), A1, IN_NOVEMBER, TODAY);
 
-  it("lays the roster against that month's own days and nothing borrowed", () => {
-    // November 2026 has 30 days; plus the register number, the name and the
-    // four totals columns.
-    expect(doc.table.head).toHaveLength(2 + 30 + 4);
-    expect(doc.table.head[2].text).toBe("1");
-    expect(doc.table.head[31].text).toBe("30");
+  it("lays the roster against the month's lessons: only days with lessons, split by hour", () => {
+    // Α1's 19 November lessons (see the unit tests), plus the register number,
+    // the name and the four totals columns. Weekends, Wednesdays (Β2's day),
+    // the holiday and the day of leave are not printed.
+    expect(doc.table.head).toHaveLength(2 + 19 + 4);
+    const days = doc.table.head.slice(2, 2 + 19).map((c) => c.text);
+    expect(days.slice(0, 6)).toEqual(["2", "3", "5", "", "6", "9"]);
+    expect(days).not.toContain("17"); // Πολυτεχνείο
+    expect(days).not.toContain("20"); // on leave
+    expect(days).not.toContain("11"); // Wednesday: no Α1 lesson
+    expect(days[18]).toBe("30");
+    // The hour of each lesson, underneath: Thursday 05.11 is 1η and 3η.
+    const hours = doc.table.subHead!.slice(2, 2 + 19).map((c) => c.text);
+    expect(hours.slice(0, 5)).toEqual(["1η", "2η", "1η", "3η", "2η"]);
     expect(doc.meta[2]).toEqual({
       label: t("attendance.printMonth"),
       value: `${t("vocab.month.11")} 2026`,
@@ -196,15 +204,16 @@ describe("the printed month card", () => {
 
   it("prints the stored symbol per cell and the month's totals per student", () => {
     const eleni = doc.table.rows.find((r) => r[1].text === "Ελένη Παπαδοπούλου")!;
-    // 05.11 is a Thursday; the fixture marks her `present` there.
-    expect(eleni[2 + 4].text).toBe(t("vocab.attendanceSymbol.present"));
-    // Hand-counted from the fixture's November marks: 1 present, 2 absent,
-    // 1 late, 1 excused. The October mark is not in this month and is not here.
+    // 05.11 is a Thursday; the fixture marks her `present` in its 1η.
+    expect(eleni[2 + 2].text).toBe(t("vocab.attendanceSymbol.present"));
+    expect(eleni[2 + 3].text).toBe("");
+    // Hand-counted from the fixture's November marks, per lesson: 1 present,
+    // 3 absent, 1 late, 1 excused. The October mark is not in this month.
     const totals = eleni.slice(-4).map((c) => c.text);
-    expect(totals).toEqual(["1", "2", "1", "1"]);
+    expect(totals).toEqual(["1", "3", "1", "1"]);
   });
 
-  it("is a dense landscape sheet with explicit column widths, so 31 days fit", () => {
+  it("is a dense landscape sheet with explicit column widths, so a month of lessons fits", () => {
     expect(doc.dense).toBe(true);
     expect(doc.table.head[2].width).toBeDefined();
     expect(monthCardHtml(t, supportPlanner(), A1, IN_NOVEMBER, TODAY)).toContain("width:");
@@ -219,7 +228,13 @@ describe("the two attendance sheets stay independent of each other", () => {
     // Mark every day of November for everyone — the loudest possible change to
     // the *other* register.
     for (const day of Array.from({ length: 30 }, (_, i) => `2026-11-${String(i + 1).padStart(2, "0")}`)) {
-      planner.attendance_marks.push({ class_id: A1, student_id: ELENI, date: day, state: "absent" });
+      planner.attendance_marks.push({
+        class_id: A1,
+        student_id: ELENI,
+        date: day,
+        period_id: 0,
+        state: "absent",
+      });
     }
     planner.attendance_marks = planner.attendance_marks.filter((m) => m.date !== CONTESTED_DAY);
 
@@ -254,7 +269,7 @@ describe("the two attendance sheets stay independent of each other", () => {
     // and carries a logged late arrival in the register, for the same day.
     const card = monthCardDocument(t, supportPlanner(), A1, IN_NOVEMBER, TODAY);
     const eleni = card.table.rows.find((r) => r[1].text === "Ελένη Παπαδοπούλου")!;
-    expect(eleni[2 + 4].text).toBe(t("vocab.attendanceSymbol.present"));
+    expect(eleni[2 + 2].text).toBe(t("vocab.attendanceSymbol.present"));
 
     const register = absenceRegisterDocument(t, supportPlanner(), A1, TODAY);
     const line = register.table.rows.find((r) => r[1].text === "05.11.2026")!;

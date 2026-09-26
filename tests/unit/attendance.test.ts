@@ -13,7 +13,10 @@ import {
   emptyEvent,
   eventsOfClass,
   eventsOfStudent,
+  dayOff,
+  lessonsOf,
   markAt,
+  monthColumns,
   monthDays,
   monthRows,
   monthTotals,
@@ -24,8 +27,13 @@ import {
   B2,
   CONTESTED_DAY,
   ELENI,
+  HOLIDAY,
+  HOUR_1,
+  HOUR_2,
+  HOUR_3,
   IN_NOVEMBER,
   KOSTAS,
+  LEAVE_DAY,
   NIKOS,
   supportPlanner,
 } from "../helpers/supportFixture";
@@ -60,12 +68,75 @@ describe("the month the grid lays out", () => {
   });
 });
 
+/**
+ * **Absences are counted per lesson, not per day.** Α1 is taught once on
+ * Mondays, Tuesdays and Fridays and twice on Thursdays (1η and 3η), so a
+ * Thursday is two columns and two marks.
+ */
+describe("the grid's lessons", () => {
+  it("split each day into the timetable hours the class has on it", () => {
+    const columns = monthColumns(supportPlanner(), A1, IN_NOVEMBER);
+    const on = (date: string) => columns.find((c) => c.date === date)!;
+    expect(on("2026-11-09").lessons.map((l) => l.periodId)).toEqual([HOUR_1]); // Monday
+    expect(on("2026-11-12").lessons.map((l) => l.periodId)).toEqual([HOUR_1, HOUR_3]); // Thursday
+    expect(on("2026-11-12").lessons.map((l) => l.period?.name)).toEqual(["1η", "3η"]);
+    // Wednesday is Β2's day, not Α1's.
+    expect(on("2026-11-11").lessons).toEqual([]);
+    expect(on("2026-11-11").off).toBeNull();
+  });
+
+  it("add up to the month's lessons: 5 Mondays, 3 Tuesdays, 4 double Thursdays, 3 Fridays", () => {
+    // The holiday Tuesday and the Friday on leave are not lessons.
+    expect(lessonsOf(monthColumns(supportPlanner(), A1, IN_NOVEMBER))).toHaveLength(19);
+  });
+
+  it("grey out weekends, holidays and days of leave, and offer no lesson on them", () => {
+    const columns = monthColumns(supportPlanner(), A1, IN_NOVEMBER);
+    const on = (date: string) => columns.find((c) => c.date === date)!;
+    expect(on("2026-11-07").off).toBe("weekend"); // Saturday
+    expect(on("2026-11-08").off).toBe("weekend"); // Sunday
+    expect(on(HOLIDAY)).toMatchObject({ off: "holiday", offName: "Πολυτεχνείο", lessons: [] });
+    expect(on(LEAVE_DAY)).toMatchObject({ off: "leave", lessons: [] });
+  });
+
+  it("do not grey a Saturday the class is actually taught on", () => {
+    const planner = supportPlanner();
+    planner.timetable_cells = [
+      ...planner.timetable_cells,
+      { period_id: HOUR_1, weekday: 6, class_id: A1, subject: "", room: "", duty: "", notes: "" },
+    ];
+    expect(dayOff(planner, A1, "2026-11-07")).toBeNull();
+    expect(dayOff(planner, B2, "2026-11-07")).toEqual({ off: "weekend", name: "" });
+  });
+
+  it("keep a mark whose hour has left the timetable, or was never known", () => {
+    const planner = supportPlanner();
+    // The Thursday 3η is taken off the timetable mid-year.
+    planner.timetable_cells = planner.timetable_cells.filter(
+      (c) => !(c.period_id === HOUR_3 && c.weekday === 4),
+    );
+    planner.attendance_marks = [
+      ...planner.attendance_marks,
+      // A mark from before per-lesson attendance, on a day off.
+      { class_id: A1, student_id: NIKOS, date: HOLIDAY, period_id: 0, state: "absent" },
+    ];
+    const columns = monthColumns(planner, A1, IN_NOVEMBER);
+    const on = (date: string) => columns.find((c) => c.date === date)!;
+    // 12.11 still has its marked 3η; 19.11 no longer gets one.
+    expect(on("2026-11-12").lessons.map((l) => l.periodId)).toEqual([HOUR_1, HOUR_3]);
+    expect(on("2026-11-19").lessons.map((l) => l.periodId)).toEqual([HOUR_1]);
+    // The holiday is still greyed, but shows the mark entered on it.
+    expect(on(HOLIDAY).off).toBe("holiday");
+    expect(on(HOLIDAY).lessons).toEqual([{ date: HOLIDAY, periodId: 0, period: null }]);
+  });
+});
+
 describe("the monthly grid's rows", () => {
-  it("are the class's roster in roster order, with one entry per day", () => {
+  it("are the class's roster in roster order, with one entry per lesson", () => {
     const rows = monthRows(supportPlanner(), A1, IN_NOVEMBER);
     expect(rows.map((r) => r.student.id)).toEqual([ELENI, NIKOS, KOSTAS]);
     expect(rows.map((r) => r.rosterNo)).toEqual([1, 2, 3]);
-    expect(rows[0].marks).toHaveLength(30);
+    expect(rows[0].marks).toHaveLength(19);
   });
 
   it("show a student's marks only for the class the grid is for", () => {
@@ -74,23 +145,27 @@ describe("the monthly grid's rows", () => {
     const inB2 = monthRows(planner, B2, IN_NOVEMBER).find((r) => r.student.id === ELENI)!;
     expect(inB2.marks.every((m) => m === null)).toBe(true);
     const inA1 = monthRows(planner, A1, IN_NOVEMBER).find((r) => r.student.id === ELENI)!;
-    expect(inA1.marks.filter((m) => m !== null)).toHaveLength(5);
+    expect(inA1.marks.filter((m) => m !== null)).toHaveLength(6);
   });
 
-  it("count each state for the month, and only within that month", () => {
+  it("count each state per lesson, and only within that month", () => {
     const planner = supportPlanner();
     const eleni = monthRows(planner, A1, IN_NOVEMBER).find((r) => r.student.id === ELENI)!;
-    // Hand-counted from the fixture: present 05, absent 06 and 09, late 10,
-    // excused 12 — and the 15.10 absence is a different month.
-    expect(monthTotals(eleni)).toEqual({ present: 1, absent: 2, late: 1, excused: 1 });
+    // Hand-counted from the fixture: present 05, absent 06, 09 and 12 (3η),
+    // late 10, excused 12 (1η) — two lessons on the 12th, two different
+    // marks. The 15.10 absence is a different month.
+    expect(monthTotals(eleni)).toEqual({ present: 1, absent: 3, late: 1, excused: 1 });
 
     const october = monthRows(planner, A1, "2026-10-08").find((r) => r.student.id === ELENI)!;
     expect(monthTotals(october)).toEqual({ present: 0, absent: 1, late: 0, excused: 0 });
   });
 
-  it("read an unmarked day as no record rather than as present", () => {
+  it("read an unmarked lesson as no record rather than as present", () => {
     const planner = supportPlanner();
-    expect(markAt(planner, A1, ELENI, "2026-11-04")).toBeNull();
+    expect(markAt(planner, A1, ELENI, "2026-11-19", HOUR_1)).toBeNull();
+    // The other lesson on the same day is a different record.
+    expect(markAt(planner, A1, ELENI, "2026-11-12", HOUR_1)!.state).toBe("excused");
+    expect(markAt(planner, A1, ELENI, "2026-11-12", HOUR_3)!.state).toBe("absent");
     const kostas = monthRows(planner, A1, IN_NOVEMBER).find((r) => r.student.id === KOSTAS)!;
     expect(monthTotals(kostas)).toEqual({ present: 0, absent: 0, late: 0, excused: 0 });
   });
@@ -137,7 +212,7 @@ describe("the grid and the register are independent", () => {
   it("hold different, non-derived data for the same student and date", () => {
     const planner = supportPlanner();
 
-    expect(markAt(planner, A1, ELENI, CONTESTED_DAY)!.state).toBe("present");
+    expect(markAt(planner, A1, ELENI, CONTESTED_DAY, HOUR_1)!.state).toBe("present");
     const logged = eventsOfClass(planner, A1).find(
       (e) => e.student_id === ELENI && e.date === CONTESTED_DAY,
     )!;
@@ -158,7 +233,7 @@ describe("the grid and the register are independent", () => {
 
     const after = monthTotals(monthRows(planner, A1, IN_NOVEMBER)[0]);
     expect(after).toEqual(before);
-    expect(after.absent).toBe(2);
+    expect(after.absent).toBe(3);
   });
 
   it("do not mirror each other: adding a mark adds no event", () => {
@@ -166,7 +241,7 @@ describe("the grid and the register are independent", () => {
     const before = eventsOfClass(planner, A1).length;
     planner.attendance_marks = [
       ...planner.attendance_marks,
-      { class_id: A1, student_id: ELENI, date: "2026-11-24", state: "absent" },
+      { class_id: A1, student_id: ELENI, date: "2026-11-24", period_id: HOUR_2, state: "absent" },
     ];
     expect(eventsOfClass(planner, A1)).toHaveLength(before);
   });
@@ -175,7 +250,7 @@ describe("the grid and the register are independent", () => {
     const planner = supportPlanner();
     // Every event gone: the grid is untouched.
     planner.absence_events = [];
-    expect(markAt(planner, A1, ELENI, CONTESTED_DAY)!.state).toBe("present");
+    expect(markAt(planner, A1, ELENI, CONTESTED_DAY, HOUR_1)!.state).toBe("present");
 
     const fresh = supportPlanner();
     // Every mark gone: the register is untouched.

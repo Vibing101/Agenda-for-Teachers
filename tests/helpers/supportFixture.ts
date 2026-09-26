@@ -55,6 +55,15 @@ export const IN_NOVEMBER = "2026-11-16";
 /** The date the grid and the log deliberately disagree about. */
 export const CONTESTED_DAY = "2026-11-05";
 
+/** The timetable's hours. Α1 has two lessons on Thursdays: 1η and 3η. */
+export const HOUR_1 = 81;
+export const HOUR_2 = 82;
+export const HOUR_3 = 83;
+/** Πολυτεχνείο — a school holiday on a Tuesday, when Α1 is normally taught. */
+export const HOLIDAY = "2026-11-17";
+/** A Friday the teacher was on leave. */
+export const LEAVE_DAY = "2026-11-20";
+
 function schoolClass(id: number, name: string, subject: string): SchoolClass {
   return {
     id,
@@ -108,8 +117,13 @@ function enrollment(
   return { class_id: classId, student_id: studentId, roster_no: rosterNo, support, note };
 }
 
-function mark(studentId: number, date: string, state: AttendanceMark["state"]): AttendanceMark {
-  return { class_id: A1, student_id: studentId, date, state };
+function mark(
+  studentId: number,
+  date: string,
+  periodId: number,
+  state: AttendanceMark["state"],
+): AttendanceMark {
+  return { class_id: A1, student_id: studentId, date, period_id: periodId, state };
 }
 
 function event(patch: Partial<AbsenceEvent> & { id: number; student_id: number }): AbsenceEvent {
@@ -183,16 +197,52 @@ export function supportPlanner(): Planner {
     enrollment(B2, MARIA, 2, true, "Ενισχυτική στα μαθηματικά"),
   ];
 
+  planner.timetable_periods = [
+    { id: HOUR_1, position: 0, name: "1η", start_time: "08:00", end_time: "08:45" },
+    { id: HOUR_2, position: 1, name: "2η", start_time: "08:45", end_time: "09:30" },
+    { id: HOUR_3, position: 2, name: "3η", start_time: "09:45", end_time: "10:30" },
+  ];
+  const cell = (period_id: number, weekday: number, class_id: number) => ({
+    period_id,
+    weekday,
+    class_id,
+    subject: "",
+    room: "",
+    duty: "",
+    notes: "",
+  });
+  planner.timetable_cells = [
+    cell(HOUR_1, 1, A1), // Monday
+    cell(HOUR_2, 2, A1), // Tuesday
+    cell(HOUR_1, 3, B2), // Wednesday, the other class
+    cell(HOUR_1, 4, A1), // Thursday — twice
+    cell(HOUR_3, 4, A1),
+    cell(HOUR_2, 5, A1), // Friday
+  ];
+  planner.holidays = [
+    {
+      id: 1,
+      name: "Πολυτεχνείο",
+      start_date: HOLIDAY,
+      end_date: HOLIDAY,
+      source: "ministry",
+      notes: "",
+    },
+  ];
+  planner.leave_records = [{ id: 1, date: LEAVE_DAY, reason: "Ασθένεια", documents: "" }];
+
   planner.attendance_marks = [
     // November, in Α1. Hand-counted below by the unit tests.
-    mark(ELENI, CONTESTED_DAY, "present"),
-    mark(ELENI, "2026-11-06", "absent"),
-    mark(ELENI, "2026-11-09", "absent"),
-    mark(ELENI, "2026-11-10", "late"),
-    mark(ELENI, "2026-11-12", "excused"),
-    mark(NIKOS, "2026-11-09", "absent"),
+    mark(ELENI, CONTESTED_DAY, HOUR_1, "present"),
+    mark(ELENI, "2026-11-06", HOUR_2, "absent"),
+    mark(ELENI, "2026-11-09", HOUR_1, "absent"),
+    mark(ELENI, "2026-11-10", HOUR_2, "late"),
+    // Thursday 12.11: two lessons, two different marks.
+    mark(ELENI, "2026-11-12", HOUR_1, "excused"),
+    mark(ELENI, "2026-11-12", HOUR_3, "absent"),
+    mark(NIKOS, "2026-11-09", HOUR_1, "absent"),
     // October, so a month view that leaked would be caught.
-    mark(ELENI, "2026-10-15", "absent"),
+    mark(ELENI, "2026-10-15", HOUR_1, "absent"),
   ];
 
   planner.absence_events = [
