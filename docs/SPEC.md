@@ -259,6 +259,8 @@ sequence.
 
 **M9 — Bilingual pass & polish.** English translation of all UI strings, letters, and messages (if not done incrementally per module — a developer agent should flag whether to translate as each module ships or in one dedicated pass); full pass on PDF layout fidelity on A4; backup retention tuning; real multi-device test (write on a simulated "device 1", let sync settle, read on "device 2") as an explicit release gate, not just a unit test.
 
+**M11 — Ministry course plans (Προγραμματισμός).** The annual plan rebuilt around the Ministry's own planning documents: a course plan shared by the classes that follow it (header, variant, per-term assessment scheme, numbered units with subtopics and periods, notes and exclusions), a period budget checked against the real calendar (timetable hours minus weekends, holidays and leave), a derived week-by-week schedule with coverage ticked on the weekly plan, paste-to-import of a Ministry document's text, and a printed Προγραμματισμός in the Ministry's layout. The assessment scheme stays independent of the gradebook. **Added 2026-09-26** by the product owner, after v1.0.2; the brief is `docs/prompts/M11-course-plans.md`.
+
 ## Decisions & open questions
 
 ### Resolved

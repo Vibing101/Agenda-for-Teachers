@@ -147,3 +147,17 @@ and the certificates are left as they are; version `1.0.0`, tag `v1.0.0`.*
 - Each new sheet — a meeting's minutes, the six annual goals, and the grade sheet bundled with the conduct sheet — renders in both languages on both OSes, with matching page counts, embedded fonts and no `[BRACKETS]`.
 - In the English interface, the seven letters, the 150 messages and the forms' and folder's content show and print in Greek, and a letter or message prints wholly in Greek; with the English content switched on, the same surfaces show the English drafts. Tested both ways.
 - Every count the app shows reads correctly for one and for many, in both languages.
+
+**M11 — Ministry course plans (Προγραμματισμός)**
+
+*Added by the product owner on 2026-09-26, after v1.0.2. Calls taken with it:
+the Προγραμματισμός **prints** (reversing M10 for this sheet only); pacing is
+**by week**; the assessment scheme is **independent** of the gradebook. Sharing
+a plan with colleagues as a file is **open**.*
+
+- One course plan assigned to two classes: a unit or subtopic edited once shows for both, and a subtopic ticked on one class's weekly plan leaves the other class's progress unchanged.
+- On a test dataset with a known timetable, grading periods, holidays and leave, the available lessons per class per term equal a hand-computed figure; adding a holiday on a teaching day lowers it by exactly that class's lessons that day and moves later units' derived spans later, with no stored row changed.
+- Pasting synthetic text in both Ministry shapes (Γενική per-term, ΤΕΣΕΚ year-long) yields the expected units, subtopics, periods and total, with irregular numbering preserved verbatim.
+- The printed Προγραμματισμός generates a real PDF that renders Greek, and its units, periods, totals and date spans match the screen.
+- A schema-11 data file with units migrates to schema 12 with every unit's text intact.
+- Filling a plan's assessment scheme changes no gradebook output.
