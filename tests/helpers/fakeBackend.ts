@@ -155,8 +155,8 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
 
       if (command === "status") {
         return {
-          app_folder: "/Drive/Ατζέντα",
-          db_path: "/Drive/Ατζέντα/data/planner.sqlite",
+          app_folder: "/Drive/Ημερολόγιο",
+          db_path: "/Drive/Ημερολόγιο/data/planner.sqlite",
           db_exists: true,
           schema_version: 10,
           app_version: "1.0.0",
@@ -166,7 +166,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
         };
       }
       if (command === "set_window_title") return null;
-      if (command === "make_backup") return "/Drive/Ατζέντα/data/backups/planner-2026-09-19-0730.sqlite";
+      if (command === "make_backup") return "/Drive/Ημερολόγιο/data/backups/planner-2026-09-19-0730.sqlite";
       if (command === "load") return snapshot();
       if (command === "reload") {
         diskChanged = false;
@@ -744,7 +744,7 @@ export function createFakeBackend(initial: Planner = emptyPlanner()): FakeBacken
           // The real export opens a hidden window and drives the platform's
           // print pipeline; there is no webview here, so the fake only records
           // that it was asked and hands back the path it would have written.
-          return `/Drive/Ατζέντα/exports/${String(args.fileName)}.pdf`;
+          return `/Drive/Ημερολόγιο/exports/${String(args.fileName)}.pdf`;
         default:
           throw new Error(`unexpected command ${command}`);
       }

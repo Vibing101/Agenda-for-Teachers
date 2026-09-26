@@ -1,12 +1,13 @@
 # M4 — Attendance & behaviour
 
 > **Archived evidence (added 2026-09-24).** This repository's history was
-> rewritten on 2026-09-24 to remove the third-party source package before it was
-> made public. The pull requests, CI runs and commit hashes this note cites
+> rewritten on 2026-09-24 to remove local-only material before it was made
+> public. The pull requests, CI runs and commit hashes this note cites
 > belong to the pre-rewrite repository, kept private as
 > `Vibing101/Agenda-for-Teachers-archive`: links to them will not resolve here,
 > and the hashes differ from this repository's. The note is otherwise left as
-> it was written.
+> it was written, except that references to material outside the project were
+> removed on 2026-09-26.
 
 **Date:** 2026-09-21
 **Branch:** `m4-attendance-behaviour`
@@ -41,13 +42,13 @@ or a human produced it. macOS 26.6.2, Node 24.15.0, Rust 1.98.1.
 
 ## What shipped
 
-- **The monthly attendance grid** (`Απουσίες του μήνα`) — the source print
-  template's card: the roster down the side with its `Αρ.` column, the days of
-  the month across the top, and the source's own four symbols in each cell
+- **The monthly attendance grid** (`Απουσίες του μήνα`) — a month card: the
+  roster down the side with its `Αρ.` column, the days of the month across the
+  top, and four symbols in each cell
   (`·` παρών, `α` απουσία, `κ` καθυστέρηση, `u` δικαιολογημένη), with per-month
   totals per student and ‹ › month navigation.
-- **The detailed absence register** (`Απουσίες και καθυστερήσεις`) — the
-  source's "μία γραμμή για κάθε απουσία ή καθυστέρηση", with every field the
+- **The detailed absence register** (`Απουσίες και καθυστερήσεις`) — "μία
+  γραμμή για κάθε απουσία ή καθυστέρηση", with every field the
   spec lists: date, kind, clock time, teaching hour, reason, the independent
   justification flag, the parent-follow-up status and the frequent-absence note.
 - **The behaviour/incident log** (`Διαγωγή και περιστατικά`) — dated, with what
@@ -142,17 +143,17 @@ precedent M3 set with the timetable's cell editor.
 
 | Decision | Call taken | Why |
 |---|---|---|
-| Where M4's four surfaces live | **Sub-pages inside the sections that already hold their modules; no new top-level tabs.** Βαθμοί gains *Βαθμολόγιο / Απουσίες*, Μαθητές gains *Καρτέλες / Περιστατικά / Στήριξη* | The spec files them under modules 4 and 2 respectively, and the source product reaches each from its module's own index page. Four more top-level tabs would have made twelve and contradicted both. A test pins the top row at eight |
+| Where M4's four surfaces live | **Sub-pages inside the sections that already hold their modules; no new top-level tabs.** Βαθμοί gains *Βαθμολόγιο / Απουσίες*, Μαθητές gains *Καρτέλες / Περιστατικά / Στήριξη* | The spec files them under modules 4 and 2 respectively, and a teacher looks for each under its module. Four more top-level tabs would have made twelve and contradicted both. A test pins the top row at eight |
 | How the monthly grid is keyed | **`(class_id, student_id, date)`, an actual date.** The month grid is a *view* built from M3's `monthGrid()` | The tempting alternative — `(class, year, month)` with 31 day columns — is the same mistake the spec spent M1 ruling out. A test asserts `attendance_mark` has exactly four columns, so a later agent cannot quietly add a month one |
 | A support goal's progress rating | **A fixed vocabulary**: `not_started`, `in_progress`, `partly_met`, `met`, `needs_review`, plus empty for "not rated" | The spec uses both words in one sentence — each goal has a *progress rating*, while the plan's *status* is "written by the teacher, never computed". A rating reads as a scale, a status as a sentence. **This was genuinely open; flagged** |
-| What a "card-level support flag" is | **Both of M1's, merged and shown separately**: `Student.sen_status` (per student, from the card's ΕΠΕ box) and `Enrollment.support` with its per-class note | They mean different things — Ελένη's card says "Προσαρμογές" while only Α1 ticks her support box, although she is in two classes. The source overview page's columns are that same merge. A student appears if *any* of three signals fires: a card category, a class's tick, or a plan |
+| What a "card-level support flag" is | **Both of M1's, merged and shown separately**: `Student.sen_status` (per student, from the card's ΕΠΕ box) and `Enrollment.support` with its per-class note | They mean different things — Ελένη's card says "Προσαρμογές" while only Α1 ticks her support box, although she is in two classes. The printed overview's columns are that same merge. A student appears if *any* of three signals fires: a card category, a class's tick, or a plan |
 | Whether M4 produces a PDF | **No.** See "Open questions" — this one needs an answer | M4's delivery-scope line names no PDF export, and the precedent is that a milestone ships its scope line exactly (M2 built PDFs because its line said so; M3 did not because its line did not). **No on-screen note was added about it** — that is exactly the mistake M3 made with `timetable.printLater` |
 | A blank new record | **Kept, not deleted** — for absence events, incidents, plans and goals | A deliberate departure from the delete-when-empty rule. Those four have a "new record" button: the teacher pressed something to create the row and is about to type into it, so deleting it on save would make it vanish as it appeared. **`attendance_mark` still follows the rule** — an emptied cell is deleted, because an unmarked day genuinely is the absence of a row |
-| Whether an incident names a class | **Optionally, `ON DELETE SET NULL`** | The spec's data model lists four fields and no class, but the source register has a `Τάξη` column and "filterable" is only meaningful with one. Deleting a class empties the link and keeps the entry, because something still happened. A Rust test covers exactly that |
+| Whether an incident names a class | **Optionally, `ON DELETE SET NULL`** | The spec's data model lists four fields and no class, but a register needs a `Τάξη` column and "filterable" is only meaningful with one. Deleting a class empties the link and keeps the entry, because something still happened. A Rust test covers exactly that |
 | Filtering the incident log by class | Matches the **class's roster**, not the entry's own class link | "Cross-class (follows the student)" cuts both ways: an incident logged in Α1 is still this student's incident when she is looked at from Β2. A test asserts Β2's view shows both of Ελένη's entries — the Α1 one and the one naming no class — alongside Μαρία's |
 | `SupportPlan`'s "strengths & needs" | **Two fields** | Splitting loses nothing, merging would, and two boxes is what a teacher fills in. `next_review` is a column too, because the spec's overview line names it although its field list does not |
-| The absence register's kinds | **`absence` and `late` only** | Exactly the two tick columns the source register has (`Απ.`, `Καθ.`). Early departure is the obvious third and is *not* invented here. **Flagged** |
-| "Δικαιολογημένη" in the grid | **One of four mutually exclusive states**, so it means "an excused absence" | Matches the source card, whose key is four symbols one of which goes in a cell, and the spec, which names four states. The two-dimensional reading (absent + a justified flag) already exists where the spec puts it: `AbsenceEvent.justified`, on the independent register. **Flagged as a deliberate reading** |
+| The absence register's kinds | **`absence` and `late` only** | Two tick columns, `Απ.` and `Καθ.`. Early departure is the obvious third and is *not* invented here. **Flagged** |
+| "Δικαιολογημένη" in the grid | **One of four mutually exclusive states**, so it means "an excused absence" | Matches the card's key, four symbols one of which goes in a cell, and the spec, which names four states. The two-dimensional reading (absent + a justified flag) already exists where the spec puts it: `AbsenceEvent.justified`, on the independent register. **Flagged as a deliberate reading** |
 | Where the goal-progress counts go | Shown beside the status, **written nowhere** | `goalSummary()` exists for display only. It is the closest the app comes to summarising progress, and it deliberately stops short of the status |
 
 ## Open questions for the product owner
@@ -183,12 +184,12 @@ status and M1's annual-goal status. One array and five strings change it either
 way; nothing stored would need migrating unless ratings had already been typed.
 
 **3. Should the absence register offer more kinds than `absence` and `late`?**
-The source has exactly those two columns. Early departure (πρόωρη αποχώρηση) is
-a real thing teachers log, but adding it would be the app inventing a category
-the source does not have. One entry in `ABSENCE_KINDS` and one string.
+The register has those two columns. Early departure (πρόωρη αποχώρηση) is
+a real thing teachers log, but adding it is a product decision, not something
+to invent. One entry in `ABSENCE_KINDS` and one string.
 
 **4. Is "δικαιολογημένη" a fourth state or a flag on an absence?** M4 ships four
-mutually exclusive states, matching the source card and the spec's wording. The
+mutually exclusive states, matching the card's key and the spec's wording. The
 flag reading would let a *late* arrival be justified too — which it already can
 be, on the detailed register, where the spec puts that field.
 
@@ -319,7 +320,7 @@ should do all three milestones' five minutes in one sitting:**
   out to be misleading.
 - **No progress-check periods.** They are in the spec's Βαθμοί module list but
   were ruled out of M2 and are not in M4's scope line either; still unclaimed.
-- **The absence register has two kinds**, matching the source. See "Open
+- **The absence register has two kinds.** See "Open
   questions".
 - **No reordering of support plans or goals.** `position` exists on both and
   they append in order, so a move-up/down needs no migration.

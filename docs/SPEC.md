@@ -1,8 +1,8 @@
-# Ατζέντα Εκπαιδευτικού — Rebuild Spec (Teacher Planner v2)
+# Ημερολόγιο Εκπαιδευτικού — Spec (Teacher Planner)
 
-This document specifies a from-scratch rebuild of the "Ατζέντα Εκπαιδευτικού" (Teacher's Agenda) — a Greek teacher's planner currently sold as a 289-page fillable Adobe Acrobat PDF, plus companion files (a grade-registry spreadsheet, 11 print templates, 7 parent letters, and a 150-message bank). It is written for AI developer agents to implement without needing further clarification from the product owner on the decisions recorded here.
+This document specifies "Ημερολόγιο Εκπαιδευτικού" (Teacher Planner) — a Greek teacher's year planner: classes and students, a gradebook, timetable and planning, attendance and behaviour, parent communication (7 letter templates and a 150-message bank), and 11 printable forms. It is written for AI developer agents to implement without needing further clarification from the product owner on the decisions recorded here.
 
-A previous attempt (React/TypeScript/Vite, browser-only, single self-contained HTML file, IndexedDB + portable JSON) did not survive being moved into a cloud-synced folder — the HTML file would not open at all once relocated. This document does not inherit that project's architecture, module order, or scope decisions; it starts clean, targets full functionality across every module in the source product (not a cut-down MVP), and resolves the failure mode directly: **the deliverable is a small native desktop application** — not a bare HTML file opened via `file://` — requiring no separately-installed runtime, built for both Windows and macOS, designed to be launched from inside a folder synced by Google Drive or OneDrive, with all data (including backups) kept as plain files in that same folder.
+A previous attempt (React/TypeScript/Vite, browser-only, single self-contained HTML file, IndexedDB + portable JSON) did not survive being moved into a cloud-synced folder — the HTML file would not open at all once relocated. This document does not inherit that project's architecture, module order, or scope decisions; it starts clean, targets full functionality across every module listed below (not a cut-down MVP), and resolves the failure mode directly: **the deliverable is a small native desktop application** — not a bare HTML file opened via `file://` — requiring no separately-installed runtime, built for both Windows and macOS, designed to be launched from inside a folder synced by Google Drive or OneDrive, with all data (including backups) kept as plain files in that same folder.
 
 The end user is a single non-technical person (a teacher). There is no login, no multi-user access, and no server-side component of any kind: all data stays on whichever device the app happens to be running on, synced only via the user's own cloud storage folder — one device active at a time, never two at once.
 
@@ -26,7 +26,7 @@ Built with **Tauri** (Rust backend + the operating system's own web renderer for
 The user keeps one folder in their cloud storage (Drive or OneDrive), containing:
 
 ```
-Ατζέντα Εκπαιδευτικού/
+Ημερολόγιο Εκπαιδευτικού/
 ├─ Teacher Planner.exe        ← Windows build
 ├─ Teacher Planner.app/       ← macOS build (as a folder bundle, per macOS convention)
 ├─ data/
@@ -55,7 +55,7 @@ On each app launch, and again at a sensible interval during a long session (e.g.
 
 ## Data model
 
-Entities below are described at the level a developer needs to design tables/migrations; exact column types are an implementation detail. No entity has a fixed record-count cap (the source PDF's "100 students", "12 classes", "53 weeks" are print-medium limits, not data-model limits) — every list is add/remove freely.
+Entities below are described at the level a developer needs to design tables/migrations; exact column types are an implementation detail. No entity has a fixed record-count cap (limits like "100 students", "12 classes" or "53 weeks" belong to paper, not to a data model) — every list is add/remove freely.
 
 ### Core entities
 
@@ -96,21 +96,21 @@ Entities below are described at the level a developer needs to design tables/mig
 
 The app UI ships with **Greek and English** interface strings, switchable by the user at any time from a settings/language toggle (persisted as a preference, not tied to the OS locale).
 
-- **What's translated:** every UI label, button, menu, column header, validation message, the 7 letter templates, and the 150-message bank (each message needs both a Greek and an English version — the Greek content already exists from the source package). **On how the English is produced, the Resolved table below supersedes this paragraph:** it was written asking for hand-authored English on the grounds that these are sent to parents, and the product owner has since settled on a *machine-translated draft* for the letters and the message bank. Superseded text kept rather than deleted, because the reasoning is still the argument for reviewing that draft carefully at M9.
+- **What's translated:** every UI label, button, menu, column header, validation message, the 7 letter templates, and the 150-message bank (each message needs both a Greek and an English version; the Greek content comes first). **On how the English is produced, the Resolved table below supersedes this paragraph:** it was written asking for hand-authored English on the grounds that these are sent to parents, and the product owner has since settled on a *machine-translated draft* for the letters and the message bank. Superseded text kept rather than deleted, because the reasoning is still the argument for reviewing that draft carefully at M9.
 - **What's not translated:** data the teacher types in (student names, notes, comments, custom grade-column labels, etc.) — that stays exactly as entered, in whichever language the teacher used, regardless of the current UI language.
 - **Printed/PDF output** follows the UI language active at the moment of generation for template/label text, but always includes the teacher's own entered data verbatim. A letter generated while the UI is in Greek produces a Greek letter; switching to English and regenerating produces the English version of that same letter with the same filled-in placeholders.
 - Fixed reference vocabularies (conduct levels, absence kinds, SEN categories, etc.) need a translation table rather than being hardcoded per language, since several modules reuse the same vocabulary.
 
 ## Grade weighting
 
-This replaces the source Excel registry's 1–5 relative-weight scheme with a **percentage-weight scheme**, matching how grading actually works in Cyprus, per the product owner.
+Grades use a **percentage-weight scheme** rather than a 1–5 relative-weight scheme, matching how grading actually works in Cyprus, per the product owner.
 
 ### Model
 
 - Each **GradeColumn** on a class carries a **weight**, entered by the teacher as a percentage (0–100). There is no fixed number of columns — the teacher adds as many as needed (a test, an assignment, a project, participation, etc.).
 - The UI shows a **running total** of entered weights next to the column headers at all times (e.g. "Total: 85%").
 - **Validation is a warning, not a hard block.** A teacher building up a gradebook mid-period will routinely have columns that don't yet sum to 100 (more assessments still to come). Block a save only on an invalid single value (negative, non-numeric, > 100 on one column); never block on the running total being off from 100. When the total is over 100 or under 100, show a clear, dismissible warning inline — a teacher entering final grades for report cards wants to *notice* a mis-weighted sheet before printing, but shouldn't be locked out of the app.
-- Leaving a column's weight blank is not the same as 0 — treat a blank weight as **not yet decided**, excluded from both the running total and the average calculation until filled in (mirrors the source spreadsheet's "blank weight = doesn't count" behavior, just expressed as a percentage instead of a 1–5 multiplier).
+- Leaving a column's weight blank is not the same as 0 — treat a blank weight as **not yet decided**, excluded from both the running total and the average calculation until filled in (a blank weight simply does not count).
 
 ### Calculation
 
@@ -120,30 +120,30 @@ For a given student's GradeRow in a class, across all GradeColumns that have **b
 weighted_average = Σ(grade_i × weight_i) / Σ(weight_i)
 ```
 
-— i.e. always normalize by the sum of the weights that actually contributed, **not** by a hardcoded 100. This is the important nuance carried over from the source Excel: if only two columns worth 40% and 30% have grades in so far, the average is computed over that 70%, not diluted as if the missing 30% were zeros. It is also why the running-total warning above matters — a sheet that's supposed to be "done" but only sums to 85% will silently self-normalize over 85% rather than erroring, so the warning is the only signal something's short.
+— i.e. always normalize by the sum of the weights that actually contributed, **not** by a hardcoded 100. This is the important nuance: if only two columns worth 40% and 30% have grades in so far, the average is computed over that 70%, not diluted as if the missing 30% were zeros. It is also why the running-total warning above matters — a sheet that's supposed to be "done" but only sums to 85% will silently self-normalize over 85% rather than erroring, so the warning is the only signal something's short.
 
 - If **no** column has a value yet: the cell shows blank, not 0 or an error.
-- If every entered value has a weight of exactly 0 (a teacher zeroing out a column instead of leaving it blank): treat that as the all-zero case and fall back to a **plain arithmetic average** of the entered values — this matches the source spreadsheet's documented fallback ("leave the whole weight row empty for a simple average") applied at the column level.
+- If every entered value has a weight of exactly 0 (a teacher zeroing out a column instead of leaving it blank): treat that as the all-zero case and fall back to a **plain arithmetic average** of the entered values — the same simple average a teacher gets by leaving every weight blank.
 
 ### Rounding and thresholds
 
-- A rounded whole-number **suggested grade** is shown alongside the precise average (standard rounding, .5 rounds up), matching the source's `ROUND(average, 0)`.
+- A rounded whole-number **suggested grade** is shown alongside the precise average (standard rounding, .5 rounds up), i.e. `ROUND(average, 0)`.
 - Each class has a configurable **pass threshold** ("Βάση"), default 10 on the 0–20 scale. Rows at or above threshold are flagged pass; below, flagged at-risk — this feeds the class-level "how many students are below the threshold" summary.
 - **Conduct** is a separate 6-level scale per student per class (Υποδειγματική / Πολύ καλή / Καλή / Ικανοποιητική / Χρειάζεται στήριξη / Χρειάζεται παρέμβαση), not part of the weighted average.
 
 ### Class and year summary
 
-A roll-up view (matching the source spreadsheet's "Σύνοψη" sheet) shows, per class: subject, class average, count of students at/above threshold, count below threshold, and roster size — computed live from every class's GradeRows, never entered separately.
+A roll-up view (*Σύνοψη*) shows, per class: subject, class average, count of students at/above threshold, count below threshold, and roster size — computed live from every class's GradeRows, never entered separately.
 
 ## PDF output
 
-Every printable surface in the source product produces an **actual PDF file**, saved into `exports/` — not just a print dialog, and not a "copy the text" fallback.
+Every printable surface in the app produces an **actual PDF file**, saved into `exports/` — not just a print dialog, and not a "copy the text" fallback.
 
 ### Approach
 
 Generate PDFs via the embedded WebView's print-to-PDF path (not a native Rust PDF library — confirmed decision, see below). Whichever path is used, it must:
 
-- Match A4 page size and the source product's general layout conventions (header with class/date context, clearly labeled fields, landscape where the source used landscape — e.g. timetables, conduct sheets, parent-appointment weekly grids).
+- A4 page size and consistent layout conventions: a header with class/date context, clearly labelled fields, and landscape where the content is wide — e.g. timetables, conduct sheets, parent-appointment weekly grids.
 - Embed a font that renders Greek characters correctly (this is a common failure point in PDF generation — verify Greek diacritics, not just base Latin, before committing to a layout/print approach).
 - Never depend on network access or an external service to generate a PDF.
 
@@ -152,16 +152,16 @@ Generate PDFs via the embedded WebView's print-to-PDF path (not a native Rust PD
 - **Letters (7 templates)** — teacher fills the placeholders in the UI, previews, generates a PDF named descriptively (e.g. `Επιστολή καλωσορίσματος — Τμήμα Α1 — 2026-09-19.pdf`).
 - **Messages (150-entry bank)** — same fill-and-generate pattern per message; given these are short, also keep a one-click "copy text" option alongside PDF generation for messages the teacher will paste into an email/SMS rather than print.
 - **Print forms (11)** — filled form state is saved (so it can be reopened and edited later) and generates a PDF on demand, not only at save time.
-- **Grade sheets, conduct sheets, absence logs, timetable, annual goals, parent-appointment weeks, support plans** — each has its own print view already described in the source product's checklist; each becomes a PDF export button in the corresponding module.
+- **Grade sheets, conduct sheets, absence logs, timetable, annual goals, parent-appointment weeks, support plans** — each has its own print view; each becomes a PDF export button in the corresponding module.
 - **Substitute folder** — generates as one multi-page PDF (the 5 pages bundled together), since that's how it's meant to be handed off or left in a drawer.
 
 ## Modules — full functional spec
 
-Organized to mirror the source PDF's own top-level navigation, so nothing gets lost in translation. **Full functionality** means every item below ships — there is no deliberately-cut v1 feature list; see Delivery milestones for sequencing, which is a build order, not a scope cut.
+Organized by the app's top-level navigation. **Full functionality** means every item below ships — there is no deliberately-cut v1 feature list; see Delivery milestones for sequencing, which is a build order, not a scope cut.
 
 ### 1. Έτος (Year)
 
-- School-year setup: pick a year model (Sep–Aug / Jan–Dec / Feb–Dec) and a start date; the app derives 53 week numbers and 12 months from it. Changing the start date later must never move or delete data already entered against specific dates (per the source project's hard-won lesson: key everything by actual date, never by week-index).
+- School-year setup: pick a year model (Sep–Aug / Jan–Dec / Feb–Dec) and a start date; the app derives 53 week numbers and 12 months from it. Changing the start date later must never move or delete data already entered against specific dates (the hard-won lesson: key everything by actual date, never by week-index).
 - Yearly calendar view (12-month grid), grading periods with date ranges and notes, holidays (with Ministry/school source tag), important dates (typed: deadline, meeting, exam window, event, other) shown in every month/period they overlap.
 - 6 fixed annual-goal areas (teaching/content, PD, students, colleagues, parents, wellbeing) — one record each, goal/actions/success-indicators/deadline/status/end-of-year-review, printed as one table.
 - Teacher master timetable: named hours with clock times, Monday–Saturday grid, covers/duties per cell, optional link to a Class (fills subject/room), notes, printable.
@@ -187,7 +187,7 @@ Organized to mirror the source PDF's own top-level navigation, so nothing gets l
 - Lesson reflection log: dated free-text entries per class.
 - Trips & events: responsibility, transport, cost, per-student consent tracking, checklist, post-trip evaluation.
 - Textbooks: title, publisher, ISBN, level, price, status.
-- Materials/resources: entries across the six source categories (own/school/shared/borrowed/digital/other).
+- Materials/resources: entries across six categories (own/school/shared/borrowed/digital/other).
 
 ### 4. Βαθμοί (Grades)
 
@@ -196,7 +196,7 @@ Organized to mirror the source PDF's own top-level navigation, so nothing gets l
 - Progress-check periods tied to the school year's grading periods.
 - Monthly attendance grid (present/absent/late/excused) — independent of the more detailed absence-event log below, per the roadmap's own documented decision (a teacher may use either or both; nothing derives one from the other).
 - Detailed absence events per class: date, kind, clock time, teaching hour, reason, independent-justification flag, parent-follow-up status, frequent-absence notes.
-- Per-class conduct sheet: the 6-level rating plus a written overall-result field (kept as a manually-written field, not computed — matches the source PDF and the prior project's explicit decision) and observations.
+- Per-class conduct sheet: the 6-level rating plus a written overall-result field (kept as a manually-written field, not computed — the prior project's explicit decision) and observations.
 
 ### 5. Γονείς & Ομάδα (Parents & Staff)
 
@@ -219,7 +219,7 @@ Organized to mirror the source PDF's own top-level navigation, so nothing gets l
 
 ### 8. Print forms library
 
-- The 11 standalone reference forms (attendance grid, parent-contact log, substitute lesson plan, meeting minutes, weekly priorities, room plan, credentials list, period-start/end checklist, parent note [2-up layout], materials-loan log, PD goals) — each fillable, nameable, saveable, reopenable, and PDF-exportable independent of the modules above, matching how the source product offers them as loose printable pages.
+- The 11 standalone reference forms (attendance grid, parent-contact log, substitute lesson plan, meeting minutes, weekly priorities, room plan, credentials list, period-start/end checklist, parent note [2-up layout], materials-loan log, PD goals) — each fillable, nameable, saveable, reopenable, and PDF-exportable independent of the modules above, as loose printable pages.
 
 ### 9. Σημερινό μάθημα (Today view)
 
@@ -257,7 +257,7 @@ sequence.
 
 **M8 — Development, wellbeing, staff directory, covers/leave.** The remaining smaller modules that don't block anything else.
 
-**M9 — Bilingual pass & polish.** English translation of all UI strings, letters, and messages (if not done incrementally per module — a developer agent should flag whether to translate as each module ships or in one dedicated pass); full pass on PDF layout fidelity against the source product's A4 pages; backup retention tuning; real multi-device test (write on a simulated "device 1", let sync settle, read on "device 2") as an explicit release gate, not just a unit test.
+**M9 — Bilingual pass & polish.** English translation of all UI strings, letters, and messages (if not done incrementally per module — a developer agent should flag whether to translate as each module ships or in one dedicated pass); full pass on PDF layout fidelity on A4; backup retention tuning; real multi-device test (write on a simulated "device 1", let sync settle, read on "device 2") as an explicit release gate, not just a unit test.
 
 ## Decisions & open questions
 
@@ -273,7 +273,7 @@ sequence.
 | Data format | SQLite file, not JSON |
 | Backups | Automatic, dated, retained on a thinning schedule |
 | Grade weighting | Percentage per column (Cyprus convention), teacher-entered, not a fixed 1–5 scale |
-| Scope | Full functionality across every module in the source product — no permanent MVP cut, only a build sequence |
+| Scope | Full functionality across every module in this spec — no permanent MVP cut, only a build sequence |
 | Language | Bilingual UI, Greek and English |
 | Language rollout timing | **Greek-only through M1–M8; the English translation happens in one dedicated pass at M9** (decided by the product owner, 2026-09-19, answering the question M9's entry flags). This is a call about *sequencing only* — it does not cut English from scope, and the row above still stands. The constraint it puts on every milestone from M1 on: no Greek text literal may appear inline in a component. Every user-facing string goes through a single lookup keyed by a string id, and fixed reference vocabularies (SEN categories, conduct levels, holiday sources, …) are stored as stable codes labelled through a translation table rather than hardcoded per language. Adding English at M9 must therefore be adding one language file, not editing every screen. Teacher-entered data is never translated — it stays exactly as typed |
 | Letters/messages/forms output | Real generated PDF, not print-dialog-only or text-only |
@@ -282,7 +282,7 @@ sequence.
 | Wellbeing entries | Free text only; no structured mood/energy/workload dropdowns |
 | Backup retention schedule | Confirmed as proposed (7 days full, then daily to 30 days, then monthly) |
 | Concurrent-edit conflict (disk changed since last read) | Block the write and require a manual reload before saving — no alongside-save fallback |
-| Visual design | The app's own styling — not a visual copy of the source PDF's layout |
+| Visual design | The app's own styling — not a visual copy of any existing paper planner |
 | SQLite journal mode | `DELETE`, not WAL (M0) — WAL keeps committed data in `-wal`/`-shm` sidecars, which a sync client can carry away separately from `planner.sqlite` and leave a torn database on the other device |
 | SQLite connection lifetime | Opened per operation, not held for the session (M0) — keeps the on-disk file the single source of truth, which is what makes change detection meaningful |
 | Disk-change detection signal | SHA-256 of the file's contents (M0) — size and mtime are too weak, since a sync client can rewrite a file to the same length and mtime can be preserved across a sync |
@@ -292,7 +292,7 @@ sequence.
 | macOS binary architecture | Universal (x86_64 + arm64), so the app runs natively on both Intel and Apple Silicon Macs instead of depending on Rosetta |
 | Where the class seating plan lives | **M1, as part of Class.** It is a field of `Class` in the data model, M1's scope line covers class CRUD, no later milestone claims it, and M7's substitute-folder criteria assume it already exists in the Classes module. Raised by the M1 agent and settled by M1 being merged with it (2026-09-20) |
 | Non-numeric grade types in the weighted average | **Only numeric columns count.** Descriptive (Α–Δ), pass/fail and comment columns are recorded, displayed and printed, but take no part in the weighted average — and their weight is excluded from the normalising sum too, so a 30% comment column cannot silently dilute a result. Decided by the product owner 2026-09-20, before M2. The app never invents a number the teacher did not type; the average is over the columns that carry marks |
-| Date and time formatting | **Every date the app displays or prints is formatted by the app** (`dd.MM.yyyy`, matching the source product), independent of the OS locale. The native `<input type="date">` / `type="time"` widgets keep showing OS formatting while being edited, and that is accepted. Decided 2026-09-20. The reason it matters: printed output must look identical on the teacher's Windows PC and on the development Mac, and only app-side formatting guarantees that |
+| Date and time formatting | **Every date the app displays or prints is formatted by the app** (`dd.MM.yyyy`, the Greek convention), independent of the OS locale. The native `<input type="date">` / `type="time"` widgets keep showing OS formatting while being edited, and that is accepted. Decided 2026-09-20. The reason it matters: printed output must look identical on the teacher's Windows PC and on the development Mac, and only app-side formatting guarantees that |
 | Progress-check periods | **Not in M2.** They appear in the spec's Βαθμοί module list but not in M2's delivery scope line, so M2 ships its scope line exactly and progress checks are picked up in a later milestone. Decided 2026-09-20, keeping M2 focused on the weighting logic the spec asked for concentrated test coverage on |
 | If PDF export proves blocked at M2 — **spent, not needed** | **Ship the gradebook, defer the PDF.** *(This contingency never fired: M2 made the WebView print-to-PDF path work, and every milestone since has printed through it. Kept as the record of a decision taken, not as a live option.)* If the WebView print-to-PDF path cannot be made to work, M2 lands with the weighted gradebook, all four grade types, conduct and the summary roll-ups — fully tested — and PDF export becomes its own piece of work with its own gate. Decided 2026-09-20. The reasoning: the weighting logic is what later milestones depend on, and it should not be held hostage to a platform rendering problem. This is a fallback, not permission to skip the attempt |
 
@@ -300,73 +300,73 @@ sequence.
 | Who decides where a printed sheet breaks | **The app, not the rendering engine** (M2). The print window measures the rendered rows and places them into A4 blocks, repeating the sheet header and the column headers and never splitting a row. Forced by the above. It gives both platforms the same page structure and the same A4 sheet; it does not make the break points identical, because row heights come from each platform's own text measurement — at the M2 gate a 45-row roster was five pages on macOS and six on Windows, differing only in whether the closing note shared the last page |
 | Where the teacher's week is registered | **One register: the master timetable** (M3). M1's per-class `class_slot` rows are folded into it by `migrate_to_4` and the table is dropped; a class's hours are *derived* from the cells that link to it and are read-only on the class card. Forced by three things in this spec: a cover or duty belongs to no class and so cannot live in a per-class table, the link to a Class is described as *optional* and as something that "fills subject/room" (so the cell is the record and the class a pointer), and the Today view reads "from the master timetable", which is only unambiguous if there is one. It means a lesson is typed once and the Today view cannot list the same class twice. **Raised by the M3 agent as a deliberate retirement of a surface M1 shipped, and confirmed by the product owner on 2026-09-21** |
 | Whether the master timetable exports a PDF | **No — not now and not later. Plain text in the app, to copy and paste, is enough.** Decided by the product owner 2026-09-21, answering the question M3 raised. This is a **narrow exception to the "PDF output" section above, for the timetable only**: grade sheets, conduct sheets, letters, the message bank, print forms and the substitute folder all still produce real PDF files as that section requires. The practical consequence is a small piece of work M3 did not build — a "copy as text" affordance on the timetable, and the removal of M3's on-screen note saying PDF export is not implemented "yet", which is now misleading |
-| Where M4's four surfaces live in the navigation | **Sub-pages inside the two sections that already hold their modules, not new top-level tabs** (M4). Βαθμοί gains *Βαθμολόγιο / Απουσίες*; Μαθητές gains *Καρτέλες / Περιστατικά / Στήριξη*. The app stays at eight top-level tabs | The spec files the attendance grid and the absence register under module 4 and the incident log and support plans under module 2, and the source product reaches each from its module's own index page ("Απουσίες ανά τμήμα" from ΒΑΘΜΟΙ, "Συμπεριφορά και περιστατικά" από ΜΑΘΗΤΕΣ). Four more top-level tabs would have made twelve and would have contradicted both |
-| How the monthly attendance grid is keyed | **Superseded in v1.0.1 — see the next row.** Originally **`(class_id, student_id, date)` where `date` is an actual date** (M4). There is no month column, no year column and no day-of-month index anywhere; the month grid is a *view* built by `domain/attendance.ts` from M3's `monthGrid()` | The source prints one card per month with columns 1–31, and keying the table by the column it prints is the same mistake the spec spent M1 ruling out. A test asserts `attendance_mark` has exactly four columns |
+| Where M4's four surfaces live in the navigation | **Sub-pages inside the two sections that already hold their modules, not new top-level tabs** (M4). Βαθμοί gains *Βαθμολόγιο / Απουσίες*; Μαθητές gains *Καρτέλες / Περιστατικά / Στήριξη*. The app stays at eight top-level tabs | The spec files the attendance grid and the absence register under module 4 and the incident log and support plans under module 2, and a teacher looks for each under its module ("Απουσίες ανά τμήμα" under ΒΑΘΜΟΙ, "Συμπεριφορά και περιστατικά" under ΜΑΘΗΤΕΣ). Four more top-level tabs would have made twelve and would have contradicted both |
+| How the monthly attendance grid is keyed | **Superseded in v1.0.1 — see the next row.** Originally **`(class_id, student_id, date)` where `date` is an actual date** (M4). There is no month column, no year column and no day-of-month index anywhere; the month grid is a *view* built by `domain/attendance.ts` from M3's `monthGrid()` | The printed card has one column per day, and keying the table by the column it prints is the same mistake the spec spent M1 ruling out. A test asserts `attendance_mark` has exactly four columns |
 | **Attendance is per lesson, not per day** (v1.0.1) | **`(class_id, student_id, date, period_id)`**, where `period_id` is the master timetable's hour (product owner, 2026-09-26: "the absences are counted per lesson not per day"; linked to the timetable hour by the product owner's choice). Each day of the grid splits into the hours the class has that weekday; totals count lessons. `period_id` has **no foreign key**, so editing or deleting an hour never deletes attendance; `0` means "hour unknown". Migration 11 puts every per-day mark on the class's first hour that weekday, or on `0`. Weekends, holidays and leave days are greyed out with no cells; Saturday only when the class is not taught on Saturdays. The printed card shows only days with lessons | A teacher can meet a class twice in a day and absences are counted per lesson. A cascade from the timetable would silently delete a term's attendance. Still no month, year or day-of-month column |
 | A support goal's progress rating | **A fixed vocabulary** — `not_started`, `in_progress`, `partly_met`, `met`, `needs_review`, plus empty for "not rated yet" (M4) | The spec uses two different words in one sentence: each goal has a *progress rating*, while the plan's *status* is "written by the teacher, never computed". A rating reads as a scale where a status reads as a sentence, so the two are modelled differently. The plan's status stays free text, matching M1's annual-goal status. **Flagged at M4 — this was genuinely open** |
-| What a "card-level support flag" is in the cross-class overview | **Both of M1's flags, merged and shown separately** (M4): `Student.sen_status` (one per student, from the card's ΕΠΕ box) and `Enrollment.support` with its per-class note (which can differ between a student's classes) | They mean different things and the overview needs both — the source page's own columns are Μαθητής / Τάξη / Είδος στήριξης / Προσαρμογές–Στήριξη / Αξιολόγηση / Πλάνο, which is that same merge. A student appears in the overview if *any* of three signals fires: a card category, a class's tick, or a plan |
+| What a "card-level support flag" is in the cross-class overview | **Both of M1's flags, merged and shown separately** (M4): `Student.sen_status` (one per student, from the card's ΕΠΕ box) and `Enrollment.support` with its per-class note (which can differ between a student's classes) | They mean different things and the overview needs both — the printed overview's columns are Μαθητής / Τάξη / Είδος στήριξης / Προσαρμογές–Στήριξη / Αξιολόγηση / Πλάνο, which is that same merge. A student appears in the overview if *any* of three signals fires: a card category, a class's tick, or a plan |
 | Whether a blank new record is deleted on save | **No — a blank absence event, incident, support plan or goal is kept** (M4). This is a deliberate departure from the delete-when-empty rule M2's grade cells and M3's timetable cells and plans follow, which M4's `attendance_mark` still follows | Those are keyed cells with no create button: an emptied one is genuinely "nothing here". These four have a "new record" button, so the teacher pressed something to make the row and is about to type into it — deleting it on save would make a new record vanish as it appeared. Removing one is an explicit delete |
-| Whether a behaviour incident names a class | **Optionally, as `ON DELETE SET NULL`** (M4). The entry belongs to the *student* and follows her across classes; the class is a note of where it happened | The spec's data model lists four fields and no class, but the source register has a `Τάξη` column, and "filterable" is only meaningful with one. Deleting a class empties the link and keeps the entry, because something still happened |
+| Whether a behaviour incident names a class | **Optionally, as `ON DELETE SET NULL`** (M4). The entry belongs to the *student* and follows her across classes; the class is a note of where it happened | The spec's data model lists four fields and no class, but the printed register has a `Τάξη` column, and "filterable" is only meaningful with one. Deleting a class empties the link and keeps the entry, because something still happened |
 | `SupportPlan`'s "strengths & needs" | **Two fields, `strengths` and `needs`** (M4) | The spec names them as one phrase. Splitting loses nothing and merging would, and two boxes is what the teacher actually fills in. `next_review` is also a column, because the spec's overview line names "every plan's status and next review date" although its field list does not |
 | The timetable's "copy as text" and the removal of its PDF note | **Both done in M4**, as the carry-over from the product owner's 2026-09-21 ruling | M3 was already merged when the decision landed. `timetable.printLater` and the note rendering it are gone; `timetableAsText()` produces a column-aligned plain-text grid |
 | Whether M4's surfaces produce PDFs, and when | **Yes — and as their own milestone, `M4.5`, inserted between M4 and M5** (product owner, 2026-09-22). The incident log, the detailed absence register and the cross-class support overview each get a real PDF export. M4 merged without them, as its own scope line required | The spec promised these three in two places — module 2 calls the incident log and the support overview "both printable", and the "PDF output" section names "absence logs" and "support plans" — while M4's delivery-scope line named no PDF. M4 shipped its scope line exactly, per the M2/M3 precedent, and raised the conflict rather than silently resolving it. **The roadmap did not have an M4.5; this creates one**, rather than retrofitting M4 or enlarging M5, so the work gets its own gate and its own release note. **Whether the filled monthly attendance grid is a fourth sheet is left for M4.5 to settle and record**, because it is genuinely unclear: the "PDF output" section's "absence logs" could mean either register, and the *blank* attendance grid is already one of M7's 11 print forms |
 | **Whether the filled monthly attendance grid is a fourth printed sheet** | **Yes — it prints** (M4.5). The *filled* month card for a real class is a print view over live M4 data and exports as its own landscape A4 PDF from the Απουσίες screen. **M7 still owns the blank fillable form** of the same page, which is a different artefact: a standalone, nameable, saveable, reopenable form with no class behind it | The question the product owner left to M4.5. Three things decided it: the "PDF output" section's "absence logs" reads naturally as both registers; the screen would otherwise have an export button on its lower half and none on its upper, for the one table in the app most worth having on paper; and the widest table this app draws is exactly the one a teacher wants to carry rather than scroll. It costs no new machinery — one more document definition on M2's pagination. The printed card and the printed register are held independent of each other by the same construction the screens use, and tested to be insensitive to each other's rows |
 | How a printed sheet knows which records to carry | **It reads the same selector the screen renders from** (M4.5). The incident log's filter moved out of the screen into `domain/behaviour.ts` as `filteredIncidents()`, which both the screen and the sheet call; the filter is printed in the sheet's own header | M4.5's second acceptance criterion is that a sheet never disagrees with the screen it was printed from. Two functions that agree today are not that; one function is. It is also the spec's own rule that selection logic lives in `src/domain/`, not in a screen |
-| Where a source page's captioned boxes get their content | **From stored per-record fields, verbatim and attributed — or left blank as ruled space** (M4.5). The absence register's *ΠΡΟΣΟΧΗ · ΣΥΧΝΕΣ ΑΠΟΥΣΙΕΣ* and *ΓΟΝΕΙΣ ΕΝΗΜΕΡΩΘΗΚΑΝ · ΕΝΕΡΓΕΙΕΣ* boxes list each event's own `frequent_note` and `follow_up`; the support overview's *ΣΥΝΕΡΓΑΣΙΑ ΚΑΙ ΣΥΜΒΟΥΛΕΥΤΙΚΗ* box lists each plan's own `collaboration`; the incident register's *ΠΡΟΣΘΕΤΕΣ ΣΗΜΕΙΩΣΕΙΣ* box prints **blank**, because nothing is stored for it and M4.5 adds no field | The source gives these fields a box at the foot of the page where M4 stores them per record, following the spec's own field lists. Listing them verbatim keeps the sheet a transcription rather than a summary — nothing is counted, and the app never decides for itself that an absence is "frequent". A box with no stored source stays a box on the paper, as it is on the source's own page. **Flagged at M4.5 — see Open** |
+| Where a printed sheet's captioned boxes get their content | **From stored per-record fields, verbatim and attributed — or left blank as ruled space** (M4.5). The absence register's *ΠΡΟΣΟΧΗ · ΣΥΧΝΕΣ ΑΠΟΥΣΙΕΣ* and *ΓΟΝΕΙΣ ΕΝΗΜΕΡΩΘΗΚΑΝ · ΕΝΕΡΓΕΙΕΣ* boxes list each event's own `frequent_note` and `follow_up`; the support overview's *ΣΥΝΕΡΓΑΣΙΑ ΚΑΙ ΣΥΜΒΟΥΛΕΥΤΙΚΗ* box lists each plan's own `collaboration`; the incident register's *ΠΡΟΣΘΕΤΕΣ ΣΗΜΕΙΩΣΕΙΣ* box prints **blank**, because nothing is stored for it and M4.5 adds no field | The sheet gives these fields a box at the foot of the page where M4 stores them per record, following the spec's own field lists. Listing them verbatim keeps the sheet a record rather than a summary — nothing is counted, and the app never decides for itself that an absence is "frequent". A box with nothing stored behind it stays a ruled box on the paper. **Flagged at M4.5 — see Open** |
 | Where the export button lives | **One shared `src/components/ExportButton.tsx`, taking the day as a prop** (M4.5). M2's copy inside `GradesScreen` is gone, and `GradesScreen` now takes `today` from the shell like every other screen | M4.5 adds four more export buttons and copying M2's would have copied its defect four times. That button called `todayIso()` inside a component, which is the one thing M3's rule forbids and the reason `App.tsx`'s own doc comment — "this is where the calendar is read, and the only place" — was untrue between M3 and M4.5. It is now true |
-| **Where M5's six surfaces live in the navigation** | **One new top-level section, `Γονείς & Ομάδα`, with five sub-pages** (M5) — Επικοινωνία / Συναντήσεις / Συνεδριάσεις / Επιστολές / Μηνύματα. The top row goes from eight to **nine**, the first change to it since M0 | M4's four surfaces went in as sub-pages because the spec filed them under sections the app already had. **M5's module has no such home**: nothing in the app was about parents or about staff meetings, so a sub-page would have had to hang off an unrelated section. The source product carries **ΓΟΝΕΙΣ and ΟΜΑΔΑ as two separate top-level items**, which would have made ten; one tab named after the spec's own module 5 keeps the label honest about holding both halves while costing the top row one place rather than five. `tests/component/App.test.tsx` pins the nine and says why the number moved |
+| **Where M5's six surfaces live in the navigation** | **One new top-level section, `Γονείς & Ομάδα`, with five sub-pages** (M5) — Επικοινωνία / Συναντήσεις / Συνεδριάσεις / Επιστολές / Μηνύματα. The top row goes from eight to **nine**, the first change to it since M0 | M4's four surfaces went in as sub-pages because the spec filed them under sections the app already had. **M5's module has no such home**: nothing in the app was about parents or about staff meetings, so a sub-page would have had to hang off an unrelated section. Making **ΓΟΝΕΙΣ and ΟΜΑΔΑ two separate top-level items** would have made ten; one tab named after the spec's own module 5 keeps the label honest about holding both halves while costing the top row one place rather than five. `tests/component/App.test.tsx` pins the nine and says why the number moved |
 | **Where the 7 letters and the 150 messages live** | **Two new files under `src/i18n/`** — `lettersEl.ts` and `messagesEl.ts` — merged with `el.ts` into one bundle in `i18n/index.ts` (M5). The *structure* (which letters exist, their blocks and fields; the 15 categories and their codes) lives in `src/domain/letters.ts` and `src/domain/messages.ts` and **contains no Greek at all** | The no-inline-Greek rule puts the content under `src/i18n/`, but 465 strings of it — several of them multi-paragraph — would have roughly tripled `el.ts` and mixed a product's content in among its button labels. Splitting by *kind* keeps one lookup, one `StringId` type and one eslint rule. **The test of the shape is M9's: adding English is adding `lettersEn.ts` and `messagesEn.ts` and one line in `BUNDLES`** — no screen, no document builder and no domain module changes |
 | **The "bilingual content" in M5's own scope line** | **Superseded — Greek only** (M5). M5 ships no English | A direct contradiction inside this document: M5's delivery line says the letters and message bank come "with bilingual content", while the **Language rollout timing** row above (product owner, 2026-09-19) says Greek-only through M1–M8 with the English pass at M9, and the **English translation authorship** row says that pass is a machine-translated draft. The later, more specific decision wins. Recorded so the next agent does not have to re-derive it |
 | **How a letter is printed, given a letter is not a table** | **The document contract gains blocks; `renderPrintDocument` stays the only renderer** (M5). `PrintDocument.table` becomes optional and `blocks` is added — a field row, prose, a captioned writing area, a reply slip, signature lines, a certificate. `paginate()` now flows blocks as well as table rows | M5 is the first milestone whose printed output is not a table, and the alternative was a second renderer beside the first, which is how two printed pages start disagreeing about their own stylesheet. A document that is all table paginates exactly where it did before, which M2's and M4.5's four sheets are the test of. **The app still measures and still places** — the Resolved rows above about who paginates are untouched |
-| **Whether the two award pages are two-up** | **No — one certificate per full A4 portrait sheet** (M5) | The M5 brief states pages 7 and 8 of `reference/03 - Έτοιμες επιστολές προς γονείς.pdf` are "a certificate, 2-up on the page". They are not: each is a single centred certificate inside a coloured border on a full portrait sheet. The pages were rendered and looked at rather than taken on trust, and the app matches the source. Recorded because the brief is wrong and the next agent will read it |
+| **Whether the two award pages are two-up** | **No — one certificate per full A4 portrait sheet** (M5) | The M5 brief asked for "a certificate, 2-up on the page". A certificate reads as one centred award inside a coloured border on a full portrait sheet, and that is what the app prints. Recorded because the brief says otherwise and the next agent will read it |
 | **Whether a filled letter is stored** | **No — M5 stores nothing for a letter or a message** (M5). The values live in the screen while the teacher is composing, one draft per letter, and the PDF is the artefact | M5's scope line asks for "fill the placeholders in the UI, preview, generate a PDF", and the spec's own PDF-output section asks for saved filled state only for the **11 print forms**, which are M7's. Saving a letter under a name, reopening and re-editing it is M7's acceptance criterion almost word for word, so building it here would have been building M7's surface early and in the wrong module. **Flagged — see Open** |
-| **Which M5 surfaces produce a PDF** | **The 7 letters, the message bank, the communication log and the parent-appointment week** (M5) | The scope line names the letters and the bank. The spec's "PDF output" section separately names **"parent-appointment weeks"** among the surfaces that produce a real file, so that one is promised too. The communication log is the direct analogue of the incident register M4.5 printed — a flat register the source itself calls "κατάλληλο για επίσημη τεκμηρίωση" — and cost one document definition. **Meeting minutes are the one surface left unprinted; see Open**, raised rather than silently decided, which is the M4 precedent that created M4.5 |
+| **Which M5 surfaces produce a PDF** | **The 7 letters, the message bank, the communication log and the parent-appointment week** (M5) | The scope line names the letters and the bank. The spec's "PDF output" section separately names **"parent-appointment weeks"** among the surfaces that produce a real file, so that one is promised too. The communication log is the direct analogue of the incident register M4.5 printed — a flat register suited to formal documentation — and cost one document definition. **Meeting minutes are the one surface left unprinted; see Open**, raised rather than silently decided, which is the M4 precedent that created M4.5 |
 | **An appointment's key** | **`(date, clock_time)` where `date` is an actual date** (M5). There is no weekday column and no week index; the Monday–Friday grid is a view built by `appointmentWeek()` from whichever Monday is asked for | The same rule M1 set and M4 followed for the attendance grid, and for the same reason: correcting the school year's start date must not move a booking. A test asserts no appointment carries a `weekday` field |
-| **The printed communication log's column count** | **Eight, where the source page has seven** — the extra is the spec's own `outcome` (M5) | The source's columns are `Ημερομηνία / Μαθητής / Ποιος / Μορφή / Αιτία / Συμφωνίες / Επόμενα`, and the spec's field list adds "outcome" between the agreements and the next step. Dropping it would have lost a field the spec names; adding it is a deliberate departure from the source's column count, recorded rather than quiet — the same call M4.5 made for the support overview's seventh column |
+| **The printed communication log's column count** | **Eight** — `Ημερομηνία / Μαθητής / Ποιος / Μορφή / Αιτία / Συμφωνίες / Αποτέλεσμα / Επόμενα` (M5) | The spec's field list includes "outcome" between the agreements and the next step. Dropping it from the sheet would have lost a field the spec names |
 | **A short formatted value that must not break across lines** | **`PrintCell.nowrap`** (M5) | Found by looking at a real rendered PDF rather than at the HTML: the log's date column broke `05.11.2026` into `05.11.20` / `26`, and its format column broke `Τηλέφωνο`. The page's default `overflow-wrap: anywhere` is right for a teacher's sentence and wrong for a formatted number, so the opt-out is per cell rather than a change to the default — the default is what stops a long Greek surname overflowing the sheet |
 
-| **Whether the week-by-class progress matrix is a stored table** | **No — it is a view over M3's `lesson_plan`, and M6 adds no table for it** (M6). `domain/progress.ts` builds the grid from whichever weeks are asked for; the screen takes no `run` and has no input of any kind | M6's first acceptance criterion says the matrix must reflect the weekly plan "without duplicate data entry", and a table with a cell per `(week, class)` would give the teacher two places to write what she did that week. **The source product agrees in its own words**: the index card that opens this page is headed *"Το εβδομαδιαίο πλάνο σε έναν πίνακα · Η πρόοδος των τμημάτων, εβδομάδα με εβδομάδα"* — the weekly plan in one table. It is the fourth time this call has been made, after M4's attendance grid, M5's appointment week and M3's own timetable |
+| **Whether the week-by-class progress matrix is a stored table** | **No — it is a view over M3's `lesson_plan`, and M6 adds no table for it** (M6). `domain/progress.ts` builds the grid from whichever weeks are asked for; the screen takes no `run` and has no input of any kind | M6's first acceptance criterion says the matrix must reflect the weekly plan "without duplicate data entry", and a table with a cell per `(week, class)` would give the teacher two places to write what she did that week. The matrix is the weekly plan seen as one table. It is the fourth time this call has been made, after M4's attendance grid, M5's appointment week and M3's own timetable |
 | **The matrix's `Εβδομάδα` rows** | **Derived from the school year's start date at display time** (M6). No M6 table carries a week, and a Rust test walks every column of every table asserting none is named like a week index | The matrix's own axis is the one shape this project has refused since M1. Correcting the start date must re-label the rows and move nothing; `tests/unit/progress.test.ts` and `tests/component/ProgressScreen.test.tsx` both move it and find the same plan under a different number |
-| **Whether the annual plan and the units are one record or two** | **One: `unit`** (M6). The annual plan is `annualPlan()`, a view of a class's units in order | The source keeps two pages — *Ετήσιο πλάνο*, whose columns are `Περίοδος / Θεματική ενότητα / Δεξιότητες / Κριτήρια / Ώρες / Αξιολόγηση`, and *Ενότητες*, a card per unit — and **every column of the first is a field of the second**. Two tables would make the teacher type a unit's title and its hours twice, which is the same defect the matrix criterion forbids. Same call M3 took on the timetable: where two surfaces cover one thing, one is derived. The unit card's `ΒΑΘΜΟΙ` and the annual plan's `Αξιολόγηση` are one field; its `ΔΙΔΑΚΤΙΚΟΙ ΣΤΟΧΟΙ` and the plan's `Δεξιότητες / Κριτήρια` are **two**, because the source heads them differently and merging would lose a distinction the teacher made — the call M4 took on a support plan's strengths and needs |
+| **Whether the annual plan and the units are one record or two** | **One: `unit`** (M6). The annual plan is `annualPlan()`, a view of a class's units in order | There are two surfaces — *Ετήσιο πλάνο*, whose columns are `Περίοδος / Θεματική ενότητα / Δεξιότητες / Κριτήρια / Ώρες / Αξιολόγηση`, and *Ενότητες*, a card per unit — and **every column of the first is a field of the second**. Two tables would make the teacher type a unit's title and its hours twice, which is the same defect the matrix criterion forbids. Same call M3 took on the timetable: where two surfaces cover one thing, one is derived. The unit card's `ΒΑΘΜΟΙ` and the annual plan's `Αξιολόγηση` are one field; its `ΔΙΔΑΚΤΙΚΟΙ ΣΤΟΧΟΙ` and the plan's `Δεξιότητες / Κριτήρια` are **two**, because they are headed differently and merging would lose a distinction the teacher made — the call M4 took on a support plan's strengths and needs |
 | **Where M6's eight surfaces live in the navigation** | **Seven sub-pages inside `Πλάνο`, and no new top-level tab** (M6) — Εβδομάδα / Ετήσιο πλάνο / Πρόοδος τμημάτων / Εξετάσεις / Αναστοχασμός / Εκδρομές / Βιβλία & υλικά. **The top row stays at nine** | M4's shape, which M5 departed from only because module 5 had nowhere to go. The spec files all eight surfaces under module 3, and the app already had `Πλάνο` as that module's section — it simply had no sub-pages, because M3 built only the weekly plan. The eight become seven because two pairs collapse: the annual plan and the units are one record, and the two reference lists are the two surfaces that hang off no class and no week. `tests/component/App.test.tsx` is renamed to say the nine survive M6 and pins the new row |
 | **A trip's `Συγκαταθέσεις` column** | **Derived, never typed** (M6). Consents are rows keyed `(trip_id, student_id)`; the register's cell is counted from them by `consentTally()` over the class's *roster* | The spec asks for per-student consent tracking, so the consents are records. A number the teacher typed could disagree with the list she ticked; a counted one cannot. Reading the roster from `enrollment` rather than from the consents is what makes a student added to the class appear with nothing recorded |
-| **A trip consent's states** | **Two — `given` and `refused` — and no row means "not recorded yet"** (M6). Clearing both the state and the note removes the row | M4's rule for an unmarked attendance cell, restated: an unrecorded consent is the absence of a row, not a third code, because the source's column is a blank cell the teacher fills as the slips come back. A cleared state with a note still on it keeps the row and counts as pending, so a note she wrote is never thrown away by a dropdown |
+| **A trip consent's states** | **Two — `given` and `refused` — and no row means "not recorded yet"** (M6). Clearing both the state and the note removes the row | M4's rule for an unmarked attendance cell, restated: an unrecorded consent is the absence of a row, not a third code, because the column is a blank cell the teacher fills as the slips come back. A cleared state with a note still on it keeps the row and counts as pending, so a note she wrote is never thrown away by a dropdown |
 | **Whether a trip fills in M5's consent letter** | **No — M6 wires nothing to it** (M6). The trips screen points at *Γονείς & Ομάδα → Επιστολές* in a hint and stops there | M5 ships *Συγκατάθεση για επίσκεψη / εκδρομή* as one of the seven letters and **deliberately stores nothing for a filled letter**. Filling one from a trip would change that decision, which is M5's and the product owner's, not M6's. **Raised — see Open** |
-| **The six resource categories** | **The source page's own six captioned boxes** (M6): `ΙΣΤΟΤΟΠΟΙ ΚΑΙ ΠΛΑΤΦΟΡΜΕΣ`, `ΕΦΑΡΜΟΓΕΣ`, `ΒΙΒΛΙΑ ΚΑΙ ΚΕΙΜΕΝΑ`, `ΒΙΝΤΕΟ ΚΑΙ ΗΧΟΣ`, `ΒΟΗΘΗΜΑΤΑ ΣΤΗΝ ΤΑΞΗ`, `ΑΛΛΕΣ ΠΗΓΕΣ` — as stable codes `websites` / `apps` / `books` / `video` / `classroom` / `other` | **This document's module-3 entry names a different six** — own / school / shared / borrowed / digital / other — and calls them "the six source categories". The source page contradicts that: its boxes are about what a resource *is*, not who it belongs to, and its own index card reads *"Ιστότοποι, εφαρμογές, βιβλία και ταινίες"*. Nothing resembling the provenance list appears anywhere in the source package, including the materials-loan log among M7's print forms, which was checked. The page wins on a question of what is on the page — the same call M5 took on the award pages being 2-up. **Raised rather than settled quietly — see Open** |
-| **Whether an exam's kind, a textbook's `Κατάσταση` and its `Τιμή` are vocabularies** | **No — all three are free text** (M6) | The source pages are blank forms that enumerate nothing, and a teacher writes "δωρεάν" in a price box as readily as a number. The app does not invent a category the source does not have, which is the rule M4 followed on absence kinds. The resource categories above *are* a vocabulary by the same rule, because the source page prints all six of them as captions |
+| **The six resource categories** | **Six kinds of material** (M6): `ΙΣΤΟΤΟΠΟΙ ΚΑΙ ΠΛΑΤΦΟΡΜΕΣ`, `ΕΦΑΡΜΟΓΕΣ`, `ΒΙΒΛΙΑ ΚΑΙ ΚΕΙΜΕΝΑ`, `ΒΙΝΤΕΟ ΚΑΙ ΗΧΟΣ`, `ΒΟΗΘΗΜΑΤΑ ΣΤΗΝ ΤΑΞΗ`, `ΑΛΛΕΣ ΠΗΓΕΣ` — as stable codes `websites` / `apps` / `books` / `video` / `classroom` / `other` | **This document's module-3 entry names a different six** — own / school / shared / borrowed / digital / other — which is about who a resource belongs to. The screen groups by what a resource *is*, which is how a teacher looks for one; ownership is what the materials-loan log among M7's print forms tracks. **Raised rather than settled quietly — see Open** |
+| **Whether an exam's kind, a textbook's `Κατάσταση` and its `Τιμή` are vocabularies** | **No — all three are free text** (M6) | Nothing about them is a fixed list, and a teacher writes "δωρεάν" in a price box as readily as a number. The app does not invent categories, which is the rule M4 followed on absence kinds. The resource categories above *are* a vocabulary, because the screen shows all six as fixed captions |
 | **What an exam's `Βαρύτητα` does** | **Nothing — it is a planning note** (M6). It is stored on `exam` and is deliberately not wired to M2's percentage-weighted gradebook, whose weights live on `grade_column` | Two surfaces that both say "βαρύτητα" are exactly where a silent coupling would hide. No command, no selector and no statement reaches from one to the other; a test asserts the whole gradebook output is unchanged by adding exams, and the screen says so under the field rather than leaving the teacher to guess |
 | **What deleting a class does to M6's records** | **A unit goes with it; an exam, a trip and a reflection stay with their link emptied** (M6) — `CASCADE` on `unit`, `ON DELETE SET NULL` on the other three | A unit *is* the class's annual plan and means nothing without it. The other three record something that was planned or that happened, which is still true after the class is gone — the call M4 took on an incident and M5 on a meeting |
 | **Which M6 surfaces produce a PDF** | **None** (M6), per the M2/M3 precedent that a milestone ships its scope line exactly, and M6's names no PDF | The "PDF output" section names **"annual goals"** among the surfaces that produce a real file. That reads as M1's **six fixed annual-goal areas**, not M6's annual *plan*: the phrase matches `annual_goals` exactly, and module 1's own entry says those six are "printed as one table" while module 3 says nothing of the sort about the annual plan. So M6 is promised none. **But M1's annual goals are still unprinted** and nothing has claimed them — raised, see Open |
 
-| **A print form and the substitute folder are opposite kinds of record** | **A print form is a loose page with nothing behind it; the substitute folder is a live view with nothing stored but its own words** (M7). `print_form` / `print_form_value` link to no class, student or seat, and `formDocument()` is never handed the planner. `substituteFolder()` reads the class, its roster, its seats, the timetable and the week's plan every time it is asked, and **no table holds a copy of any of them** — a Rust test walks every M7 column to say so | Module 8 says the forms are "independent of the modules above", and the source calls them `Πρότυπα για εκτύπωση`; module 6 says the folder is "generated per class **from live data**" with a seating plan "shared live, not copied". Four of the eleven forms look like live surfaces the app already has — *Απουσίες του μήνα* (M4.5's filled card), *Επικοινωνία με γονείς* (M5's log), *Πλάνο αίθουσας* (M1's seating, and the folder's), *Πρακτικό συνεδρίασης* (M5's meetings) — and **none of them reads from it**. `Πλάνο αίθουσας` therefore exists twice, as two different artefacts, on purpose. Recorded because the next agent will read "print forms" and "substitute folder" and assume they are the same kind of thing |
-| **Where M7's two halves live in the navigation** | **The eleven forms get one new top-level section, `Πρότυπα`; the folder is a sub-page of `Τάξεις`** (M7) — *Τμήματα / Φάκελος αναπλήρωσης*. The top row goes from nine to **ten** | Opposite answers for opposite things. The folder is generated per class from the class's own data, so it goes where the class is — the M4/M6 shape, no new tab. The forms belong to nothing, so no existing section is honest about holding them — the M5 situation — and they take one section named with the source's own word. Filing both under one new tab would have cost the same one place and put a live view of a class's seating beside a blank room plan. `tests/component/App.test.tsx` is renamed to pin ten and says why |
+| **A print form and the substitute folder are opposite kinds of record** | **A print form is a loose page with nothing behind it; the substitute folder is a live view with nothing stored but its own words** (M7). `print_form` / `print_form_value` link to no class, student or seat, and `formDocument()` is never handed the planner. `substituteFolder()` reads the class, its roster, its seats, the timetable and the week's plan every time it is asked, and **no table holds a copy of any of them** — a Rust test walks every M7 column to say so | Module 8 says the forms are "independent of the modules above", and they are `Πρότυπα για εκτύπωση`; module 6 says the folder is "generated per class **from live data**" with a seating plan "shared live, not copied". Four of the eleven forms look like live surfaces the app already has — *Απουσίες του μήνα* (M4.5's filled card), *Επικοινωνία με γονείς* (M5's log), *Πλάνο αίθουσας* (M1's seating, and the folder's), *Πρακτικό συνεδρίασης* (M5's meetings) — and **none of them reads from it**. `Πλάνο αίθουσας` therefore exists twice, as two different artefacts, on purpose. Recorded because the next agent will read "print forms" and "substitute folder" and assume they are the same kind of thing |
+| **Where M7's two halves live in the navigation** | **The eleven forms get one new top-level section, `Πρότυπα`; the folder is a sub-page of `Τάξεις`** (M7) — *Τμήματα / Φάκελος αναπλήρωσης*. The top row goes from nine to **ten** | Opposite answers for opposite things. The folder is generated per class from the class's own data, so it goes where the class is — the M4/M6 shape, no new tab. The forms belong to nothing, so no existing section is honest about holding them — the M5 situation — and they take one section named for what they are. Filing both under one new tab would have cost the same one place and put a live view of a class's seating beside a blank room plan. `tests/component/App.test.tsx` is renamed to pin ten and says why |
 | **How a filled print form is stored** | **A head (`print_form`: kind, name, created, updated) and one row per filled field (`print_form_value`)**, written by **different commands** (M7). Saving a form's name never rewrites its values; an emptied field is removed. `kind` is checked in Rust, not by a `CHECK` | Two commands so that a rename sent while a field is still saving cannot write back a stale copy of the values — a Rust test holds it. No `CHECK` so that **a filled letter could join as one more `kind` without a migration** (a letter's values are already a key → value map). Whether it should is the product owner's open question, not M7's — see Open |
 | **What "prefilled once and stays independently editable" means for the folder's boilerplate** | **No row means untouched, and the suggestion from the language bundle shows and prints; a row means the teacher's text — including an empty row, which means she cleared it; *Επαναφορά* deletes the row** (M7). The suggestion is never copied into the file | "She cleared it" and "she has not touched it" must stay distinguishable, or the suggestion comes back into a box she emptied. This is the one text in the file where an empty string is stored rather than meaning "nothing" — M4's "a missing row is not recorded yet", applied to a sentence. Not copying the default is the same outcome for the teacher, with one advantage: an untouched box follows the UI language at M9, while what she typed stays as typed |
 | **Which week the folder's "current week" is** | **The week containing the day the shell read — except on a Saturday or Sunday, when it is the coming week** (M7). A pure function of `today` | The folder is for the morning the teacher does not come in. Printed on a Sunday evening, last week's plan would be the wrong thing to leave in the drawer |
 | **The folder's contacts and procedures** | **School-wide, typed once, shared by every class's folder** — except `Υπεύθυνος τμήματος`, which is the class card's own `responsible`, looked up (M7) | The principal's number does not change by class, and "not a separate data-entry chore" rules out typing it once per class. The one contact that differs by class already exists in M1 |
 | **What the folder's `ΜΑΘΗΤΕΣ ΠΟΥ ΧΡΕΙΑΖΟΝΤΑΙ ΠΡΟΣΟΧΗ` box holds** | **A live list from the students' cards, verbatim** — a card's SEN category, the class's support tick and its note, allergies, conditions, medication — **then any note the teacher adds** (M7) | The same three signals M4's support overview merges, plus the card's health fields, which are exactly what a substitute must know. Nothing is summarised or inferred, the M4.5 rule. **Raised as a privacy question** — see Open |
 | **How one PDF carries several documents** | **The print window cuts every sheet it is given onto A4 pages in order, each sheet starting a page of its own; the Rust side is unchanged** (M7). One orientation per file | Every PDF before M7 was one document. The app already measured and placed; macOS already captured however many pages it was told and PDFKit assembled them; WebView2 already broke at the same page blocks. So a bundle is more than one sheet in the document. **Proven on real files early**, before the folder's pages were built. The rule that the app, not the engine, decides where a page breaks is untouched |
-| **Whether three of the forms have subtitles** | **Yes — all eleven do** (M7). *Επικοινωνία με γονείς*: "Καταγραφή συζητήσεων και μηνυμάτων — ημερομηνία, αιτία, συμφωνίες"; *Πλάνο αναπλήρωσης*: "Ό,τι πρέπει να ξέρει ο αναπληρωτής για αυτή την ώρα"; *Στόχοι και επαγγελματική ανάπτυξη*: "Εξέλιξη, επιμορφώσεις, δικοί σας στόχοι για τη χρονιά — και τι βγήκε από αυτούς" | The M7 brief lists these three as having none. The source pages print one each. Recorded, as M5 recorded the award pages, because the brief is wrong and the next agent will read it |
-| **Whether the parent note is two-up** | **Yes — two notes to an A4 portrait sheet, each in a dashed frame to be cut out** (M7) | The source page says so itself: "Δύο σημειώματα ανά σελίδα · κόψτε κατά μήκος της γραμμής". Unlike the award pages M5 was told were 2-up, this one is — and it was **rendered and looked at anyway**, per M5's lesson |
-| **A register form's row count** | **The source page's own, and the teacher can add rows**, which run onto a second sheet with the header repeated (M7). The goals page's four goals likewise | The spec says no list has a fixed cap, and these are paper forms with a fixed number of ruled lines. The default keeps a blank form to one A4 sheet, as the source's is; the extra rows keep the cap off |
-| **`ΕΙΔΟΣ ΣΥΝΕΔΡΙΑΣΗΣ` on the minutes form** | **Free text** (M7) | M6's rule: a vocabulary only where the source enumerates one. The subtitle names three examples; the field itself is a blank box. M5's meeting kinds are a vocabulary because they belong to the stored meetings, which this form is not |
-| **Where M7's content strings live** | **A fourth bundle file, `src/i18n/formsEl.ts`**: the period checklist's sixteen fixed items (transcribed) and the folder's suggested boilerplate (the app's own wording). Every caption stays in `el.ts` (M7) | M5's rule — split the bundle by *kind* of string. Captions are labels; the checklist's sentences and the folder's suggestions are content. M9 adds `formsEn.ts` and one line in `BUNDLES` |
+| **Whether three of the forms have subtitles** | **Yes — all eleven do** (M7). *Επικοινωνία με γονείς*: "Καταγραφή συζητήσεων και μηνυμάτων — ημερομηνία, αιτία, συμφωνίες"; *Πλάνο αναπλήρωσης*: "Ό,τι πρέπει να ξέρει ο αναπληρωτής για αυτή την ώρα"; *Στόχοι και επαγγελματική ανάπτυξη*: "Εξέλιξη, επιμορφώσεις, δικοί σας στόχοι για τη χρονιά — και τι βγήκε από αυτούς" | The M7 brief lists these three as having none; every form gets a one-line subtitle so the set reads consistently. Recorded because the brief says otherwise and the next agent will read it |
+| **Whether the parent note is two-up** | **Yes — two notes to an A4 portrait sheet, each in a dashed frame to be cut out** (M7), with the line "Δύο σημειώματα ανά σελίδα · κόψτε κατά μήκος της γραμμής" | A parent note is short, and two to a sheet saves paper. It was **rendered and looked at**, per M5's lesson |
+| **A register form's row count** | **A default that fills one A4 sheet, and the teacher can add rows**, which run onto a second sheet with the header repeated (M7). The goals page's four goals likewise | The spec says no list has a fixed cap, and these are paper forms with a fixed number of ruled lines. The default keeps a blank form to one A4 sheet; the extra rows keep the cap off |
+| **`ΕΙΔΟΣ ΣΥΝΕΔΡΙΑΣΗΣ` on the minutes form** | **Free text** (M7) | M6's rule: a vocabulary only where the form itself enumerates one. The subtitle names three examples; the field itself is a blank box. M5's meeting kinds are a vocabulary because they belong to the stored meetings, which this form is not |
+| **Where M7's content strings live** | **A fourth bundle file, `src/i18n/formsEl.ts`**: the period checklist's sixteen fixed items and the folder's suggested boilerplate (the app's own wording). Every caption stays in `el.ts` (M7) | M5's rule — split the bundle by *kind* of string. Captions are labels; the checklist's sentences and the folder's suggestions are content. M9 adds `formsEn.ts` and one line in `BUNDLES` |
 | **A certificate's frame on a printed page** | **A sheet's classes are copied onto the pages cut from it** (M7) | **An M5 defect, found while making the paginator walk several sheets.** The stylesheet frames a certificate as `.certificate .page-inner`, but the element that carried `certificate` was the sheet, which the paginator removes — so no page matched, and the two award certificates printed with no frame and an ordinary-sized title. A regression test was confirmed to fail against the old paginator |
 
-| **Wellbeing entries depart from the source page on purpose** | **Free text only — the source's five rating columns are not built** (M8). An entry is a date and the page's one free column, `Τι βοήθησε · τι να αλλάξω` | Page 222, *Ευεξία εκπαιδευτικού · Κάθε Παρασκευή κοιτάξτε πίσω · ένα λεπτό αρκεί*, is a structured weekly check-in: `Εβδομάδα | Ενέργεια | Φόρτος | Διάθεση | Ύπνος | Ισορροπία | Τι βοήθησε · τι να αλλάξω`. The **Wellbeing entries** row above is a product-owner decision — "Free text only; no structured mood/energy/workload dropdowns" — and the later, specific decision wins, as it did for M5's "bilingual content". **Recorded so the next agent does not "fix" it**, as dropdowns or as scales. The screen asserts there is no select, slider, spinner, radio or checkbox on it |
-| **A wellbeing entry's key, and the page's two boxes** | **Keyed by an actual date; the week is derived at display time. The two page-level boxes — `ΤΙ ΜΕ ΚΡΑΤΑΕΙ ΣΕ ΦΟΡΜΑ` and `ΟΡΙΑ ΠΟΥ ΘΕΛΩ ΝΑ ΚΡΑΤΗΣΩ` — are one stored note with two fields, not columns on every entry** (M8) | The source's axis is `Εβδομάδα`; M1's rule forbids storing it, and `no_table_is_keyed_by_a_week_index` holds it. A new entry is dated the shell's `today`. The two boxes are separate on the rendered page (the text layer runs them together) and belong to the page, not to a week |
-| **Where M8's four surfaces live in the navigation** | **`Έτος` gets its first sub-pages — *Σχολικό έτος / Επαφές σχολείου / Αναπληρώσεις & άδειες* — and module 7 gets one new section, `Ανάπτυξη & Ευεξία`, with *Ανάπτυξη και καριέρα / Ευεξία*.** The top row goes from ten to **eleven** (M8) | The spec files the directory and the covers/leave log under module 1, and the source's own ΕΤΟΣ index page lists them beside the calendar and the annual goals ("Άνθρωποι στο σχολείο · Διεύθυνση, γραμματεία και συνάδελφοι", "Αναπληρώσεις και άδειες") — M6's move on `Πλάνο`, M1's screen unmoved as the first tab. Module 7 had no section, and nothing else in the app is about the teacher herself — M5's situation; the source carries ΕΥΕΞΙΑ and ΑΝΑΠΤΥΞΗ as two top-level items, and one tab named after the spec's module keeps the label honest about both. `App.test.tsx` pins eleven and says why |
-| **Development goals, the six annual goals and M7's goals form** | **Three independent surfaces. Nothing seeds, prefills or copies between any two of them** (M8) | The spec says development goals and annual goals are distinct and neither is generated from the other; M7 recorded that its *Στόχοι και επαγγελματική ανάπτυξη* form is neither. `development_goal` has no key to anything, no command writes two of them, and the development screen neither shows nor reads `annual_goals`. **Visibly separate** because they are in different sections — the six on *Έτος → Σχολικό έτος*, the open list on *Ανάπτυξη & Ευεξία → Ανάπτυξη και καριέρα* — which is how the source keeps them: page 10 *Στόχοι για τη χρονιά* under ΕΤΟΣ, the `ΣΤΟΧΟΙ ΑΝΑΠΤΥΞΗΣ` box on page 224 under ΑΝΑΠΤΥΞΗ. Each screen carries one sentence saying the other exists and is separate. A development goal's `status` is free text, like an annual goal's |
-| **A cover taught and a leave taken** | **Two tables (`cover_record`, `leave_record`), two commands, two selectors, no key between them** (M8) | The spec's "two related but separate registers". The source prints both on page 13, a register over two boxes. A leave's `ΕΓΓΡΑΦΑ ΠΟΥ ΚΑΤΑΤΕΘΗΚΑΝ` is stored **per leave**, the spec's "documents submitted" field, the shape M4.5 resolved for a captioned box |
+| **Wellbeing entries are free text only** | **No rating columns** (M8). An entry is a date and one free column, `Τι βοήθησε · τι να αλλάξω` | A structured weekly check-in (energy, workload, mood, sleep, balance) was considered. The **Wellbeing entries** row above is a product-owner decision — "Free text only; no structured mood/energy/workload dropdowns" — and the later, specific decision wins, as it did for M5's "bilingual content". **Recorded so the next agent does not "fix" it**, as dropdowns or as scales. The screen asserts there is no select, slider, spinner, radio or checkbox on it |
+| **A wellbeing entry's key, and the page's two boxes** | **Keyed by an actual date; the week is derived at display time. The two page-level boxes — `ΤΙ ΜΕ ΚΡΑΤΑΕΙ ΣΕ ΦΟΡΜΑ` and `ΟΡΙΑ ΠΟΥ ΘΕΛΩ ΝΑ ΚΡΑΤΗΣΩ` — are one stored note with two fields, not columns on every entry** (M8) | The page reads week by week, but M1's rule forbids storing a week, and `no_table_is_keyed_by_a_week_index` holds it. A new entry is dated the shell's `today`. The two boxes belong to the page, not to a week |
+| **Where M8's four surfaces live in the navigation** | **`Έτος` gets its first sub-pages — *Σχολικό έτος / Επαφές σχολείου / Αναπληρώσεις & άδειες* — and module 7 gets one new section, `Ανάπτυξη & Ευεξία`, with *Ανάπτυξη και καριέρα / Ευεξία*.** The top row goes from ten to **eleven** (M8) | The spec files the directory and the covers/leave log under module 1, and they sit naturally beside the calendar and the annual goals ("Άνθρωποι στο σχολείο · Διεύθυνση, γραμματεία και συνάδελφοι", "Αναπληρώσεις και άδειες") — M6's move on `Πλάνο`, M1's screen unmoved as the first tab. Module 7 had no section, and nothing else in the app is about the teacher herself — M5's situation; ΕΥΕΞΙΑ and ΑΝΑΠΤΥΞΗ could have been two top-level items, and one tab named after the spec's module keeps the label honest about both. `App.test.tsx` pins eleven and says why |
+| **Development goals, the six annual goals and M7's goals form** | **Three independent surfaces. Nothing seeds, prefills or copies between any two of them** (M8) | The spec says development goals and annual goals are distinct and neither is generated from the other; M7 recorded that its *Στόχοι και επαγγελματική ανάπτυξη* form is neither. `development_goal` has no key to anything, no command writes two of them, and the development screen neither shows nor reads `annual_goals`. **Visibly separate** because they are in different sections — the six on *Έτος → Σχολικό έτος*, the open list on *Ανάπτυξη & Ευεξία → Ανάπτυξη και καριέρα* — *Στόχοι για τη χρονιά* under ΕΤΟΣ, the `ΣΤΟΧΟΙ ΑΝΑΠΤΥΞΗΣ` box under ΑΝΑΠΤΥΞΗ. Each screen carries one sentence saying the other exists and is separate. A development goal's `status` is free text, like an annual goal's |
+| **A cover taught and a leave taken** | **Two tables (`cover_record`, `leave_record`), two commands, two selectors, no key between them** (M8) | The spec's "two related but separate registers", shown on one page as a register over two boxes. A leave's `ΕΓΓΡΑΦΑ ΠΟΥ ΚΑΤΑΤΕΘΗΚΑΝ` is stored **per leave**, the spec's "documents submitted" field, the shape M4.5 resolved for a captioned box |
 | **A cover record is not the timetable, and a leave is not the folder** | **Nothing reads or writes across** (M8) | "Αναπλήρωση" now means four things: the master timetable's duty cell (M3, a *planned* weekly slot), the substitute folder (M7, what someone covering *her* needs), a cover record (M8, a *dated record* of one she taught) and a leave record (M8, her own absence). Plan versus record is M5's booking/log distinction again. Tested at the storage layer and in the fixtures |
 | **A cover's `Τάξη`** | **Free text, not a link to a class** (M8) | The class she covered is usually a colleague's and not in her class list. M4's optional link (`ON DELETE SET NULL`) suits an incident in *her* class; here a link would force her to create a class she does not teach, which would then appear in her gradebook, her timetable picker and her substitute folders |
-| **Merged source columns** | **One field per source column**: a contact's `Θέση / Τομέας` is one `role`; a cover's `Μάθημα / Ύλη που καλύφθηκε` is one `covered` and its `Υπογραφή / Παρατηρήσεις` one `notes` (M8) | The source heads each pair as one column (pages 12 and 13) and the spec writes "role/area" and "subject/material covered" as one phrase. M4 split a support plan's strengths and needs because the source boxed them separately; these it does not. **The M8 brief's field lists split them**; the rendered pages do not, and the page wins |
+| **Paired column headings** | **One field per heading**: a contact's `Θέση / Τομέας` is one `role`; a cover's `Μάθημα / Ύλη που καλύφθηκε` is one `covered` and its `Υπογραφή / Παρατηρήσεις` one `notes` (M8) | The spec writes "role/area" and "subject/material covered" as one phrase, and a teacher fills each pair as one thing. M4 split a support plan's strengths and needs because those are genuinely two answers; these are not. **The M8 brief's field lists split them**; the app does not |
 | **How a training line's cost and hours are stored** | **Nullable `REAL`: `NULL` is "not entered", `0` is a real zero; `CHECK` refuses a negative.** The input accepts `12,50` and `12.50`, shows the stored value back with a dot, and **refuses anything else without saving it** (M8) | **Different from M6's textbook `Τιμή`, deliberately.** A price is never added up, so it can say "δωρεάν". A training cost is summed by a roll-up the spec asks for and the page captions (`ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΚΑΙ ΣΥΝΟΨΗ`), and a sum cannot read a word; "δωρεάν" is typed as `0`, and the refusal says so. The same three-way reading as M2's weights — one parser, `domain/numbers.ts`, which M2's `parseWeight` now reads through |
 | **The budget summary roll-up** | **A pure function, `trainingSummary()`, over the school year's own window — week 1's Monday to week 53's Sunday — never the clock.** A blank cost is left out and **counted** ("N χωρίς έξοδο"); a line outside the year and an undated line are counted apart too; the remainder is shown only when a budget has been entered, and an overspend as one. Sums are in hundredths. Without a start date, every line counts and the screen says why (M8) | M2's rule — the app never invents a number the teacher did not type — applied to money. The budget itself is **one stored row** (`development_budget`: amount, notes) beside the page's notes box: one active school year per file, so one figure |
-| **A training line's `Μορφή` and `Βεβαίωση`** | **Free text, both** (M8) | M6's rule: a vocabulary only where the source enumerates one, and page 224's columns enumerate nothing. A certificate is not a vocabulary but could be a tick; it is text because the common real answers are "αναμένεται" and a certificate number, which a tick cannot hold |
+| **A training line's `Μορφή` and `Βεβαίωση`** | **Free text, both** (M8) | M6's rule: a vocabulary only where there is a fixed list, and there is none here. A certificate is not a vocabulary but could be a tick; it is text because the common real answers are "αναμένεται" and a certificate number, which a tick cannot hold |
 | **The staff directory's search** | **The message bank's folding rule, moved to `domain/search.ts` and shared**, over name, role, phone and email; it searches staff contacts only (M8) | "Do not write a second folding function." A guardian who shares a colleague's name is in another table and is never returned — the fixture carries exactly that case |
-| **Which M8 surfaces produce a PDF** | **None** (M8), per the scope line | The "PDF output" section names none of the four, and neither module entry says "printable". One source detail is raised rather than decided — see Open |
-| **Three details of the M8 brief were wrong about its source pages** | **The pages win** (M8) | Page 13's register has **five** columns, not seven (two pairs are merged); page 224's has **seven**, not eight (`Επιμόρφωση / Δραστηριότητα` is one); page 222's standing box is **two** boxes. Found by rendering the pages, per M5's and M7's lesson; recorded because the next agent will read the brief |
+| **Which M8 surfaces produce a PDF** | **None** (M8), per the scope line | The "PDF output" section names none of the four, and neither module entry says "printable". One detail is raised rather than decided — see Open |
+| **Three details of the M8 brief were revised** | **The built layout wins** (M8) | The covers register has **five** columns, not seven (two pairs are merged, above); the training log has **seven**, not eight (`Επιμόρφωση / Δραστηριότητα` is one); the wellbeing page's standing box is **two** boxes. Recorded because the next agent will read the brief |
 
 
 | **Where the interface language is stored** | **In the data file: a one-row `preference` table added by `migrate_to_10`, holding a language code** (M9). A fresh file, and every file that climbs from M8, reads `el` | The spec asks for the language to be "persisted as a preference, not tied to the OS locale", and there were two candidates. A file *beside* `planner.sqlite` would only be per-device if it lived outside the synced folder — anything inside it syncs — and the spec keeps everything the app writes in that one folder. In the data file, the language travels with the teacher's records: the PC opens in the language she left the Mac in, and a sheet printed on either machine comes out the same. The cost, accepted: **switching the language is a write**, through `mutate()`, the fingerprint check and the disk-changed block, like every other record — so it is refused while the file is blocked, and the toggle is disabled until the reload. `locale` is checked in Rust, not by a `CHECK`, as M7's form `kind` is |
@@ -385,7 +385,7 @@ sequence.
 | **M10 — Handover readiness** | **A milestone the roadmap did not have**, created by the product owner after M9 to hold what stands between the signed-off M9 build and the teacher. Its scope was set item by item on 2026-09-25, and every row below records one of those calls | The brief left each item as a question for the product owner, and the agent asked before planning |
 | **Code signing** — *M10* | **Out of M10 as well** (product owner, 2026-09-25). v1.0.0 ships unsigned. The procedure for whoever signs later is `docs/CODE_SIGNING.md`; nothing in `tauri.conf.json` or CI was changed | Still the first item on the list of what stands between the build and the teacher. The teacher-facing guide tells her what SmartScreen and Gatekeeper will ask |
 | **What prints, answered** (M10) | **Print: a meeting's minutes, M1's six annual goals, and the conduct sheet bundled with the grade sheet. Do not print: M6's surfaces (exam tracker, trips, textbooks, annual plan, progress matrix) and the covers register** (product owner, 2026-09-25) | Five Open questions raised at M2, M5, M6 and M8, answered together. The three that print are one document definition each on the existing contract, in both languages |
-| **How a meeting's minutes print** | **One portrait A4 sheet per meeting, from an export button on the meeting's own card, laid out as M7's blank *Πρακτικό συνεδρίασης* form**: a row of fields (kind, date, time, duration, class), the attendees and the agenda as captioned areas, the agreements as the sheet's table (who / what / by when), then the notes (M10). An empty agreement list is said in words | That form is the source's own minutes page, so its layout is the one a teacher recognises. The sheet reads the card's own selectors (`allMeetings`, `agreementsOfMeeting`, `meetingClass`) and nothing else, verbatim. **The blank form still reads nothing**; the two stay the two different artefacts M7's row describes |
+| **How a meeting's minutes print** | **One portrait A4 sheet per meeting, from an export button on the meeting's own card, laid out as M7's blank *Πρακτικό συνεδρίασης* form**: a row of fields (kind, date, time, duration, class), the attendees and the agenda as captioned areas, the agreements as the sheet's table (who / what / by when), then the notes (M10). An empty agreement list is said in words | That form is the app's own minutes page, so its layout is one the teacher already knows. The sheet reads the card's own selectors (`allMeetings`, `agreementsOfMeeting`, `meetingClass`) and nothing else, verbatim. **The blank form still reads nothing**; the two stay the two different artefacts M7's row describes |
 | **The document contract's one M10 addition** | **`PrintDocument.lead`: blocks that flow above the table**, and the paginator walks a sheet's items in document order instead of "all rows, then all blocks" (M10) | The minutes are the first sheet with blocks *above* a register. Every earlier sheet already had its rows before its blocks, so each paginates exactly as before, and M2's to M9's paginator tests are unchanged and green. A test pins the new order, and a mutation that restored the old order failed it |
 | **How the six annual goals print** | **One landscape table, one row per area in the order the cards are shown, one column per card field; it prints what the six cards show — saved or not** (M10) | "Printed as one table" is the spec's own phrase. The cards save one at a time with their own button, so the screen can show a draft that is not stored yet. M4.5's rule is that what prints is what the teacher is looking at, so the export builds from the cards' draft. The order comes from one selector, `annualGoalsInOrder`, shared by the cards and the sheet |
 | **The grade sheet and the conduct sheet** | **One PDF from the gradebook's button (*Εξαγωγή PDF βαθμών και συμπεριφοράς*), the two sheets bundled by `renderPrintBundle()`; the conduct sheet keeps its own button for printing it alone** (M10) | M2's open question, answered by the product owner. They stay two documents with their own headers, each starting a page, in one landscape file. Keeping the conduct sheet's own button costs nothing and keeps a use the teacher already had |
@@ -427,7 +427,7 @@ sequence.
 
 - **Two details of the printed certificates, for a judgement. — ANSWERED at
   M10: left as they are** (product owner). The content sits
-  in the top two-thirds of the frame, where the source centres it, and the
+  in the top two-thirds of the frame, and the
   sheet's footer ("Printed …") prints inside the frame — on the award itself.
   Neither is clipping or a spill, so M9 did not change them. Raised at M9
   (2026-09-25).
@@ -456,15 +456,15 @@ sequence.
 - **Should the substitute folder print students' health and support notes?**
   Its *ΜΑΘΗΤΕΣ ΠΟΥ ΧΡΕΙΑΖΟΝΤΑΙ ΠΡΟΣΟΧΗ* box lists, from the cards, each
   student's SEN category, the class's support note, allergies, conditions and
-  medication — which is what that box on the source page is for, and what a
+  medication — which is what that box is for, and what a
   substitute most needs to know. But it puts special-category information on a
   sheet meant to be left in a drawer. The alternatives are health fields only
-  (the safety-critical half), or nothing live and a free box as on the source.
+  (the safety-critical half), or nothing live and a free box.
   Raised at M7 (2026-09-24).
 
-- **The substitute folder's suggested text is the app's own Greek, not the
-  source's.** "Descriptive boilerplate text is prefilled once", but the source's
-  boxes are blank, so there was nothing to transcribe. M7 wrote short, generic
+- **The substitute folder's suggested text is the app's own Greek.**
+  "Descriptive boilerplate text is prefilled once", and there was no existing
+  text to start from. M7 wrote short, generic
   suggestions in `src/i18n/formsEl.ts` for the rules, where things are, what to
   do if something goes wrong, the six procedures and the message to the
   substitute. They are written to be replaced, and a Greek-speaking teacher
@@ -493,7 +493,7 @@ sequence.
   several people and would need a join table rather than one column. Raised at
   M8 (2026-09-24).
 
-- **Should the covers register print? — ANSWERED at M10: no** (product owner). Page 13's last column is `Υπογραφή /
+- **Should the covers register print? — ANSWERED at M10: no** (product owner). The register's last column is `Υπογραφή /
   Παρατηρήσεις` — a signature, which suggests a sheet the teacher hands to the
   deputy head to sign. The spec's "PDF output" section does not name it and
   M8's scope line names no PDF, so M8 ships none (the M2/M3 precedent). It
@@ -507,16 +507,13 @@ sequence.
 
 
 - **Are the six resource categories about what a material *is*, or about whom
-  it belongs to?** This document's module-3 entry says "entries across the six
-  source categories (own / school / shared / borrowed / digital / other)" —
-  provenance. **The source page says otherwise.** *Υλικά και πηγές* has six
-  captioned boxes and they are `ΙΣΤΟΤΟΠΟΙ ΚΑΙ ΠΛΑΤΦΟΡΜΕΣ`, `ΕΦΑΡΜΟΓΕΣ`, `ΒΙΒΛΙΑ
-  ΚΑΙ ΚΕΙΜΕΝΑ`, `ΒΙΝΤΕΟ ΚΑΙ ΗΧΟΣ`, `ΒΟΗΘΗΜΑΤΑ ΣΤΗΝ ΤΑΞΗ`, `ΑΛΛΕΣ ΠΗΓΕΣ`, and
-  the ΠΛΑΝΟ index card that opens it reads *"Ιστότοποι, εφαρμογές, βιβλία και
-  ταινίες"*. The provenance list appears nowhere in the source package; the
-  materials-loan log among M7's 11 print forms was checked and its columns are
-  `Ημερομηνία / Μάθημα / Δόθηκε σε / Πόσα / Επιστροφή / Κατάσταση`. M6 ships the
-  page's six. If the provenance six were meant — and there is a real argument
+  it belongs to?** This document's module-3 entry lists own / school / shared /
+  borrowed / digital / other — provenance. **The screen groups by kind
+  instead.** *Υλικά και πηγές* has six captioned boxes: `ΙΣΤΟΤΟΠΟΙ ΚΑΙ ΠΛΑΤΦΟΡΜΕΣ`, `ΕΦΑΡΜΟΓΕΣ`, `ΒΙΒΛΙΑ
+  ΚΑΙ ΚΕΙΜΕΝΑ`, `ΒΙΝΤΕΟ ΚΑΙ ΗΧΟΣ`, `ΒΟΗΘΗΜΑΤΑ ΣΤΗΝ ΤΑΞΗ`, `ΑΛΛΕΣ ΠΗΓΕΣ`.
+  Ownership is partly covered by the materials-loan log among M7's 11 print
+  forms (`Ημερομηνία / Μάθημα / Δόθηκε σε / Πόσα / Επιστροφή / Κατάσταση`). M6
+  ships the six kinds. If the provenance six were meant — and there is a real argument
   for them, since knowing whether a thing is the school's or yours is what you
   need when you leave — it is one vocabulary and one migration. Raised at M6
   (2026-09-23).
@@ -554,23 +551,23 @@ sequence.
   textbook list and the annual plan are all things a teacher hands to a head of
   department or carries to a meeting — and each would be one document definition
   on the existing contract. The progress matrix is the interesting one: it is
-  the widest table in the app after the attendance card, and the source prints
-  it over two pages. Raised at M6 (2026-09-23).
+  the widest table in the app after the attendance card, and would print
+  over two pages. Raised at M6 (2026-09-23).
 
 - **Is an exam's `Βαρύτητα` meant to reach the gradebook?** M6 keeps them
   strictly apart: an exam's weight is a planning note, and M2's percentage
   weights on `grade_column` are what compute an average. That is the safe
-  reading — the app never invents a number the teacher did not type — and it is
-  what the two source pages look like, since the exam page is a planning
-  register and the weights live in the grade registry. But a teacher who writes
+  reading — the app never invents a number the teacher did not type — and it
+  matches what the two screens are: the exam page is a planning register and
+  the weights live in the gradebook. But a teacher who writes
   "20%" on an exam in September and then types 20 into a grade column in
   November has said the same thing twice, which is the one thing this milestone
   spent its effort avoiding elsewhere. Linking them would mean an exam
   optionally naming a grade column. Raised at M6 (2026-09-23).
 
 - **Does the Feb–Dec year model cover eleven months or twelve?** Read literally
-  it is February to December, which is eleven. The source product's own
-  quick-start page promises "53 εβδομάδες και 12 μήνες" for every model. M1
+  it is February to December, which is eleven, while "53 weeks and 12 months"
+  is the usual promise for every model. M1
   implements the literal reading (Feb–Dec = 11 months) rather than guessing at a
   wrap into January, because guessing would silently change which months a
   teacher's calendar shows. Raised at M1 (2026-09-19); one line in
@@ -578,8 +575,7 @@ sequence.
 
 - **Should an annual goal's status be free text or a fixed vocabulary?** The
   spec lists `status` as a field on each of the six goal areas without saying
-  which. The source product leaves the whole area as an open box. M1 ships it as
-  free text, matching the source and matching the spec's only explicit statement
+  which. M1 ships it as free text, matching the spec's only explicit statement
   about a status field anywhere (SupportPlan's, which it says is "written by the
   teacher, never computed"). Raised at M1 (2026-09-19).
 
@@ -620,7 +616,7 @@ sequence.
   surface this document promises one somewhere. It gives **none to the
   staff/council/class meetings**, because nothing in the spec asks for one: the
   "PDF output" section does not name them and M5's scope line names only the
-  letters and the bank. But the source product's own ΟΜΑΔΑ page is headed
+  letters and the bank. But the ΟΜΑΔΑ section is about
   *"Πρακτικά, συμφωνίες και ενέργειες"*, and minutes with a list of who agreed
   to do what by when is a thing a teacher hands round. It is one document
   definition on the existing contract and no stored data either way. Raised at
@@ -644,14 +640,14 @@ sequence.
 
 - **M4.5's open question about page-level boxes now applies to a second
   register.** The printed communication log lists each line's own stored
-  `remarks` in the source page's `ΠΑΡΑΤΗΡΗΣΕΙΣ` box, one attributed line per
+  `remarks` in the sheet's `ΠΑΡΑΤΗΡΗΣΕΙΣ` box, one attributed line per
   entry — the shape M4.5 resolved for the absence register's two boxes, and it
   inherits the same concern: it reads well for a handful of lines and badly at
   volume. Whatever is decided for the absence register should be decided for
   this one at the same time. Raised at M5 (2026-09-23).
 
 - **Should the absence register's two per-event fields print as page-level
-  boxes, or as two more columns?** The source page has eight columns and two
+  boxes, or as two more columns?** The sheet has eight columns and two
   captioned boxes at its foot, *ΠΡΟΣΟΧΗ · ΣΥΧΝΕΣ ΑΠΟΥΣΙΕΣ* and *ΓΟΝΕΙΣ
   ΕΝΗΜΕΡΩΘΗΚΑΝ · ΕΝΕΡΓΕΙΕΣ*, whose captions are exactly the names of two fields
   M4 stores **per event** because the spec lists them among the event's own
@@ -662,35 +658,34 @@ sequence.
   eight-column landscape sheet. Raised at M4.5 (2026-09-22); it is a change to
   one document builder and no stored data either way.
 
-- **Should the incident register have a page-level notes field?** Its source
-  page carries a *ΠΡΟΣΘΕΤΕΣ ΣΗΜΕΙΩΣΕΙΣ* box, and nothing in the data model
+- **Should the incident register have a page-level notes field?** The printed
+  sheet carries a *ΠΡΟΣΘΕΤΕΣ ΣΗΜΕΙΩΣΕΙΣ* box, and nothing in the data model
   corresponds to it. M4.5 prints it **blank**, as ruled space the teacher writes
   in by hand, because filling it would have meant a stored field and M4.5's
   scope line is explicitly "no new data, no new fields, no schema change". If it
   should hold something typed in the app, that is one column and one migration,
   and it belongs to whoever is told to add it. Raised at M4.5 (2026-09-22).
 
-- **The printed support overview has seven columns; the source page has six.**
+- **The printed support overview has seven columns, not six.**
   The seventh is the screen's *Στήριξη ανά τμήμα*. M4 established that a
   "card-level support flag" is two different things — `Student.sen_status` and
   each class's `Enrollment.support` with its own note — and that the overview
   needs both shown separately; folding them together for print would make the
   paper disagree with the screen, which M4.5's own acceptance criterion forbids.
-  So the sheet carries the source's six columns plus that one. Raised at M4.5
-  (2026-09-22) as a deliberate departure from the source's column count rather
-  than an oversight.
+  So the sheet carries the six expected columns plus that one. Raised at M4.5
+  (2026-09-22) as a deliberate choice rather than an oversight.
 
 - **Should the absence register offer more kinds than `absence` and
   `late`?** The spec says an absence event has a "kind" without enumerating
-  one. The source register has exactly two tick columns, `Απ.` and `Καθ.`, so
+  one. The register has two tick columns, `Απ.` and `Καθ.`, so
   M4 ships those two rather than inventing a third. Early departure
   (πρόωρη αποχώρηση) is the obvious candidate and is a real thing teachers log,
-  but adding it would be the app inventing a category the source does not have.
+  but adding it is a product decision, not something to invent.
   One entry in `ABSENCE_KINDS` and one string change it. Raised at M4
   (2026-09-21).
 
 - **Is the monthly grid's "δικαιολογημένη" a fourth state or a flag on an
-  absence?** The source card's key is `· παρών, α απουσία, κ καθυστέρηση,
+  absence?** The card's key is `· παρών, α απουσία, κ καθυστέρηση,
   u δικαιολογημένη` — four symbols, one per cell — and the spec names four
   states (present / absent / late / excused). M4 ships them as four mutually
   exclusive codes, matching both readings of the page, so "excused" means "an
@@ -705,60 +700,39 @@ sequence.
 - **Where should the per-class pass threshold ("Βάση") live?** M2 gives it, the
   scale's upper bound and the printed sheet's period caption their own
   `class_grading` table keyed by `class_id`, rather than three more columns on
-  `class`: it is a gradebook setting, the source registry keeps it in the
+  `class`: it is a gradebook setting, printed in the
   header of each class's grade sheet, and keeping it out of `class` leaves M1's
   table and its round-trip tests untouched. A class with no row reads back as
   the defaults. Raised at M2 (2026-09-20); one migration changes it either way.
 
 - **Should the conduct sheet print as part of the grade-sheet PDF or as its own
   file? — ANSWERED at M10: as part of it, with its own button kept** (Resolved,
-  "The grade sheet and the conduct sheet"). M2 ships it as its own, matching the source product, which keeps
-  "Συμπεριφορά και στάση" as a separate page — and M7 is the only place the
+  "The grade sheet and the conduct sheet"). M2 ships it as its own page,
+  *Συμπεριφορά και στάση* — and M7 is the only place the
   spec asks for several pages bundled into one PDF. Raised at M2 (2026-09-20).
   **Now cheap (M7):** `renderPrintBundle()` puts several documents in one file,
   each on its own pages, and the grade sheet and conduct sheet are both
   landscape — so bundling them is one call in `GradesScreen` and no new
   machinery. Still the product owner's call.
 
-- **The source's conduct page rates four things; the data model names one.** The
-  PDF's conduct page has columns for *Συμμετοχή, Αυτονομία, Διαγωγή* and
-  *Συνέπεια* plus the written overall result, while this spec's `GradeRow` names
-  a single six-level conduct rating plus observations — which is also what the
-  Excel registry has. M2 ships the data model as written rather than inventing
-  three fields or quietly dropping three columns the source has. Raised at M2
-  (2026-09-20).
+- **Should conduct be rated on four things rather than one?** A conduct sheet
+  could have columns for *Συμμετοχή, Αυτονομία, Διαγωγή* and *Συνέπεια* plus
+  the written overall result, while this spec's `GradeRow` names a single
+  six-level conduct rating plus observations. M2 ships the data model as
+  written rather than inventing three fields. Raised at M2 (2026-09-20).
 
 ### Carried risks
 
-- **The source package: RESOLVED on 2026-09-24, ahead of publishing the
-  repository.** The product owner decided to make the repository public and to
-  work only from the development Mac. So:
-
-  - `reference/` is **git-ignored and untracked**; it remains on the dev Mac as
-    the working authority, and agents there keep reading it when a decision
-    turns on a source page (see `docs/MILESTONE_PROMPT.md` §2).
-  - **The history was rewritten** with `git filter-repo` to remove `reference/`
-    from every commit — all ten files had arrived in a single commit on
-    2026-09-19 and were never removed — and **pushed to a new repository**, not
-    force-pushed over the old one: GitHub keeps each pull request's head commit
-    under a read-only `refs/pull/N/head` that a force-push cannot reach, so the
-    old repository would still have served the files. The old repository is
-    kept private as an archive; it holds PRs #1–#13 and every CI run the
-    release notes link to.
-  - **What is copyrighted, per the product owner (2026-09-24): the planner PDF
-    only.** The transcribed letters and message bank in `src/i18n/`, and the
-    forms' fixed text, are **not** a copyright concern and are published. That
-    is the product owner's call, recorded here because the previous version of
-    this entry treated the whole package as third-party work.
-  - Nothing in `src/`, `src-tauri/`, `tests/`, the build or CI reads from
-    `reference/` — checked again before the rewrite — so a clone without it
-    builds and passes every test.
-
-  The original entry, kept for the reasoning: the package was deliberately kept
-  in a private repository because it was the authority on wording and layout
-  for every milestone, with the history rewrite deferred until "publication, or
-  anyone else gaining access — whichever comes first". Publication is that
-  trigger, and this is the rewrite it called for.
+- **Publishing the repository: RESOLVED on 2026-09-24.** The product owner
+  made the repository public and chose to work only from the development Mac.
+  Material that is not the project's own is git-ignored and never committed.
+  Before publication the history was rewritten with `git filter-repo` and
+  **pushed to a new repository**, not force-pushed over the old one: GitHub
+  keeps each pull request's head commit under a read-only `refs/pull/N/head`
+  that a force-push cannot reach. The old repository is kept private as an
+  archive; it holds PRs #1–#13 and every CI run the early release notes link
+  to. Nothing in `src/`, `src-tauri/`, `tests/`, the build or CI depends on
+  local-only material, so a clone builds and passes every test.
 
 - **An unsigned Windows build tagged with Mark of the Web will not start without
   the teacher clicking through SmartScreen.** Anything downloaded, emailed, or in
@@ -805,7 +779,7 @@ sequence.
 - **A human has now double-clicked this app on Windows from inside a real
   OneDrive folder, including the online-only placeholder case — and it passed.**
   Done at the M1 gate (2026-09-20) on Windows 11 Enterprise 26200, from
-  `OneDrive\Ατζέντα Εκπαιδευτικού M1`. The files were forced online-only and
+  `OneDrive\Ημερολόγιο Εκπαιδευτικού M1`. The files were forced online-only and
   verified genuinely dehydrated (0 bytes on disk against full logical size,
   `OFFLINE + UNPINNED + RECALL_ON_DATA_ACCESS`), then double-clicked: Windows
   hydrated the exe and the database on demand within 8s, the app opened and

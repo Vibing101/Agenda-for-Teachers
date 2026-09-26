@@ -1,7 +1,7 @@
 # M5 — Parents & staff
 
 You are picking up an in-progress project: a from-scratch rebuild of a Greek
-teacher's planner ("Ατζέντα Εκπαιδευτικού") as a native Tauri desktop app.
+teacher's planner ("Ημερολόγιο Εκπαιδευτικού") as a native Tauri desktop app.
 M0, M1, M2, M3, M4 and M4.5 are merged and signed off. Your task is **M5**.
 
 **START BY READING `docs/MILESTONE_PROMPT.md` IN FULL.** It is the standing brief
@@ -10,7 +10,7 @@ on and what that machine is allowed to claim, what else to read, the language
 rules, the patterns already settled, and how the six-step gate is run. All of it
 applies to you. **Do its section 1 before you plan anything.**
 
-Then read, in this order: `docs/REBUILD_SPEC.md` (especially its **Resolved**
+Then read, in this order: `docs/SPEC.md` (especially its **Resolved**
 table, its **Open** section and its **Carried risks**), `docs/ENGINEERING.md`,
 `docs/WINDOWS_VM.md`, and every release note in `docs/milestones/`. The **M2**
 and **M4.5** notes matter most to you: between them they record how PDF
@@ -55,12 +55,9 @@ surfaces:
 6. **The 150-message bank** across 15 categories — searchable, fill-and-generate
    a PDF **or** copy to clipboard.
 
-### The source material, already located for you
+### The seven letters and the message bank
 
-`reference/` is **read-only**: never edit it, never generate into it.
-
-**`reference/03 - Έτοιμες επιστολές προς γονείς.pdf`** — 8 pages, page 1 is a
-cover, so the seven letters are pages 2–8 (1-indexed):
+The seven letters:
 
 | # | Letter | Note |
 |---|---|---|
@@ -72,9 +69,8 @@ cover, so the seven letters are pages 2–8 (1-indexed):
 | 6 | Έπαινος | a certificate, **2-up on the page** |
 | 7 | Βραβείο επίδοσης | a certificate, **2-up on the page** |
 
-**`reference/06 - Τράπεζα μηνυμάτων.pdf`** — 18 pages. Confirmed structure:
-**15 categories × 10 messages = 150**, with an index page that says so
-("150 μηνύματα ταξινομημένα κατά περίσταση"). The categories, in order:
+The message bank: **15 categories × 10 messages = 150** ("150 μηνύματα
+ταξινομημένα κατά περίσταση"). The categories, in order:
 
 1. Καλωσόρισμα και αρχή της χρονιάς · 2. Αίτημα για συνάντηση ·
 3. Υπενθύμιση για συνάντηση γονέων · 4. Απουσίες μαθητή · 5. Καθυστερήσεις ·
@@ -83,10 +79,6 @@ cover, so the seven letters are pages 2–8 (1-indexed):
 10. Συμπεριφορά · 11. Έλλειψη συμμετοχής στο μάθημα ·
 12. Μετά τη συνάντηση με τους γονείς · 13. Οργανωτικές υπενθυμίσεις ·
 14. Τέλος περιόδου και έκδοση βαθμών · 15. Επικοινωνία μέσα στο σχολείο
-
-There is also `reference/06 - Τράπεζα μηνυμάτων (επεξεργάσιμη).docx`, which may
-be easier to extract cleanly than the PDF. **Transcribe the content; do not
-rewrite it.** These are the product's own words and the teacher recognises them.
 
 ---
 
@@ -131,15 +123,15 @@ adding files?** If not, choose again.
 *"keeps eight top-level sections after M4"*. M4 deliberately added four surfaces
 as *sub-pages* rather than tabs, and recorded that as a decision.
 
-**M5's module has no existing home.** The source product's own navigation has
-**ΓΟΝΕΙΣ** and **ΟΜΑΔΑ** as separate top-level items, which argues for adding at
-least one tab. That is a real decision, not an oversight:
+**M5's module has no existing home.** Parents and staff — **ΓΟΝΕΙΣ** and
+**ΟΜΑΔΑ** — could each be a top-level item, which argues for adding at least
+one tab. That is a real decision, not an oversight:
 
 - adding a `Γονείς` tab makes nine, and you must update that test *deliberately*,
   renaming it and saying in the comment why the number moved;
 - whether **ΟΜΑΔΑ** (staff meetings) is its own tab or a sub-page under Γονείς is
   also yours — the spec files meetings under module 5 with the parent surfaces,
-  but the source product separates them.
+  but they serve different audiences.
 
 Follow M4's precedent for the *shape* of the answer: sub-pages inside a section,
 with the top row kept as small as the spec allows. Record the call in the spec's
@@ -307,7 +299,7 @@ including the failure message — clipboard access can refuse.
 
 ## Acceptance criteria for M5
 
-These are in `docs/REBUILD_SPEC.md` under "Acceptance criteria per milestone".
+These are in `docs/SPEC.md` under "Acceptance criteria per milestone".
 Quote them in your release note with the evidence:
 
 - All 7 letters and a sample across all 15 message-bank categories generate a

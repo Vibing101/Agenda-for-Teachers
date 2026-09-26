@@ -13,7 +13,7 @@
  * equivalent field, so the teacher recognises her own planner.
  */
 export const el = {
-  "app.title": "Ατζέντα Εκπαιδευτικού",
+  "app.title": "Ημερολόγιο Εκπαιδευτικού",
   "app.subtitle": "Σχεδίασε ήρεμα. Δίδαξε συνειδητά.",
 
   "nav.year": "Έτος",

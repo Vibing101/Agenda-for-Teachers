@@ -27,7 +27,7 @@ function sheet(rowCount: number): HTMLElement {
       ]),
     },
     note: "Σημείωση",
-    footer: "Ατζέντα Εκπαιδευτικού",
+    footer: "Ημερολόγιο Εκπαιδευτικού",
   };
   const root = document.createElement("div");
   root.innerHTML = renderPrintDocument(doc, true);
@@ -114,7 +114,7 @@ describe("paginating a sheet", () => {
         rows: Array.from({ length: 6 }, (_, i) => [{ text: `Σ${i + 1}` }, { text: "" }]),
       },
       blocks: [{ kind: "prose", lines: ["ΜΕΤΑ"] }],
-      footer: "Ατζέντα Εκπαιδευτικού",
+      footer: "Ημερολόγιο Εκπαιδευτικού",
     };
     const root = document.createElement("div");
     root.innerHTML = renderPrintDocument(doc, false);
@@ -164,7 +164,7 @@ describe("paginating several documents into one file", () => {
         }
       : undefined,
     blocks: rows ? [] : [{ kind: "prose", lines: [`Κείμενο του ${title}`] }],
-    footer: "Ατζέντα Εκπαιδευτικού",
+    footer: "Ημερολόγιο Εκπαιδευτικού",
     ...extra,
   });
 

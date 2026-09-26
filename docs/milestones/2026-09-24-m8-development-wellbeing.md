@@ -37,8 +37,7 @@ Four surfaces from two spec modules, and the arithmetic for one of them.
   holds covers the teacher taught (date, class, subject/material, the colleague
   covered for, signature/remarks). The other holds her own leave (date, reason,
   documents submitted).
-- **Ανάπτυξη & Ευεξία → Ανάπτυξη και καριέρα**: the source's page 224 as one
-  screen. It holds the training log (date, activity, organiser, hours, format,
+- **Ανάπτυξη & Ευεξία → Ανάπτυξη και καριέρα**: one screen. It holds the training log (date, activity, organiser, hours, format,
   cost, certificate), the open-ended **development goals**, and the **budget
   and summary**, which adds up cost and hours over the school year.
 - **Ανάπτυξη & Ευεξία → Ευεξία**: dated free-text weekly reflections, each
@@ -65,8 +64,8 @@ test re-asserts M2's weight rules.
 
 **No PDF.** M8's scope line names none, the spec's "PDF output" section names
 none of these four surfaces, and neither module entry calls them printable.
-This was checked, as M6 did, not assumed. One source detail that argues for a
-covers sheet is raised under Open questions.
+This was checked, as M6 did, not assumed. One detail that argues for a covers
+sheet is raised under Open questions.
 
 ## Acceptance criteria for this milestone
 
@@ -75,7 +74,7 @@ insensitivity, not as a count, at the storage, selector and screen layers.**
 
 | Criterion | Result | Evidence |
 |---|---|---|
-| **Development goals (open-ended) and the 6 fixed annual-goal areas (from M1's school-year setup) remain visibly separate and neither is generated from the other.** | **Pass** (agent, macOS) | **Storage:** `development_goals_and_the_six_annual_goals_are_never_written_from_each_other` fills all six areas, **including `development`**, starting from an empty development list and then from a full one, and asserts the development goals compare equal to before. It then adds and edits development goals and asserts that `annual_goals` **and a saved M7 goals form** compare equal. `no_m8_table_links_to_anything` walks every M8 table's foreign keys and columns. The **M7-era climb test** carries a filled `development` area and a saved goals form through the migration and asserts that it seeds no development goal. **Selector:** `allDevelopmentGoals()` is equal with the six filled or blanked, and with or without the saved form. **Screen:** the development panel's markup is **identical** with the annual goals filled or blank and the form present or absent, and the page shows no annual-goal text. Adding a goal from a list of two leaves the siblings, `annual_goals` and `print_forms` byte-for-byte, and only `save_development_goal` is called. The other way round, the Year panel's markup is identical with development goals present or absent, and saving the `development` area writes no development goal. **"Visibly separate":** the two are in **different top-level sections** (*Έτος → Σχολικό έτος* and *Ανάπτυξη & Ευεξία → Ανάπτυξη και καριέρα*), never on one screen, and each carries one sentence naming the other as separate. That is how the source keeps them: page 10 under ΕΤΟΣ, and a box on page 224 under ΑΝΑΠΤΥΞΗ |
+| **Development goals (open-ended) and the 6 fixed annual-goal areas (from M1's school-year setup) remain visibly separate and neither is generated from the other.** | **Pass** (agent, macOS) | **Storage:** `development_goals_and_the_six_annual_goals_are_never_written_from_each_other` fills all six areas, **including `development`**, starting from an empty development list and then from a full one, and asserts the development goals compare equal to before. It then adds and edits development goals and asserts that `annual_goals` **and a saved M7 goals form** compare equal. `no_m8_table_links_to_anything` walks every M8 table's foreign keys and columns. The **M7-era climb test** carries a filled `development` area and a saved goals form through the migration and asserts that it seeds no development goal. **Selector:** `allDevelopmentGoals()` is equal with the six filled or blanked, and with or without the saved form. **Screen:** the development panel's markup is **identical** with the annual goals filled or blank and the form present or absent, and the page shows no annual-goal text. Adding a goal from a list of two leaves the siblings, `annual_goals` and `print_forms` byte-for-byte, and only `save_development_goal` is called. The other way round, the Year panel's markup is identical with development goals present or absent, and saving the `development` area writes no development goal. **"Visibly separate":** the two are in **different top-level sections** (*Έτος → Σχολικό έτος* and *Ανάπτυξη & Ευεξία → Ανάπτυξη και καριέρα*), never on one screen, and each carries one sentence naming the other as separate. One lives under ΕΤΟΣ, the other under ΑΝΑΠΤΥΞΗ |
 | **A cover-taught record and a leave record for the same date coexist as separate entries.** | **Pass** (agent, macOS) | The fixture puts a cover and a leave on **12.11.2026**, plus one more of each on other dates. **Storage:** `a_cover_and_a_leave_on_the_same_date_are_separate_and_blind_to_each_other` builds **three files**: covers only, leaves only, and both interleaved. It asserts each register is equal between the file where the other table is empty and the file where it is full. Other tests show that deleting one of the same-date pair leaves the other, and that neither touches the timetable's duty cells or the substitute folder. **Selector:** `coverRegister()` is equal with the leave table empty, full, and **crowded with a leave on every cover's own date**, and `leaveRegister()` likewise. **Screen:** each register's panel markup is **identical** with the other table empty or full. Adding a cover or a leave from a full register leaves the siblings and the **other register** byte-for-byte, calls only its own command, and (for a leave) leaves the folder's texts unchanged. **End to end:** `cloud_folder.rs` writes a same-date pair, quits, relaunches and reads both back. **Step 5 on macOS** did the same in live Drive and OneDrive folders |
 
 ## Confirming the tests fail against broken code
@@ -123,59 +122,20 @@ All recorded in the spec's Resolved table.
 
 | Decision | Call taken | Why |
 |---|---|---|
-| **Wellbeing** | **Free text only. The source's five rating columns are not built** | The Resolved "Wellbeing entries" decision beats page 222. The screen test asserts no select, slider, spinner, radio or checkbox |
-| **What the wellbeing text holds** | **One field per entry, `Τι βοήθησε · τι να αλλάξω`.** The page's two boxes are **one stored note with two fields** | The source's free column is one column. The boxes are two separate boxes on the rendered page and belong to the page, not to a week |
+| **Wellbeing** | **Free text only. No rating columns** | The Resolved "Wellbeing entries" decision beats a structured weekly check-in. The screen test asserts no select, slider, spinner, radio or checkbox |
+| **What the wellbeing text holds** | **One field per entry, `Τι βοήθησε · τι να αλλάξω`.** The page's two boxes are **one stored note with two fields** | One free column is one field. The two boxes belong to the page, not to a week |
 | **How an entry is keyed** | **An actual date**; the week is derived from the start date at display time. A new entry is dated the shell's `today` | M1's rule. A unit test moves the start date and sees the label change while no entry moves |
-| **Navigation** | **`Έτος` sub-pages for module 1's two surfaces; one new section for module 7.** Eleven tabs | The spec and the source's own ΕΤΟΣ index both put the directory and the covers/leave register under Έτος. Module 7 had no home: M5's situation. See `App.tsx`'s comment and the renamed test |
+| **Navigation** | **`Έτος` sub-pages for module 1's two surfaces; one new section for module 7.** Eleven tabs | The spec puts the directory and the covers/leave register under module 1, which is Έτος. Module 7 had no home: M5's situation. See `App.tsx`'s comment and the renamed test |
 | **Three goal surfaces** | Independent. No seed, no prefill, no "copy to…" | Criterion 1, and M7's own record of its form |
 | **Covers vs. leave** | Two tables, two commands, two selectors, no key | Criterion 2 |
 | **A cover's `Τάξη`** | **Free text, not a link** | She covers someone else's class. A link would force her to create a class she does not teach |
-| **Merged source columns** | **One field each**: `Θέση / Τομέας`, `Μάθημα / Ύλη που καλύφθηκε`, `Υπογραφή / Παρατηρήσεις` | The source heads each pair as one column, and the spec writes each as one phrase |
+| **Paired column headings** | **One field each**: `Θέση / Τομέας`, `Μάθημα / Ύλη που καλύφθηκε`, `Υπογραφή / Παρατηρήσεις` | Each pair is one heading, and the spec writes each as one phrase |
 | **Cost and hours** | **Nullable `REAL`.** Blank is not zero. `12,50` and `12.50` are both accepted and shown back as `12.50`. Anything else is refused and not saved | **Unlike M6's textbook price**, these are summed. A sum cannot read "δωρεάν", so the refusal message says to type 0 |
 | **The roll-up** | A pure `trainingSummary()` over the school year's own 53-week window. It leaves out blank costs, out-of-year lines and undated lines, **and counts each group on screen** | M2's "never invent a number", applied to money |
 | **The budget** | **One stored row**: an amount and the page's notes | One active school year per file |
-| **`Μορφή`, `Βεβαίωση`** | Free text | The source enumerates nothing. Real certificate answers include "αναμένεται" and a number |
+| **`Μορφή`, `Βεβαίωση`** | Free text | There is no fixed list. Real certificate answers include "αναμένεται" and a number |
 | **Search** | M5's folding rule, moved and shared. It searches staff contacts only | The brief's "no second folding function" |
 | **PDFs** | None | Scope line, checked against the "PDF output" section |
-
-### What the source pages actually say
-
-Quoted because `reference/` does not exist outside the dev Mac. All six pages
-were **rendered and looked at**, not taken from text extraction. Three details
-differ from the M8 brief's table.
-
-- **Page 12, *Επαφές στο σχολείο*.** Subtitle: *"Γρήγορη αναζήτηση: διεύθυνση,
-  γραμματεία, συνάδελφοι"*. Four columns: `Ονοματεπώνυμο | Θέση / Τομέας |
-  Τηλέφωνο | Email`. The ΕΤΟΣ tab is highlighted in the page's own navigation.
-- **Page 13, *Αναπλήρωση και άδειες*.** Subtitle: *"Αναπληρώσεις που καλύψατε
-  και δικές σας άδειες"*. **Five columns**, not seven: `Ημερομηνία | Τάξη |
-  Μάθημα / Ύλη που καλύφθηκε | Εκπαιδευτικός που αναπληρώθηκε | Υπογραφή /
-  Παρατηρήσεις`. Two boxes sit beneath it: `ΟΙ ΑΔΕΙΕΣ ΜΟΥ` and `ΕΓΓΡΑΦΑ ΠΟΥ
-  ΚΑΤΑΤΕΘΗΚΑΝ`.
-- **Page 5, the ΕΤΟΣ index**, lists among its cards *"Άνθρωποι στο σχολείο ·
-  Διεύθυνση, γραμματεία και συνάδελφοι"* and *"Αναπληρώσεις και άδειες ·
-  Αναπληρώσεις και δικές σας άδειες"*, beside *"Στόχοι για τη χρονιά · 6 τομείς
-  της επαγγελματικής και προσωπικής σας ανάπτυξης"*.
-- **Page 10, *Στόχοι για τη χρονιά*** (under ΕΤΟΣ): the six areas.
-  `ΕΠΑΓΓΕΛΜΑΤΙΚΗ ΑΝΑΠΤΥΞΗ` is one of them.
-- **Page 221, the ΕΥΕΞΙΑ index.** Its cards are *"Παρακολουθήστε την ευεξία σας
-  · Εβδομαδιαία ανασκόπηση της διάθεσης"*, *"Αναστοχασμός μαθημάτων"*,
-  *"Στόχοι για τη χρονιά · Η ευεξία σας μετράει κι αυτή"* and *"Ανάπτυξη και
-  καριέρα"*. The goals card **links to page 10**. The source navigates to the
-  annual goals from here; it does not copy them.
-- **Page 222, *Ευεξία εκπαιδευτικού*.** Subtitle: *"Κάθε Παρασκευή κοιτάξτε
-  πίσω · ένα λεπτό αρκεί"*. Columns: `Εβδομάδα | Ενέργεια | Φόρτος | Διάθεση |
-  Ύπνος | Ισορροπία | Τι βοήθησε · τι να αλλάξω`. Beneath are **two** boxes,
-  `ΤΙ ΜΕ ΚΡΑΤΑΕΙ ΣΕ ΦΟΡΜΑ` and `ΟΡΙΑ ΠΟΥ ΘΕΛΩ ΝΑ ΚΡΑΤΗΣΩ`. The text layer runs
-  them together, and the brief described them as one.
-- **Page 223, the ΑΝΑΠΤΥΞΗ index**: *"Ανάπτυξη και καριέρα · Επιμόρφωση,
-  προϋπολογισμός και στόχοι"*, and again a card linking to *"Στόχοι για τη
-  χρονιά"*.
-- **Page 224, *Ανάπτυξη και καριέρα*.** Subtitle: *"Μητρώο επιμορφώσεων, εξόδων
-  και επαγγελματικών στόχων"*. **Seven columns**, not eight: `Ημερομηνία |
-  Επιμόρφωση / Δραστηριότητα | Διοργανωτής | Ώρες | Μορφή | Έξοδο | Βεβαίωση`.
-  Two boxes sit beneath it: `ΣΤΟΧΟΙ ΑΝΑΠΤΥΞΗΣ` (left) and `ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΚΑΙ
-  ΣΥΝΟΨΗ` (right). **No column on any of these pages enumerates values.**
 
 ## Open questions for the product owner
 
@@ -194,7 +154,7 @@ All in the spec's Open section.
    `responsible` (M6). None was converted. An optional link beside the text is
    the shape question 1 would set; attendees are several people and would need
    a join table.
-3. **Should the covers register print?** Page 13's `Υπογραφή` column suggests
+3. **Should the covers register print?** The register's `Υπογραφή` column suggests
    a sheet handed to the deputy head for signing. No PDF was built (scope
    line). It would be one document definition.
 4. **Should a leave span several days?** The spec gives it one date, and so

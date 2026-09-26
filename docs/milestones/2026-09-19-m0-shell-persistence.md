@@ -1,12 +1,13 @@
 # M0 — Shell & persistence
 
 > **Archived evidence (added 2026-09-24).** This repository's history was
-> rewritten on 2026-09-24 to remove the third-party source package before it was
-> made public. The pull requests, CI runs and commit hashes this note cites
+> rewritten on 2026-09-24 to remove local-only material before it was made
+> public. The pull requests, CI runs and commit hashes this note cites
 > belong to the pre-rewrite repository, kept private as
 > `Vibing101/Agenda-for-Teachers-archive`: links to them will not resolve here,
 > and the hashes differ from this repository's. The note is otherwise left as
-> it was written.
+> it was written, except that references to material outside the project were
+> removed on 2026-09-26.
 
 **Date:** 2026-09-19
 **Branch:** `m0-shell-persistence`
@@ -39,7 +40,7 @@
 | Change detection signal | SHA-256 of file contents | Size and mtime are too weak: a sync client can rewrite a file to the same length, and mtime can be preserved across a sync. |
 | Snapshots stamped in the future | Kept, never deleted | Clock skew between two devices is realistic; deleting a teacher's backup over a clock difference is the worse failure. |
 | Frontend framework | React + TypeScript + Vite | The spec said "keep it boring": this is the most documented Tauri pairing, so the next agent hits known ground. |
-| Spec file location | Renamed to `docs/REBUILD_SPEC.md` | ENGINEERING.md's repo layout names that path; the file was committed under its original Greek title. Content unchanged. |
+| Spec file location | `docs/SPEC.md` | ENGINEERING.md's repo layout names that path. Content unchanged. |
 
 ## Open questions for the product owner
 
@@ -59,9 +60,8 @@ bundle on every push; the double-click-from-a-synced-folder run on Windows has
 not been performed by a human. Carried forward as a risk, not a blocker — see
 "Known gaps".
 
-**3. The Excel grade registry in `reference/` was rewritten on disk mid-session**
-(83KB → 131KB, same 14 sheets) by Google Drive, not by this work. Committed as
-the new baseline on the product owner's instruction.
+**3. A local spreadsheet was rewritten on disk mid-session** by Google Drive,
+not by this work. Kept as the new baseline on the product owner's instruction.
 
 ## Gate results (docs/ENGINEERING.md)
 
@@ -123,7 +123,7 @@ as the reason for choosing Tauri over Electron.
 
 **Windows CI now launches the app instead of only building it.** On every push it
 copies the real binary into a path shaped like the user's own — Greek characters,
-spaces, deep nesting, mirroring `My Drive\Ατζέντα Εκπαιδευτικού` — launches it,
+spaces, deep nesting, mirroring `My Drive\Ημερολόγιο Εκπαιδευτικού` — launches it,
 and checks that it stays open, creates `data/planner.sqlite` beside itself, and
 writes a dated backup snapshot on a second launch. The equivalent smoke launch
 runs on macOS too.

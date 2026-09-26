@@ -42,7 +42,7 @@ gate result to the machine that produced it.
 
 ## 2. Read these in full before writing code
 
-- **`docs/REBUILD_SPEC.md`** — the functional and architectural source of truth.
+- **`docs/SPEC.md`** — the functional and architectural source of truth.
   Its **Resolved** table records calls already made: apply them, do not
   re-litigate them. Its **Open** section lists what is deliberately undecided.
   Read **Carried risks** too — those are live.
@@ -54,33 +54,10 @@ gate result to the machine that produced it.
 - **The release note for every milestone already shipped**, in
   `docs/milestones/`. They record decisions and patterns you are expected to
   follow rather than reinvent, and traps already paid for.
-- **`reference/`** — the original source material, and the authority on wording,
-  field lists and layout while a module is being built. **It exists only on the
-  dev Mac**: it is git-ignored, was removed from the repository's history on
-  2026-09-24, and the repository is public.
-
-  **On the dev Mac, use it whenever a decision turns on what a source page
-  says** — render the page and look, as M5 and M7 did. It is needed right up to
-  M9, whose criteria include a side-by-side check of generated PDFs against the
-  source's pages. It is read-only: never edit it, never generate into it.
-
-  **Anywhere else — a fresh clone, the Windows VM, CI — it is not there.** Say so
-  rather than guessing, and work from what is already in the repo: the content
-  transcribed into `src/i18n/`, and the source pages quoted in the release notes.
-
-  Three rules, all enforced by nothing but you:
-
-  - **Never commit it, or any file from it.** The ignore rule stops `git add -A`;
-    it does not stop `git add -f`. The planner PDF is a third party's copyrighted
-    work and this repository is public. If a source file seems to be needed in
-    the repo, ask the product owner.
-  - **Build no dependency on it.** Nothing in `src/`, `src-tauri/`, `tests/` or CI
-    reads from it at build time or run time, and nothing may start. Content the
-    app needs is *transcribed into the repo* — the letters, the message bank and
-    the forms' fixed text live in `src/i18n/`.
-  - **Quote it in a release note rather than pointing at it.** When a decision
-    turns on what a source page says, copy the sentence or the field list into
-    the note. Nobody reading the public repository can open the folder.
+- **Local-only material.** Anything git-ignored on the dev Mac stays out of
+  the repository, which is public. Never commit it (`git add -f` included),
+  build no dependency on it, and when a decision relied on it, record the facts
+  in the release note rather than pointing at a file nobody else can open.
 
 ## 3. Language — settled, not reopenable
 

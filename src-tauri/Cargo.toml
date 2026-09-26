@@ -1,7 +1,7 @@
 [package]
 name = "teacher-planner"
 version = "1.0.1"
-description = "Ατζέντα Εκπαιδευτικού — teacher planner"
+description = "Ημερολόγιο Εκπαιδευτικού — teacher planner"
 authors = ["Teacher Planner"]
 edition = "2021"
 rust-version = "1.77"

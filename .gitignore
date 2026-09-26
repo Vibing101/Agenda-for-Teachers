@@ -7,8 +7,7 @@ src-tauri/gen/
 data/
 exports/
 
-# The original product package. Local to the development Mac, never committed:
-# it is a third party's work, and the repository is public. See README.
+# Local-only material on the development Mac. Never committed.
 /reference/
 
 .DS_Store
