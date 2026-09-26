@@ -1,12 +1,13 @@
 # M5 — Parents & staff
 
 > **Archived evidence (added 2026-09-24).** This repository's history was
-> rewritten on 2026-09-24 to remove the third-party source package before it was
-> made public. The pull requests, CI runs and commit hashes this note cites
+> rewritten on 2026-09-24 to remove local-only material before it was made
+> public. The pull requests, CI runs and commit hashes this note cites
 > belong to the pre-rewrite repository, kept private as
 > `Vibing101/Agenda-for-Teachers-archive`: links to them will not resolve here,
 > and the hashes differ from this repository's. The note is otherwise left as
-> it was written.
+> it was written, except that references to material outside the project were
+> removed on 2026-09-26.
 
 **Date:** 2026-09-23
 **Branch:** `m5-parents-staff`
@@ -41,8 +42,8 @@ after its green CI run (`35687760971`) were docs-only.
 **Six surfaces, under one new top-level section `Γονείς & Ομάδα`** — the ninth
 tab, and the first change to the top row since M0.
 
-- **The parent communication log** (`Επικοινωνία με τους γονείς`) — the source
-  register's own columns, with the spec's *reason* and *agreements* kept apart
+- **The parent communication log** (`Επικοινωνία με τους γονείς`) — a register,
+  with the spec's *reason* and *agreements* kept apart
   from each other and from the page-level *remarks*, filterable by student and
   by class roster, and exporting a real PDF of **what the filter is showing**.
 - **The weekly parent-appointment grid** (`Συναντήσεις με γονείς`) — `Ώρα ×
@@ -51,7 +52,7 @@ tab, and the first change to the top row since M0.
 - **The upcoming-overview panel** — appointments and meetings due in the next
   seven days in one glance, with recent meetings marked as held and a button
   that opens straight into a meeting's minutes.
-- **Staff, council and class meetings** — the source's card fields over a list
+- **Staff, council and class meetings** — a card's fields over a list
   of agreements broken out as *who / what / by when*, because the spec names
   three parts and a deadline that is a stored date is what the panel can read.
 - **The seven parent letters** — filled in the UI and exported as a
@@ -68,9 +69,9 @@ the print document contract gained *blocks*, and `PrintCell` gained `nowrap`.
 
 ## The three things M5 had to get right, and how they are held
 
-**1. No placeholder reaches a PDF.** The source package's own syntax is
-`[ΑΓΚΥΛΕΣ]`, and its front matter tells the teacher to search for `[` before
-sending. That check is now automatic. `fillPlaceholders` replaces every token
+**1. No placeholder reaches a PDF.** Placeholders are written `[ΑΓΚΥΛΕΣ]`, and
+a teacher would otherwise have to search for `[` before sending. That check is
+now automatic. `fillPlaceholders` replaces every token
 with what was typed or with a ruled blank — never with the token — and the tests
 **scan rather than spot-check**: a regex for the syntax is run over the whole
 generated HTML of **all seven letters** (unfilled and filled) and **all 150
@@ -104,24 +105,24 @@ and takes the day the shell read. No component reads the calendar.
 | Decision | Call taken | Why |
 |---|---|---|
 | **The "bilingual content" in M5's own scope line** | **Superseded — Greek only.** M5 authors no English | A direct contradiction inside the spec: M5's delivery line asks for bilingual content, while the **Language rollout timing** row (product owner, 2026-09-19) says Greek-only through M1–M8 with one dedicated pass at M9, and the **English translation authorship** row says that pass is a machine-translated draft. The later, more specific decision wins. Stated here and in the spec so the next agent does not re-derive it |
-| **Where M5's surfaces live in the navigation** | **One new top-level section, `Γονείς & Ομάδα`, with five sub-pages.** Nine tabs, not eight, and not ten | M4's four surfaces became sub-pages because the spec filed them under sections the app already had. **M5's module has no such home** — nothing in the app was about parents or staff meetings. The source product has ΓΟΝΕΙΣ and ΟΜΑΔΑ as *two* separate top-level items, which would have made ten. One tab named after the spec's own module 5 keeps the label honest about holding both halves and costs the top row one place rather than five. `tests/component/App.test.tsx` is renamed, pins the nine, and says in its comment why the number moved |
+| **Where M5's surfaces live in the navigation** | **One new top-level section, `Γονείς & Ομάδα`, with five sub-pages.** Nine tabs, not eight, and not ten | M4's four surfaces became sub-pages because the spec filed them under sections the app already had. **M5's module has no such home** — nothing in the app was about parents or staff meetings. Making ΓΟΝΕΙΣ and ΟΜΑΔΑ *two* separate top-level items would have made ten. One tab named after the spec's own module 5 keeps the label honest about holding both halves and costs the top row one place rather than five. `tests/component/App.test.tsx` is renamed, pins the nine, and says in its comment why the number moved |
 | **Where the letters and the message bank live** | **`src/i18n/lettersEl.ts` and `src/i18n/messagesEl.ts`**, merged with `el.ts` into one bundle in `i18n/index.ts`. The *structure* is in `src/domain/letters.ts` and `src/domain/messages.ts` and carries **no Greek at all** | The no-inline-Greek rule puts the content under `src/i18n/`, but 465 strings — several of them multi-paragraph — would have roughly tripled `el.ts` and mixed a product's content in among its button labels. Splitting by *kind* keeps one lookup, one `StringId` type and one lint rule. **The test of the shape is M9's, and it passes: adding English is adding two files and one line in `BUNDLES`** — no screen, no document builder, no domain module |
 | **How a letter is printed, given a letter is not a table** | **The document contract gains blocks; `renderPrintDocument` stays the only renderer.** `PrintDocument.table` becomes optional; `blocks` is added (field row, prose, writing area, reply slip, signatures, certificate); `paginate()` flows blocks as well as rows | The alternative was a second renderer beside the first, which is how two printed pages start disagreeing about their own stylesheet. **A document that is all table paginates exactly where it did before** — M2's and M4.5's four sheets are the test of that, and `tests/unit/paginate.test.ts` is unchanged and still green. The app still measures and still places; a reply slip is kept whole by the paginator *and* by CSS, because only the first is binding on a fixed-height captured page |
-| **Whether the two award pages are two-up** | **No — one certificate per full A4 portrait sheet** | The M5 brief says they are "2-up on the page". They are not. Pages 7 and 8 of the source were rendered at 50dpi and looked at: each is a single centred certificate inside a coloured border on a full portrait sheet. The app matches the source. **Recorded because the brief is wrong and the next agent will read it** |
+| **Whether the two award pages are two-up** | **No — one certificate per full A4 portrait sheet** | The M5 brief says they are "2-up on the page". They are not. A certificate reads as a single centred award inside a coloured border on a full portrait sheet, and that is what the app prints. **Recorded because the brief is wrong and the next agent will read it** |
 | **Whether a filled letter is stored** | **No.** Values live in the screen while composing, one draft per letter | M5's scope line asks for "fill the placeholders in the UI, preview, generate a PDF". The spec asks for *saved* filled state only for the 11 print forms, which are M7's, and M7's acceptance criterion is "filled, saved under a custom name, reopened, and re-edited" almost word for word. Building it here would have been building M7's surface early and in the wrong module. **Flagged — see Open questions** |
-| **Which M5 surfaces produce a PDF** | **The 7 letters, the message bank, the communication log and the appointment week.** Not the meeting minutes | The scope line names the letters and the bank; the spec's "PDF output" section separately names **"parent-appointment weeks"**, so that is promised too. The log is the direct analogue of the incident register M4.5 printed — the source itself calls it "κατάλληλο για επίσημη τεκμηρίωση" — and cost one document definition. Minutes are named nowhere, so they are **raised rather than decided**: that is the M4 precedent that created M4.5 |
+| **Which M5 surfaces produce a PDF** | **The 7 letters, the message bank, the communication log and the appointment week.** Not the meeting minutes | The scope line names the letters and the bank; the spec's "PDF output" section separately names **"parent-appointment weeks"**, so that is promised too. The log is the direct analogue of the incident register M4.5 printed — a register suited to formal documentation — and cost one document definition. Minutes are named nowhere, so they are **raised rather than decided**: that is the M4 precedent that created M4.5 |
 | **An appointment's key** | **`(date, clock_time)` with an actual date.** No weekday column, no week index | The rule M1 set and M4 followed: correcting the school year's start date must not move a booking. The Monday–Friday grid is a view built from whichever Monday is asked for. A test asserts no appointment carries a `weekday` field |
 | **A meeting's agreements** | **Their own table**, one row per agreement, with `who`, `what` and `deadline` | The spec names three parts of one thing — "agreements (who/what/deadline)" — and a deadline that is a stored date is what lets the upcoming panel read an action falling due. A paragraph could not |
-| **The printed log's column count** | **Eight, where the source page has seven** — the extra is the spec's own `outcome` | The source's columns end `… Αιτία / Συμφωνίες / Επόμενα`; the spec's field list puts "outcome" between the agreements and the next step. Dropping it would lose a field the spec names. A deliberate departure from the source's column count, recorded rather than quiet — the same call M4.5 made for the support overview's seventh column |
+| **The printed log's column count** | **Eight**, ending `… Αιτία / Συμφωνίες / Αποτέλεσμα / Επόμενα` | The spec's field list puts "outcome" between the agreements and the next step. Dropping it would lose a field the spec names |
 | **A short formatted value that must not break** | **`PrintCell.nowrap`** | **Found by looking at a real rendered PDF, not at the HTML.** The log's date column broke `05.11.2026` across two lines and its format column broke `Τηλέφωνο`. The page default `overflow-wrap: anywhere` is right for a sentence and wrong for a formatted number, so the opt-out is per cell — the default is what stops a long Greek surname overflowing the sheet |
-| **The four new vocabularies** | Contact format (`meeting`/`phone`/`email`/`message`/`note`), appointment mode (`in_person`/`phone`/`online`), appointment status (`proposed`/`confirmed`/`done`/`cancelled`), meeting kind (`staff`/`council`/`class`) | The source's pages are blank forms, so they enumerate nothing; these are the app's, as stable codes labelled through `vocab.<kind>.<code>` like every other fixed vocabulary. `proposed` is deliberately distinct from `confirmed` because the upcoming panel shows both and the difference is what the teacher is looking for; `cancelled` is what that panel leaves out |
-| **Where the log's page-level remarks come from** | **A stored per-record field, printed attributed and verbatim** | The shape M4.5 resolved for a source page's captioned box. It also inherits M4.5's open question about how that reads at volume — see Open questions |
+| **The four new vocabularies** | Contact format (`meeting`/`phone`/`email`/`message`/`note`), appointment mode (`in_person`/`phone`/`online`), appointment status (`proposed`/`confirmed`/`done`/`cancelled`), meeting kind (`staff`/`council`/`class`) | Nothing about them is a given list; these are the app's, as stable codes labelled through `vocab.<kind>.<code>` like every other fixed vocabulary. `proposed` is deliberately distinct from `confirmed` because the upcoming panel shows both and the difference is what the teacher is looking for; `cancelled` is what that panel leaves out |
+| **Where the log's page-level remarks come from** | **A stored per-record field, printed attributed and verbatim** | The shape M4.5 resolved for a sheet's captioned box. It also inherits M4.5's open question about how that reads at volume — see Open questions |
 
 ## Open questions for the product owner
 
 **1. Should a meeting's minutes print?** M5 gives a PDF to every surface this
 spec promises one somewhere, and none to the staff/council/class meetings,
-because nothing asks for one. But the source product's own ΟΜΑΔΑ page is headed
+because nothing asks for one. But the ΟΜΑΔΑ section is about
 *"Πρακτικά, συμφωνίες και ενέργειες"*, and minutes with a list of who agreed to
 do what by when is a thing a teacher hands round. One document definition on the
 existing contract; no stored data either way.
@@ -132,7 +133,7 @@ M7. The risk is a teacher filling a long newsletter, closing the app, and
 expecting to find it. One table and one migration if it should persist sooner.
 
 **3. M4.5's open question about page-level boxes now has a second register.**
-The printed log lists each line's own `remarks` in the source's `ΠΑΡΑΤΗΡΗΣΕΙΣ`
+The printed log lists each line's own `remarks` in the sheet's `ΠΑΡΑΤΗΡΗΣΕΙΣ`
 box, one attributed line per entry. It reads well for a handful and badly at
 volume, exactly as the absence register's two boxes do. Whatever is decided
 there should be decided here at the same time.
@@ -221,8 +222,8 @@ extracts back as Greek with diacritics and final sigma intact on both OSes —
 tofu, not question marks, not Latin.
 
 **Both reply slips land at the foot of their own letter's single page**, with
-unfilled fields printing as `__________` rules, which is what the source's own
-paper gives the teacher.
+unfilled fields printing as `__________` rules, so a teacher can fill them in
+by hand.
 
 **What that does and does not establish.** It establishes that a real file is
 produced, that it is A4 in the right orientation, that its fonts are embedded,

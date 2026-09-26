@@ -111,7 +111,7 @@ jobs:
         run: |
           set -euo pipefail
           SRC="src-tauri/target/universal-apple-darwin/release/bundle/macos/Teacher Planner.app"
-          DIR="$RUNNER_TEMP/My Drive/Ατζέντα Εκπαιδευτικού"
+          DIR="$RUNNER_TEMP/My Drive/Ημερολόγιο Εκπαιδευτικού"
           mkdir -p "$DIR"
           cp -R "$SRC" "$DIR/"
           "$DIR/Teacher Planner.app/Contents/MacOS/teacher-planner" &
@@ -140,7 +140,7 @@ jobs:
 
       # The closest CI can get to gate step 5 on Windows: launch the real binary
       # from a path shaped like the user's own — Greek characters, spaces, deep
-      # nesting, mirroring "My Drive\Ατζέντα Εκπαιδευτικού". Unicode path handling
+      # nesting, mirroring "My Drive\Ημερολόγιο Εκπαιδευτικού". Unicode path handling
       # is a classic Windows-only break.
       #
       # This runs WITHOUT a Mark-of-the-Web tag. The tagged case is recorded
@@ -151,7 +151,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $dir = Join-Path $env:RUNNER_TEMP "My Drive\Ατζέντα Εκπαιδευτικού"
+          $dir = Join-Path $env:RUNNER_TEMP "My Drive\Ημερολόγιο Εκπαιδευτικού"
           New-Item -ItemType Directory -Force -Path $dir | Out-Null
           $exe = Join-Path $dir "Teacher Planner.exe"
           Copy-Item "src-tauri/target/release/teacher-planner.exe" $exe
@@ -178,7 +178,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $dir = Join-Path $env:RUNNER_TEMP "My Drive\Ατζέντα Εκπαιδευτικού"
+          $dir = Join-Path $env:RUNNER_TEMP "My Drive\Ημερολόγιο Εκπαιδευτικού"
           $exe = Join-Path $dir "Teacher Planner.exe"
           $proc = Start-Process -FilePath $exe -PassThru
           Start-Sleep -Seconds 10
@@ -228,7 +228,7 @@ jobs:
           }
 
           Write-Host "Observed on this runner: tagged build launched via Start-Process = $launched"
-          Write-Host "::warning::Informational only. This does NOT tell you whether SmartScreen would stop the teacher — only a real Explorer double-click on a desktop machine does, and that is gate step 5. Windows code signing remains an open decision; see Carried risks in docs/REBUILD_SPEC.md."
+          Write-Host "::warning::Informational only. This does NOT tell you whether SmartScreen would stop the teacher — only a real Explorer double-click on a desktop machine does, and that is gate step 5. Windows code signing remains an open decision; see Carried risks in docs/SPEC.md."
 
       # M10: the plain teacher-planner.exe too, not only the installer. The
       # teacher runs the exe from her synced folder (the app keeps its data

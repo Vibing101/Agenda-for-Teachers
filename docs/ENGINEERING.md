@@ -6,9 +6,8 @@
 /
 ├─ src-tauri/          ← Rust backend: file I/O, SQLite, backup job, PDF trigger
 ├─ src/                 ← frontend (framework choice left to the implementing agent; keep it boring)
-├─ reference/            ← LOCAL ONLY, git-ignored: third-party source material on the dev Mac, read-only, never committed, and nothing may depend on it (see README)
 ├─ docs/
-│   ├─ REBUILD_SPEC.md      ← the functional/architecture spec, kept in sync
+│   ├─ SPEC.md      ← the functional/architecture spec, kept in sync
 │   ├─ ENGINEERING.md       ← this document
 │   ├─ MILESTONE_PROMPT.md  ← the standing brief every milestone prompt starts from
 │   ├─ WINDOWS_VM.md        ← standing up a Windows 11 VM on the dev Mac for gate step 5
@@ -69,7 +68,7 @@ A milestone is "done" only when its specific acceptance criteria (below) are met
 Each milestone's generic gate (above) still applies; these are what's specific to that milestone's own content.
 
 **This file is the single home for the process and these criteria.**
-`REBUILD_SPEC.md` used to carry a second copy of both, and the two drifted:
+`SPEC.md` used to carry a second copy of both, and the two drifted:
 M4.5 inserted itself into the roadmap and added its criteria to the spec's copy
 only, so this file — the one every release note cites for its gate results —
 was missing a whole milestone's criteria for two milestones. The spec now points
@@ -127,7 +126,7 @@ here instead of repeating it.
 
 **M9 — Bilingual pass & polish**
 - Every UI string, all 7 letters, and all 150 messages have both a Greek and an English version; switching the language toggle changes all of them, with no string left showing a placeholder or the wrong language.
-- A side-by-side check of at least 3 PDF outputs against the source product's equivalent page confirms acceptable layout fidelity (page size, general structure, Greek rendering) — a judgment call for the product owner to sign off on, not an automated check.
+- A check of at least 3 PDF outputs confirms acceptable layout fidelity (page size, general structure, Greek rendering) — a judgment call for the product owner to sign off on, not an automated check.
 - The real two-device test passes: write data on a simulated "device 1", let a real cloud-sync client (Drive or OneDrive) finish syncing, launch on "device 2", confirm the data is there and correct.
 
 **M10 — Handover readiness**

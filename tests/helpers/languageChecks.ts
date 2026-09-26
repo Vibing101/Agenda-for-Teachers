@@ -23,8 +23,8 @@ export function teacherStrings(planner: Planner): string[] {
   };
   walk(planner);
   // The fake backend's folder path is the teacher's folder name, not a label.
-  out.add("/Drive/Ατζέντα/data/planner.sqlite");
-  out.add("/Drive/Ατζέντα");
+  out.add("/Drive/Ημερολόγιο/data/planner.sqlite");
+  out.add("/Drive/Ημερολόγιο");
   // The toggle names Greek in Greek, on purpose.
   out.add("Ελληνικά");
   return [...out].sort((a, b) => b.length - a.length);

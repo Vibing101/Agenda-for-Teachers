@@ -1,4 +1,4 @@
-//! Ατζέντα Εκπαιδευτικού — the Rust half of the app.
+//! Ημερολόγιο Εκπαιδευτικού — the Rust half of the app.
 //!
 //! M0 laid the foundation: packaging, file I/O, backups and the
 //! changed-on-disk guard, all proven from inside a cloud-synced folder.

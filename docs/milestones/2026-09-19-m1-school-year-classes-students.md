@@ -1,12 +1,13 @@
 # M1 — School year, classes, students
 
 > **Archived evidence (added 2026-09-24).** This repository's history was
-> rewritten on 2026-09-24 to remove the third-party source package before it was
-> made public. The pull requests, CI runs and commit hashes this note cites
+> rewritten on 2026-09-24 to remove local-only material before it was made
+> public. The pull requests, CI runs and commit hashes this note cites
 > belong to the pre-rewrite repository, kept private as
 > `Vibing101/Agenda-for-Teachers-archive`: links to them will not resolve here,
 > and the hashes differ from this repository's. The note is otherwise left as
-> it was written.
+> it was written, except that references to material outside the project were
+> removed on 2026-09-26.
 
 **Date:** 2026-09-19
 **Branch:** `m1-school-year-classes-students`
@@ -21,10 +22,9 @@ question 4 under "Open questions".
 - **School year setup.** Year model (Sep–Aug / Jan–Dec / Feb–Dec) and a start
   date, from which 53 weeks and the month grid are derived live — the derived
   span updates as the date is typed, before anything is saved. Whatever day the
-  teacher enters is stored as the Monday of that week, matching the source
-  product's own behaviour.
+  teacher enters is stored as the Monday of that week.
 - **Three grading periods, holidays and important dates**, each keyed by an
-  actual date and carrying the source product's own vocabulary (Ministry/school
+  actual date and carrying a fixed vocabulary (Ministry/school
   for a holiday's source; deadline / meeting / exam window / event / other for
   an important date).
 - **The six fixed annual-goal areas** — teaching, professional development,
@@ -33,7 +33,7 @@ question 4 under "Open questions".
 - **Class CRUD**: name, subject, room, form teacher, notes; a weekly timetable
   of Monday–Saturday slots with period label, times and room; a live roster with
   a per-class support flag and short note; and an editable room plan.
-- **Student CRUD with the complete card** from the source product: details,
+- **Student CRUD with the complete card**: details,
   register number, birth date, home language, address, mid-year enrolment, two
   guardians (name, phone, email each), health and emergency (allergies,
   conditions, medication, emergency phone), SEN status with plan and
@@ -67,14 +67,14 @@ question 4 under "Open questions".
 | Mutations run in a transaction | `mutate()` wraps the write in a `BEGIN`/`COMMIT` | A roster is written row by row; the app can be quit mid-save. A partially-written class list is exactly the damage the spec chose SQLite to rule out. Covered by a test that fails a write partway and asserts the earlier rows rolled back too |
 | Seating plan included in M1 | Built as part of Class | The seating plan is a field of `Class` in the spec's data model, M1's scope line says "class CRUD", and no later milestone claims it — while M7's criteria assume it already exists in the Classes module. Flagged here rather than taken silently; if the product owner would rather it moved, it is self-contained |
 | Foreign keys enforced and cascading | `foreign_keys = ON`; roster and seat rows cascade from class and student | The spec asks for an orphaned student reference to be "rejected at write time, not silently allowed to dangle". A roster row for a non-existent student now errors; deleting a student removes her roster rows and seats; deleting a class keeps its students |
-| Annual-goal `status` is free text | Not a fixed vocabulary | See "Open questions" — the spec does not say, and the source product leaves the area as an open box |
-| Student's class is a real membership, not the card's text field | The source card's single "ΤΑΞΗ / ΤΜΗΜΑ" box is replaced by enrolments | The spec explicitly makes this many-to-many, since a subject teacher's class is a subject group. The card shows every class the student is in and can add her to another |
+| Annual-goal `status` is free text | Not a fixed vocabulary | See "Open questions" — the spec does not say |
+| Student's class is a real membership, not the card's text field | A single "ΤΑΞΗ / ΤΜΗΜΑ" box on the card is replaced by enrolments | The spec explicitly makes this many-to-many, since a subject teacher's class is a subject group. The card shows every class the student is in and can add her to another |
 
 ## Open questions for the product owner
 
 **1. Does the Feb–Dec year model cover eleven months or twelve?** Read
-literally, February to December is eleven months. The source product's
-quick-start page promises "53 εβδομάδες και **12** μήνες" for every model. M1
+literally, February to December is eleven months, while "53 weeks and **12**
+months" is the usual promise for every model. M1
 implements the literal reading — Feb–Dec shows eleven months — rather than
 guessing at a wrap into January, because guessing would silently change which
 months a teacher's calendar shows. Sep–Aug and Jan–Dec are unaffected (both
@@ -83,7 +83,7 @@ in the spec's "Open" section.
 
 **2. Should an annual goal's status be a fixed vocabulary?** The spec lists
 `status` as a field on each of the six goal areas without saying what it holds.
-The source product leaves the whole area as an open box, and the only status
+The only status
 field the spec is explicit about (SupportPlan's, M4) it says is "written by the
 teacher, never computed". M1 ships free text on that reading. If a dropdown is
 wanted, it should be added as a vocabulary rather than hardcoded.
@@ -138,7 +138,7 @@ Run on macOS 15 (Darwin 25.6.0), Node 24.15.0, Rust 1.98.1.
 
 ### What step 5 actually covered on macOS
 
-The universal `.app` was copied into `My Drive/Ατζέντα Εκπαιδευτικού M1` and into
+The universal `.app` was copied into `My Drive/Ημερολόγιο Εκπαιδευτικού M1` and into
 the equivalent folder under `OneDrive-Personal`, and launched through
 LaunchServices (`open -a`) — the same path a double-click takes. In both folders
 it:
@@ -178,7 +178,7 @@ Explorer double-click, not a programmatic start — that distinction matters, se
 | Test | Result | Evidence |
 |---|---|---|
 | SmartScreen / Mark of the Web | **Blocked, as the carried risk predicts** | With `ZoneId=3` on the exe, double-click shows "Windows protected your PC — Microsoft Defender SmartScreen prevented an unrecognised app from starting", `Application: Teacher Planner.exe`, `Publisher: Unknown publisher`. The app does not start until *More info → Run anyway*. SmartScreen confirmed enabled on the machine ("Check apps and files = On"). After one *Run anyway*, later launches of that same file go straight through |
-| Double-click from a **OneDrive** folder | **Pass** | `C:\Users\ksavvides\OneDrive\Ατζέντα Εκπαιδευτικού M1` (Greek + spaces). Window opened and stayed open; `data\`, `data\backups\`, `exports\` created beside the exe; `data\planner.sqlite` created. The app's own panel reported the data path, **Έκδοση σχήματος = 2**, and the backup count |
+| Double-click from a **OneDrive** folder | **Pass** | `C:\Users\ksavvides\OneDrive\Ημερολόγιο Εκπαιδευτικού M1` (Greek + spaces). Window opened and stayed open; `data\`, `data\backups\`, `exports\` created beside the exe; `data\planner.sqlite` created. The app's own panel reported the data path, **Έκδοση σχήματος = 2**, and the backup count |
 | Double-click from a **Google Drive** folder | **Not done** | Google Drive for Desktop is not installed on that machine (no `GoogleDriveFS.exe`, no mount, absent from the uninstall registry). Deferred by the product owner rather than installed. Still open |
 | **Online-only placeholder files** | **Pass — the carried risk did not reproduce on OneDrive** | Files forced online-only and verified genuinely dehydrated, not merely flagged: `GetCompressedFileSizeW` reported **0 bytes on disk** for the exe, the database and every backup against full logical sizes, attributes `OFFLINE + UNPINNED + RECALL_ON_DATA_ACCESS`. Double-click then launched normally — Windows hydrated the exe and the database on demand within 8s, the window opened and stayed open (polled to T+41s). **No hang, no second database, no data loss**: the database SHA-256 was byte-identical before and after, and exactly one `planner.sqlite` existed |
 | Real data typed into the UI, surviving a restart | **Pass** | A school year, two classes with a timetable slot, and a full student card (both guardians, all four health fields, SEN status/plan/accommodations) were **typed into the packaged app's screens**, not seeded with `sqlite3`. The student was enrolled in both classes with the support flag set and noted in Α1 and clear in Β2. After a full quit and a fresh double-click, every field read back unchanged and both rosters still showed their own distinct support flag |

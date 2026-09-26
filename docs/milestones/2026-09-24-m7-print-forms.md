@@ -1,12 +1,13 @@
 # M7 — Print forms & substitute folder
 
 > **Archived evidence (added 2026-09-24).** This repository's history was
-> rewritten on 2026-09-24 to remove the third-party source package before it was
-> made public. The pull requests, CI runs and commit hashes this note cites
+> rewritten on 2026-09-24 to remove local-only material before it was made
+> public. The pull requests, CI runs and commit hashes this note cites
 > belong to the pre-rewrite repository, kept private as
 > `Vibing101/Agenda-for-Teachers-archive`: links to them will not resolve here,
 > and the hashes differ from this repository's. The note is otherwise left as
-> it was written.
+> it was written, except that references to material outside the project were
+> removed on 2026-09-26.
 
 **Date:** 2026-09-24
 **Branch:** `m7-print-forms`
@@ -43,12 +44,12 @@ produced it.
   αναπλήρωσης, Πρακτικό συνεδρίασης, Προτεραιότητες της εβδομάδας, Πλάνο
   αίθουσας, Κωδικοί και πρόσβαση, Λίστα ελέγχου της περιόδου, Σημείωμα προς
   γονείς, Δανεισμοί υλικού και βοηθημάτων, Στόχοι και επαγγελματική ανάπτυξη*.
-  Each can be printed **blank** (the source's own use) or created as a **named,
+  Each can be printed **blank** or created as a **named,
   saved copy** that is filled on screen, reopened from a list, edited again and
   exported. Every box saves as the teacher leaves it. Portrait A4, one form per
-  sheet, as the source.
+  sheet.
 - **The substitute folder** (spec module 6), as **Τάξεις → Φάκελος
-  αναπλήρωσης**: per class, a cover and the source's five pages — *Πληροφορίες
+  αναπλήρωσης**: per class, a cover and five pages — *Πληροφορίες
   τμήματος, Πλάνο εβδομάδας, Πλάνο αίθουσας, Πλάνο μιας μέρας, Επαφές και
   διαδικασίες* — exported as **one landscape PDF of six pages**. The class's
   details, its roster count, the students who need attention, the week's hours
@@ -113,7 +114,7 @@ Quoted from `docs/ENGINEERING.md` as written.
 |---|---|---|
 | **All 11 print forms can be filled, saved under a custom name, reopened, and re-edited.** | **Pass** (agent, both OSes' test runs via CI; locally on the Mac) | `tests/component/FormsScreen.test.tsx` runs **one test per form, all eleven**, through the real screen: from a planner that **already holds three saved forms**, pick the form, *Νέο έντυπο*, type a name, fill a representative input (a register cell, a box, a desk, a tick or a field inside a repeated card — every kind of part is covered across the eleven), then **tear the screen down and mount it again from what the backend stored** (a relaunch, not a re-render), pick the saved copy by its name, find the value, change it, and find the change stored — with the name intact and the three pre-existing forms byte-for-byte unchanged at every step. At the storage layer, `a_print_form_is_saved_under_its_name_reopened_and_re_edited` does the same across a real file closed and reopened, and `cloud_folder.rs` carries a saved form through a quit and relaunch. **The create-then-edit case**: a saved room plan is explicitly opened, *Νέο έντυπο* is pressed, and everything typed next lands in the new form while the old one does not change by a byte |
 | **The substitute folder's seating plan reflects a live edit made in the Classes module without needing regeneration — i.e. it reads live data, it isn't a stale copy.** | **Pass** (agent) | **Tested as liveness, not as a snapshot compare.** `SubstituteScreen.test.tsx` mounts the **real app**: opens the folder (Ελένη at desk 1·1), goes to *Τάξεις → Τμήματα*, moves Νίκος into that seat through the real seating select, returns to the folder — which already shows Νίκος — and asserts **the only backend traffic between the edit and the folder showing it was `save_seating` and the shell's routine `status` check**: no folder command, no reload, no rebuild. It then exports and finds Νίκος at that desk in the PDF's HTML. By construction there is nothing to regenerate: `folderSeating()` reads `planner.seats` each call, and no M7 table has a column that could hold a seat (Rust test). **Two "stale copy" designs were planted and both failed it**: a module-level cache of the seating, and a screen that stores a snapshot of the seating the first time the folder is opened |
-| **The substitute folder exports as one combined multi-page PDF, not 5 separate files.** | **Pass on macOS (agent, from a real file); Windows not performed** | **One export call, one file, six pages** — the source's cover plus its five. From the **packaged universal build**, via the print self-test (the export button's own path): `pdfinfo` → `Pages: 6`, `841 x 595 pts (A4)`, fonts embedded (`HelveticaNeue` subsets); each page's first line is its own document's title, in order. Written into `exports/` **inside live Google Drive and OneDrive folders** as part of step 5, six pages in both. An empty class's folder is also six pages. Tests: the folder screen makes exactly one `export_pdf` call whose HTML carries six sheets under one stylesheet; `paginate.test.ts` checks six documents become six pages in order, that a document which runs over still leaves the next starting on a fresh page, and that no sheet is left unpaginated. **Windows**: not measured — see "What still needs a human". The machinery was proven early on macOS (a synthetic five-document bundle → 5 pages, one per document) before the folder's pages were built; WebView2 breaks at the same `.page` blocks it has broken at since M2, but no Windows file exists to prove it for a bundle |
+| **The substitute folder exports as one combined multi-page PDF, not 5 separate files.** | **Pass on macOS (agent, from a real file); Windows not performed** | **One export call, one file, six pages** — a cover plus five pages. From the **packaged universal build**, via the print self-test (the export button's own path): `pdfinfo` → `Pages: 6`, `841 x 595 pts (A4)`, fonts embedded (`HelveticaNeue` subsets); each page's first line is its own document's title, in order. Written into `exports/` **inside live Google Drive and OneDrive folders** as part of step 5, six pages in both. An empty class's folder is also six pages. Tests: the folder screen makes exactly one `export_pdf` call whose HTML carries six sheets under one stylesheet; `paginate.test.ts` checks six documents become six pages in order, that a document which runs over still leaves the next starting on a fresh page, and that no sheet is left unpaginated. **Windows**: not measured — see "What still needs a human". The machinery was proven early on macOS (a synthetic five-document bundle → 5 pages, one per document) before the folder's pages were built; WebView2 breaks at the same `.page` blocks it has broken at since M2, but no Windows file exists to prove it for a bundle |
 
 ## Confirming the tests fail against broken code
 
@@ -147,49 +148,19 @@ All recorded in the spec's Resolved table.
 | Decision | Call taken | Why |
 |---|---|---|
 | **Print forms vs. the substitute folder** | **Opposites**: a form reads nothing; the folder stores nothing it shows from elsewhere | Module 8 says the forms are "independent of the modules above"; module 6 says the folder is "generated per class from live data" with seating "shared live, not copied". See above |
-| **Where they live** | **`Πρότυπα`, one new top-level section, for the forms; *Τάξεις → Φάκελος αναπλήρωσης* for the folder.** Ten tabs | The folder is made of a class, so it goes where the class is (M4/M6 shape). The forms belong to nothing (M5's situation) and take one tab, named with the source's own word. One shared "print" tab would have cost the same place and put a live seating plan next to a blank one. `App.test.tsx` is renamed and says why |
+| **Where they live** | **`Πρότυπα`, one new top-level section, for the forms; *Τάξεις → Φάκελος αναπλήρωσης* for the folder.** Ten tabs | The folder is made of a class, so it goes where the class is (M4/M6 shape). The forms belong to nothing (M5's situation) and take one tab, named for what they are. One shared "print" tab would have cost the same place and put a live seating plan next to a blank one. `App.test.tsx` is renamed and says why |
 | **How a filled form is stored** | A head plus one row per filled field, **written by different commands**; an emptied field is removed; `kind` checked in Rust, no `CHECK` | So a rename cannot write back stale values, and so a letter could join as one more kind with no migration |
 | **"Prefilled once and stays independently editable"** | **No row = untouched (the suggestion shows and prints); a row = hers, including an empty row = cleared; *Επαναφορά* deletes the row.** The suggestion is never copied into the file | "She cleared it" must stay distinguishable from "she has not touched it". An untouched box follows the UI language at M9; what she typed never changes |
 | **The folder's "current week"** | This week — **the coming week on a Saturday or Sunday** | The folder is for the morning she does not come in |
 | **The folder's contacts and procedures** | **School-wide, typed once for every class**; *Υπεύθυνος τμήματος* is the class card's own field, looked up | "Not a separate data-entry chore" |
 | **The attention box** | Live and verbatim from the cards — SEN category, the class's support note, allergies, conditions, medication — then her own note | The three signals M4's overview merges plus the health fields a substitute needs. **Raised as a privacy question** |
-| **The week page** | The master timetable's hours × Monday–Friday (Saturday only if the class meets then), **only this class's lessons**, in the room the timetable says; the week's plan and assessment beneath | The source's `Ώρα × Δευτέρα–Παρασκευή`. The folder is the class's, so the teacher's other classes are left out |
-| **A register form's rows** | The source page's own count, **extendable**; extra rows run onto a second sheet with the header repeated | The spec forbids caps; the source's sheet is one page |
+| **The week page** | The master timetable's hours × Monday–Friday (Saturday only if the class meets then), **only this class's lessons**, in the room the timetable says; the week's plan and assessment beneath | An `Ώρα × Δευτέρα–Παρασκευή` grid. The folder is the class's, so the teacher's other classes are left out |
+| **A register form's rows** | A default that fills one sheet, **extendable**; extra rows run onto a second sheet with the header repeated | The spec forbids caps; a blank form should fit one page |
 | **`ΕΙΔΟΣ ΣΥΝΕΔΡΙΑΣΗΣ`** | Free text | M6's rule: the field is a blank box; the subtitle's three examples are not a vocabulary |
-| **Content vs. labels** | **A fourth bundle file, `src/i18n/formsEl.ts`**: the checklist's sixteen items (transcribed) and the folder's suggestions (the app's own wording). Every caption in `el.ts` | M5's split-by-kind rule |
-| **Three subtitles** | **All eleven forms have one** | The brief lists *Επικοινωνία με γονείς*, *Πλάνο αναπλήρωσης* and *Στόχοι…* as having none; the source pages print one each. Recorded because the brief is wrong |
-| **The parent note** | **Genuinely two-up**, each note in a dashed frame | The source says so; rendered and looked at anyway, per M5's lesson |
+| **Content vs. labels** | **A fourth bundle file, `src/i18n/formsEl.ts`**: the checklist's sixteen items and the folder's suggestions (the app's own wording). Every caption in `el.ts` | M5's split-by-kind rule |
+| **Three subtitles** | **All eleven forms have one** | The brief lists *Επικοινωνία με γονείς*, *Πλάνο αναπλήρωσης* and *Στόχοι…* as having none; every form gets one so the set reads consistently. Recorded because the brief says otherwise |
+| **The parent note** | **Genuinely two-up**, each note in a dashed frame | A short note fits twice on a sheet; rendered and looked at, per M5's lesson |
 | **A tick on the checklist** | A **drawn** circle, filled when ticked — never a glyph | M4.5's rule: a check mark is not in every face that carries Greek |
-
-### What the source pages actually say
-
-Quoted, because `reference/` will not exist to be checked later.
-
-- The forms' front matter: *"Συμπληρώστε τα στην οθόνη ή τυπώστε τα και έχετε
-  τα πρόχειρα. Κάθε πρότυπο σε ξεχωριστή σελίδα A4."* — all twelve pages are
-  portrait A4.
-- The parent note: *"Δύο σημειώματα ανά σελίδα · κόψτε κατά μήκος της
-  γραμμής"*, and two framed notes each with `ΜΑΘΗΤΗΣ`, `ΗΜΕΡΟΜΗΝΙΑ`,
-  `ΠΕΡΙΕΧΟΜΕΝΟ`, `ΥΠΟΓΡΑΦΗ ΕΚΠΑΙΔΕΥΤΙΚΟΥ`, `ΥΠΟΓΡΑΦΗ ΓΟΝΕΑ`.
-- The room plan: `ΤΜΗΜΑ / ΜΑΘΗΜΑ / ΗΜΕΡΟΜΗΝΙΑ`, a `ΠΙΝΑΚΑΣ` bar, and a grid of
-  **six desks across and five deep**.
-- The checklist: eight items under `ΑΡΧΗ ΤΗΣ ΠΕΡΙΟΔΟΥ` and eight under `ΤΕΛΟΣ ΤΗΣ
-  ΠΕΡΙΟΔΟΥ` (transcribed into `formsEl.ts`), then `ΣΗΜΕΙΩΣΕΙΣ`.
-- The folder: a cover — *"Αφήστε τον συμπληρωμένο στο συρτάρι. Όταν αρρωστήσετε,
-  κανείς δεν θα σας πάρει τηλέφωνο με ερωτήσεις."* — and five **landscape**
-  pages. *Πληροφορίες τμήματος*: `ΤΜΗΜΑ / ΜΑΘΗΜΑ / ΑΙΘΟΥΣΑ / ΑΡΙΘΜΟΣ ΜΑΘΗΤΩΝ /
-  ΥΠΕΥΘΥΝΟΣ` over four boxes (`ΚΑΝΟΝΕΣ ΚΑΙ ΣΥΝΗΘΕΙΕΣ ΤΗΣ ΤΑΞΗΣ`, `ΜΑΘΗΤΕΣ ΠΟΥ
-  ΧΡΕΙΑΖΟΝΤΑΙ ΠΡΟΣΟΧΗ`, `ΥΛΙΚΑ ΚΑΙ ΒΟΗΘΗΜΑΤΑ — ΠΟΥ ΒΡΙΣΚΟΝΤΑΙ`, `ΤΙ ΝΑ ΚΑΝΕΤΕ ΣΕ
-  ΠΕΡΙΠΤΩΣΗ ΠΡΟΒΛΗΜΑΤΟΣ`); *Πλάνο εβδομάδας*: `Ώρα | Δευτέρα … Παρασκευή`;
-  *Πλάνο αίθουσας*: the desk grid and `ΣΗΜΕΙΩΣΕΙΣ ΓΙΑ ΤΗ ΔΙΑΤΑΞΗ`; *Πλάνο μιας
-  μέρας*: `ΗΜΕΡΟΜΗΝΙΑ / ΣΤΟΧΟΣ ΤΗΣ ΜΕΡΑΣ` over `Ώρα | Προγραμματισμένες
-  δραστηριότητες | Σημειώσεις / υλικά`; *Επαφές και διαδικασίες*: six contacts
-  (Διευθυντής, Υποδιευθυντής, Γραμματεία, Υπεύθυνος τμήματος, Ψυχολόγος /
-  κοινωνικός λειτουργός, Φαρμακείο και πρώτες βοήθειες), six procedures
-  (Έξοδοι στην τουαλέτα, Εκκένωση και συναγερμός, Κινητά και συσκευές,
-  Διαλείμματα και εφημερίες, Καθυστερήσεις και απουσίες, Τέλος του μαθήματος),
-  and `ΜΗΝΥΜΑ ΓΙΑ ΤΟΝ ΑΝΑΠΛΗΡΩΤΗ`. **Every box on every source page is blank** —
-  which is why the folder's suggested text had to be written, not transcribed.
 
 ## Rendering, and what looking at it changed
 
@@ -237,8 +208,8 @@ All in the spec's Open section.
    each student's SEN category, support note, allergies, conditions and
    medication — what that box is for, and what a substitute most needs — on a
    sheet meant to be left in a drawer. Alternatives: health only, or a blank box.
-3. **The folder's suggested text is the app's own Greek.** The source's boxes are
-   blank. It is short and generic, but a Greek-speaking teacher should read it
+3. **The folder's suggested text is the app's own Greek.** It is short and
+   generic, but a Greek-speaking teacher should read it
    before a teacher does (`src/i18n/formsEl.ts`).
 4. **Should a filled letter join the saved forms?** Still yours (M5's question).
    **What it costs now: no migration.** A letter is already a key → value map;

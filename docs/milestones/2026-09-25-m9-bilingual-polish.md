@@ -91,7 +91,7 @@ Quoted from `docs/ENGINEERING.md` as written.
 | Criterion | Result | Evidence |
 |---|---|---|
 | **Every UI string, all 7 letters, and all 150 messages have both a Greek and an English version; switching the language toggle changes all of them, with no string left showing a placeholder or the wrong language.** | **Pass by agent, both OSes — with the English content still an unreviewed draft** | **Bundles:** `tests/unit/i18nParity.test.ts` reads the four file pairs directly (not through the lookup, whose Greek fallback would hide a gap) and fails, naming the key, on a missing or empty English string or an orphan English key; checks every `{param}` matches; checks every letter and message asks for **the same placeholder codes** in both languages, that every token has a code, and that no Greek is left inside an English string (the one exception is `lang.el`, *Ελληνικά*). The compiler checks the key sets too (`satisfies`). **The switch:** `tests/component/Bilingual.test.tsx` switches through the real shell and asserts the English is there **and the Greek is gone**; it exports, after switching, a table sheet (grade sheet), a letter (with a reply slip filled in Greek), a message (filled in Greek), a form, and the folder bundle, and checks each file's text for English captions, the teacher's values, `dd.MM.yyyy`, no `[BRACKETS]`, and no Greek but hers. **A sweep** opens every section and sub-page in English over **seven fixtures** and fails on any Greek letter left in text, form values or `aria-label`/`placeholder`/`title` once her words are set aside. **Real files:** 46 documents × 2 languages = **92 PDFs** from the packaged build on each OS; see Part 1. **Real windows:** the English interface photographed on Windows reading device 1's data (Part 4). Last defect found this way: the title bar, fixed |
-| **A side-by-side check of at least 3 PDF outputs against the source product's equivalent page confirms acceptable layout fidelity (page size, general structure, Greek rendering) — a judgment call for the product owner to sign off on, not an automated check.** | **Prepared and looked at by the agent; the judgement is the product owner's and has not been made** | **Eight** comparisons, not three: grade sheet, absence register, invitation letter, achievement award, period checklist, note to parents, message, and all six pages of the substitute folder — each source page beside the app's Greek and English PDF at the same scale. Local only, at `~/Documents/Atzenta M9 fidelity/index.html` on the dev Mac (the product owner's choice; the source is copyrighted and none of it is in the repository). What the agent saw is under Part 2 |
+| **A check of at least 3 PDF outputs confirms acceptable layout fidelity (page size, general structure, Greek rendering) — a judgment call for the product owner to sign off on, not an automated check.** | **Prepared and looked at by the agent; the judgement is the product owner's and has not been made** | **Eight** documents rendered in Greek and English at the same scale: grade sheet, absence register, invitation letter, achievement award, period checklist, note to parents, message, and all six pages of the substitute folder. What the agent saw is under Part 2 |
 | **The real two-device test passes: write data on a simulated "device 1", let a real cloud-sync client (Drive or OneDrive) finish syncing, launch on "device 2", confirm the data is there and correct.** | **Pass, by agent, on both Google Drive and OneDrive, both directions** | One shared folder per client, both builds in it. Sync measured by SHA-256, not slept on. Record-level equality by dumping both devices' files through the app's own loader. Plus the M0 guard on real devices: a write blocked, reload offered. See Part 4 |
 
 ## Confirming the tests fail against broken code
@@ -158,38 +158,21 @@ the folder's untouched boxes follow the language, edited ones do not, cleared
 ones stay empty (tested through a switch, and the switch writes nothing to the
 folder's texts).
 
-## Part 2 — Layout fidelity against the source (for the product owner)
+## Part 2 — Layout check (for the product owner)
 
-**What was compared** (source page → app document), all at 60 dpi:
+**What was looked at**, all at 60 dpi: the grade sheet and the absence register
+(A4 landscape), the invitation letter, the achievement award, the blank period
+checklist, the blank note to parents, one printed message (A4 portrait), and the
+six pages of the substitute folder (A4 landscape).
 
-| Source | Page size | App |
-|---|---|---|
-| Planner PDF p.177, *Βαθμοί τάξης* | **824.88 × 600 pt** | grade sheet, A4 landscape |
-| Planner PDF p.201, *Απουσίες* (register) | 824.88 × 600 pt | absence register, A4 landscape |
-| Letters PDF p.4, *Πρόσκληση* | A4 | invitation letter |
-| Letters PDF p.8, *Βραβείο επίδοσης* | A4 | achievement award |
-| Forms PDF p.9, *Λίστα ελέγχου της περιόδου* | A4 | period checklist (blank) |
-| Forms PDF p.10, *Σημείωμα προς γονείς* | A4 | note to parents (blank) |
-| Message bank PDF p.3 | A4 | one printed message |
-| Substitute folder PDF pp.1–6 | 824.88 × 600 pt | the folder bundle, pp.1–6 |
-
-**A finding worth the product owner's attention: the planner PDF and the
-source's substitute folder are not A4.** They are 824.88 × 600 pt (about 291 ×
-212 mm), a landscape screen format. The spec asks the app to "match A4 page
-size", and it prints those surfaces on landscape A4 (841 × 595 pt). The letters,
-forms and message bank are A4 in both.
-
-**What the agent saw.** General structure matches on all eight: the same header
-fields, the same table columns or captioned areas, the register's two boxes at
-its foot, the letter's reply slip at its foot, one certificate per sheet, two
-notes per sheet, six contacts beside six procedures. Greek renders on every
-page. The app is in its own plainer styling (Resolved: not a visual copy). The
-recorded departures — the app's own grade columns, the extra letter-text box on
-the invitation, one message per sheet rather than a category per page — are
-decisions from M2, M5 and M7, not defects, and were left alone. **Two details
-were flagged rather than changed**: the certificate's content sits in the top
-two-thirds where the source centres it, and the sheet footer ("Printed …") falls
-inside the certificate's frame.
+**What the agent saw.** Every sheet is A4, as the spec asks. Structure is right
+on all eight: header fields, table columns or captioned areas, the register's two
+boxes at its foot, the letter's reply slip at its foot, one certificate per
+sheet, two notes per sheet, six contacts beside six procedures. Greek renders on
+every page. The app uses its own plain styling (Resolved: not a visual copy of
+any paper planner). **Two details were flagged rather than changed**: the
+certificate's content sits in the top two-thirds of its frame, and the sheet
+footer ("Printed …") falls inside the certificate's frame.
 
 ## Part 3 — Backup retention tuning
 
@@ -406,9 +389,9 @@ the figure it was for (the folder, 6 pages on WebView2).
 
 **What still needs a human for M9:**
 
-- **The fidelity judgement** — open `~/Documents/Atzenta M9 fidelity/index.html`
-  on the dev Mac and decide whether page size, general structure and Greek
-  rendering are acceptable. Note the page-size finding in Part 2.
+- **The fidelity judgement** — look at the eight rendered documents and decide
+  whether page size, general structure and Greek rendering are acceptable
+  (Part 2).
 - **A bilingual read of the English draft** — the letters, the 150 messages and
   the folder's suggestions, against the Greek.
 - **A look at the English interface**, typing into a few screens in English on

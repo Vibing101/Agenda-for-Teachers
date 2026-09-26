@@ -72,7 +72,7 @@ async function exportWith(user: ReturnType<typeof userEvent.setup>, backend: Bac
 }
 
 /** Words that only the English bundle prints on a document. */
-const ENGLISH_DOCUMENT_WORDS = ["Printed", "Teacher's Agenda", "CUT OFF AND RETURN", "Message —"];
+const ENGLISH_DOCUMENT_WORDS = ["Printed", "Teacher Planner", "CUT OFF AND RETURN", "Message —"];
 
 beforeEach(() => {
   invoke.mockReset();
@@ -109,7 +109,7 @@ describe("the English interface, as shipped, with Greek content", () => {
     expect(text).toContain("ΑΠΟΚΟΨΤΕ ΚΑΙ ΕΠΙΣΤΡΕΨΤΕ");
     expect(text).toContain("Ελένη Παπαδοπούλου");
     // The footer is Greek too: one document, one language.
-    expect(text).toContain("Ατζέντα Εκπαιδευτικού · Εκτυπώθηκε 09.11.2026");
+    expect(text).toContain("Ημερολόγιο Εκπαιδευτικού · Εκτυπώθηκε 09.11.2026");
     for (const word of ENGLISH_DOCUMENT_WORDS) expect(text).not.toContain(word);
     expect(text).not.toMatch(/\[[^\]]+\]/);
   });
@@ -135,7 +135,7 @@ describe("the English interface, as shipped, with Greek content", () => {
     const text = htmlText(html);
     expect(fileName).toBe("Μήνυμα — Καλωσόρισμα στην αρχή της χρονιάς — 09.11.2026");
     expect(text).toContain("Αγαπητοί γονείς, ονομάζομαι Μαρία Νικολάου");
-    expect(text).toContain("Ατζέντα Εκπαιδευτικού · Εκτυπώθηκε 09.11.2026");
+    expect(text).toContain("Ημερολόγιο Εκπαιδευτικού · Εκτυπώθηκε 09.11.2026");
     for (const word of ENGLISH_DOCUMENT_WORDS) expect(text).not.toContain(word);
     expect(text).not.toMatch(/\[[^\]]+\]/);
   });

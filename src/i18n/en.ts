@@ -23,7 +23,7 @@
 import type { el } from "./el";
 
 export const en = {
-  "app.title": "Teacher's Agenda",
+  "app.title": "Teacher Planner",
   "app.subtitle": "Plan calmly. Teach mindfully.",
 
   "nav.year": "Year",

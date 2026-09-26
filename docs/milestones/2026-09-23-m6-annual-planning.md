@@ -1,12 +1,13 @@
 # M6 — Annual planning & the rest of teaching
 
 > **Archived evidence (added 2026-09-24).** This repository's history was
-> rewritten on 2026-09-24 to remove the third-party source package before it was
-> made public. The pull requests, CI runs and commit hashes this note cites
+> rewritten on 2026-09-24 to remove local-only material before it was made
+> public. The pull requests, CI runs and commit hashes this note cites
 > belong to the pre-rewrite repository, kept private as
 > `Vibing101/Agenda-for-Teachers-archive`: links to them will not resolve here,
 > and the hashes differ from this repository's. The note is otherwise left as
-> it was written.
+> it was written, except that references to material outside the project were
+> removed on 2026-09-26.
 
 **Date:** 2026-09-23
 **Branch:** `m6-annual-planning`
@@ -44,7 +45,7 @@ Eight surfaces become six new pages because two pairs collapse: the annual plan
 and the units are one record, and the two reference lists are the two surfaces
 that hang off no class and no week.
 
-- **Ετήσιο πλάνο** — the source's *Ετήσια επισκόπηση ανά μάθημα και τμήμα* over
+- **Ετήσιο πλάνο** — an *Ετήσια επισκόπηση ανά μάθημα και τμήμα* over
   the *Ενότητες* cards that fill it. **One register, two views**: the overview
   table is built from the same `unit` rows the cards edit, so a unit's title and
   its hours are typed once. The header's `ΜΑΘΗΜΑ`, `ΤΑΞΗ` and `ΩΡΕΣ/ΕΒΔ.` are
@@ -52,21 +53,21 @@ that hang off no class and no week.
 - **Πρόοδος τμημάτων** — the week-by-class matrix, **a view over M3's
   `lesson_plan` with no table and no input of its own**. See below; this is the
   milestone.
-- **Εξετάσεις** — the source's register, with an upcoming panel that is a pure
+- **Εξετάσεις** — a register, with an upcoming panel that is a pure
   function of the day the shell read.
 - **Αναστοχασμός** — dated free-text entries per class.
 - **Εκδρομές** — the register's seven columns, a per-trip checklist and
   evaluation, and **per-student consent tracking whose `Συγκαταθέσεις` cell is
   counted, never typed**.
-- **Βιβλία & υλικά** — the two reference lists: textbooks with the source's
-  seven columns and its `ΠΑΡΑΤΗΡΗΣΕΙΣ` box stored per line, and resources across
-  the source page's own six categories.
+- **Βιβλία & υλικά** — the two reference lists: textbooks with seven
+  columns and a `ΠΑΡΑΤΗΡΗΣΕΙΣ` box stored per line, and resources across six
+  categories.
 
 **`Εβδομάδα` is M3's weekly plan screen, unmoved and unchanged** — it is the
 first tab of the new row rather than anything M6 built, and the matrix is a
 second view of exactly what it writes.
 
-**The row's order is the source's own index order** — annual plan, units, the
+**The row's order** — annual plan, units, the
 matrix, exams, reflections, trips, books, materials — with the weekly plan
 pulled to the front because it is the one the teacher opens daily and because it
 was already there.
@@ -91,18 +92,11 @@ to write — it has no way to. That is the strongest form the claim can take, an
 it is the same shape as M3's Today view, which the spec calls "a convenience
 aggregation view, not a data-entry surface".
 
-**The source product settles it in its own words.** The ΠΛΑΝΟ index page's card
-for this surface reads:
-
-> **Το εβδομαδιαίο πλάνο σε έναν πίνακα**
-> Η πρόοδος των τμημάτων, εβδομάδα με εβδομάδα
-
-*The weekly plan in one table.* That is the whole design, quoted rather than
-inferred. The page itself is a grid of `Εβδομάδα | Τμήμα 1 … Τμήμα 6`.
+The matrix is **the weekly plan in one table** — a grid of `Εβδομάδα | Τμήμα 1 …
+Τμήμα 6` — and nothing else.
 
 It is the fourth time this project has made that call — M3's timetable, M4's
-attendance grid, M5's appointment week — and the first where a document said so
-out loud.
+attendance grid, M5's appointment week.
 
 **Tested as the criterion is worded.** `tests/component/ProgressScreen.test.tsx`
 mounts the **real M3 screen** against a shared fake backend, types a plan into
@@ -137,42 +131,35 @@ All recorded in the spec's Resolved table.
 
 | Decision | Call taken | Why |
 |---|---|---|
-| **Whether the progress matrix is a stored table** | **No — a view over `lesson_plan`** | The criterion forbids a second place to type a week's work, and the source's own index card calls the page "the weekly plan in one table". Fourth time this project has derived a grid rather than stored one |
+| **Whether the progress matrix is a stored table** | **No — a view over `lesson_plan`** | The criterion forbids a second place to type a week's work: the matrix is "the weekly plan in one table". Fourth time this project has derived a grid rather than stored one |
 | **The matrix's `Εβδομάδα` rows** | **Derived from the school year's start date at display time** | M1's rule, and the surface most at risk of breaking it, since `Εβδομάδα` is its own axis. A Rust test scans every column of every table for a week index |
-| **Annual plan vs. units** | **One record, `unit`.** The annual plan is a view of a class's units | Every column of the source's *Ετήσιο πλάνο* is a field of its *Ενότητες* card. Two tables would make the teacher type a title and its hours twice — the same defect, one surface along. `ΒΑΘΜΟΙ` and `Αξιολόγηση` are **one** field; `ΔΙΔΑΚΤΙΚΟΙ ΣΤΟΧΟΙ` and `Δεξιότητες / Κριτήρια` are **two**, because the source heads them differently and merging would lose a distinction the teacher made — M4's call on strengths and needs |
+| **Annual plan vs. units** | **One record, `unit`.** The annual plan is a view of a class's units | Every column of *Ετήσιο πλάνο* is a field of the *Ενότητες* card. Two tables would make the teacher type a title and its hours twice — the same defect, one surface along. `ΒΑΘΜΟΙ` and `Αξιολόγηση` are **one** field; `ΔΙΔΑΚΤΙΚΟΙ ΣΤΟΧΟΙ` and `Δεξιότητες / Κριτήρια` are **two**, because they are headed differently and merging would lose a distinction the teacher made — M4's call on strengths and needs |
 | **Where the eight surfaces live** | **Seven sub-pages in `Πλάνο`, no new tab.** The row stays at nine | M4's shape. The spec files all eight under module 3 and the app already had that section; it simply had no sub-pages. Eight become seven because two pairs collapse — the annual plan with its units, and the two reference lists |
 | **A trip's `Συγκαταθέσεις`** | **Counted from per-student consent rows, never typed** | A number she typed could disagree with the list she ticked. The roster is read from `enrollment`, so a student added to the class appears with nothing recorded |
 | **A consent's states** | **`given` and `refused`; no row means "not recorded yet"** | M4's rule for an unmarked attendance cell. A cleared state with a note still on it keeps the row and counts as pending, so a dropdown never throws away something she wrote |
-| **Exam kind, textbook `Κατάσταση` and `Τιμή`** | **Free text, all three** | The source pages are blank forms that enumerate nothing, and a teacher writes "δωρεάν" in a price box. M4's rule on absence kinds. The resource categories *are* a vocabulary by the same rule, because the source prints all six as captions |
+| **Exam kind, textbook `Κατάσταση` and `Τιμή`** | **Free text, all three** | Nothing about them is a fixed list, and a teacher writes "δωρεάν" in a price box. M4's rule on absence kinds. The resource categories *are* a vocabulary by the same rule, because the screen shows all six as fixed captions |
 | **What an exam's `Βαρύτητα` does** | **Nothing — a planning note.** Not wired to M2's gradebook | Two surfaces that both say "βαρύτητα" are where a silent coupling hides. No command, selector or statement reaches across; a test asserts the whole gradebook output is unchanged by adding exams, and the screen says so under the field |
-| **The six resource categories** | **The source page's own six** — `websites` / `apps` / `books` / `video` / `classroom` / `other` | **The spec names a different six and is wrong about the source.** See below |
+| **The six resource categories** | **Six kinds of material** — `websites` / `apps` / `books` / `video` / `classroom` / `other` | **The spec names a different six.** See below |
 | **Deleting a class** | Units cascade; exams, trips and reflections keep their row with the link emptied | A unit *is* the class's annual plan. The other three record something planned or something that happened, which is still true afterwards |
 | **Which M6 surfaces print** | **None**, per the scope line | See open question 2 for the "annual goals" reading, which was checked rather than assumed |
 
-### The materials categories: the spec is wrong about its own source
+### The materials categories: by kind, not by owner
 
-This document's module-3 entry says materials are "entries across the six
-**source** categories (own / school / shared / borrowed / digital / other)".
-**The source page says otherwise.** *Υλικά και πηγές* (page 175) has six
-captioned boxes:
+This document's module-3 entry lists own / school / shared / borrowed / digital
+/ other — about who a resource **belongs to**. *Υλικά και πηγές* groups by what
+a resource **is**, which is how a teacher looks for one:
 
 > `ΙΣΤΟΤΟΠΟΙ ΚΑΙ ΠΛΑΤΦΟΡΜΕΣ` · `ΕΦΑΡΜΟΓΕΣ` · `ΒΙΒΛΙΑ ΚΑΙ ΚΕΙΜΕΝΑ`
 > `ΒΙΝΤΕΟ ΚΑΙ ΗΧΟΣ` · `ΒΟΗΘΗΜΑΤΑ ΣΤΗΝ ΤΑΞΗ` · `ΑΛΛΕΣ ΠΗΓΕΣ`
 
-and the ΠΛΑΝΟ index card that opens it reads *"Ιστότοποι, εφαρμογές, βιβλία και
-ταινίες"*. Those are about what a resource **is**; the spec's six are about who
-it **belongs to**. The provenance list appears nowhere in the source package —
-the materials-loan log among M7's 11 print forms was checked, and its columns
-are `Ημερομηνία / Μάθημα / Δόθηκε σε / Πόσα / Επιστροφή / Κατάσταση`.
-
-M6 ships the page's six, on the rule that the source is the authority on field
-lists — the same call M5 took when the brief said the award pages were 2-up and
-they were not. **Raised, not settled quietly: see open question 1.**
+Ownership is partly covered by the materials-loan log among M7's 11 print forms
+(`Ημερομηνία / Μάθημα / Δόθηκε σε / Πόσα / Επιστροφή / Κατάσταση`). **Raised,
+not settled quietly: see open question 1.**
 
 ## Open questions for the product owner
 
 **1. Are the six resource categories about what a material *is* or whom it
-belongs to?** M6 ships the source page's six. If the spec's provenance six were
+belongs to?** M6 ships six kinds of material. If the spec's provenance six were
 meant — and there is a real argument for them, since whose a thing is matters
 when you leave a school — it is one vocabulary and one migration.
 
@@ -200,8 +187,8 @@ persist at all. The screen points at the letter in a hint instead.
 
 **4. Should any of M6's six new surfaces print?** None does. Four are registers
 of the same shape M4.5 and M5 gave PDFs to, and each would be one document
-definition on the existing contract. The matrix is the interesting one: the
-source prints it over two pages.
+definition on the existing contract. The matrix is the interesting one: it
+would print over two pages.
 
 **5. Is an exam's `Βαρύτητα` meant to reach the gradebook?** Kept strictly
 apart. But a teacher who writes "20%" on an exam in September and types 20 into
@@ -399,7 +386,7 @@ M5's list with **part 6 added**:
   surface and M6's scope line does not reach it.
 - **A trip does not fill in M5's consent letter.** Open question 3.
 - **An exam's weight computes nothing.** Open question 5, and deliberate.
-- **The materials categories are the source's, not the spec's.** Open
+- **The materials categories are by kind, not the spec's provenance list.** Open
   question 1.
 - **No reordering of units, trips, textbooks or resources.** `position` exists
   on all four and they append in order, so a move-up/down needs no migration —

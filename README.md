@@ -1,4 +1,4 @@
-# Ατζέντα Εκπαιδευτικού — Teacher Planner
+# Ημερολόγιο Εκπαιδευτικού — Teacher Planner
 
 A small native desktop app for Windows and macOS that gives a teacher her whole
 year in one place: classes and students, a weighted gradebook, a timetable and
@@ -9,8 +9,8 @@ It is designed to be run from inside a Google Drive– or OneDrive–synced fold
 keeping all of its data as plain files in that same folder — no login, no
 server, and no runtime for the teacher to install.
 
-- **Spec:** [docs/REBUILD_SPEC.md](docs/REBUILD_SPEC.md) — the source of truth
-  for scope, data model and already-resolved decisions.
+- **Spec:** [docs/SPEC.md](docs/SPEC.md) — the authority on scope,
+  data model and already-resolved decisions.
 - **Process:** [docs/ENGINEERING.md](docs/ENGINEERING.md) — repo layout,
   branching, the gate every milestone passes, and the acceptance criteria.
 - **Briefing an agent:** [docs/MILESTONE_PROMPT.md](docs/MILESTONE_PROMPT.md) —
@@ -22,36 +22,6 @@ server, and no runtime for the teacher to install.
   day-to-day workflow and the screen-by-screen user guide, **in Greek**, written
   for the person using the app rather than building it. Each of those texts ends
   with what is deliberately not built yet, so nobody hunts for it.
-
-## Source material
-
-The original product package this rebuild draws on — the 289-page fillable
-planner PDF, the quick-start guide, the 11 print templates, the 7 parent
-letters, the 150-message bank and the Excel grade registry — lives in a
-`reference/` folder **on the development Mac only**. It is **git-ignored and
-not in this repository, nor in its history**.
-
-**Why.** The planner PDF is a third party's copyrighted work, and this
-repository is public. The history was rewritten on 2026-09-24 to remove the
-folder from every commit before publication; see the spec's Carried risks.
-
-**What that means for anyone working here:**
-
-- **On the development Mac**, `reference/` is still there and is still the
-  authority on wording, layout and field lists — read it when a decision turns
-  on what a source page says. It is read-only: never edit it and never generate
-  into it. Generated PDFs go to `exports/`.
-- **Anywhere else** — a fresh clone, CI, the Windows test VM — it does not
-  exist. Work from what has been transcribed into the repo and quoted in the
-  release notes.
-- **Build no dependency on it.** Nothing in `src/`, `src-tauri/`, `tests/` or CI
-  reads from `reference/`, and nothing may start. Content the app needs is
-  *transcribed into the repo* — the 7 letters, the 150-message bank and the
-  forms' fixed text live in `src/i18n/` — which is why a clone without the
-  folder builds and passes every test.
-- **Never commit it.** The ignore rule is there so a `git add -A` cannot bring
-  it back. If a file from it is ever needed in the repo, that is a question for
-  the product owner, not a commit.
 
 ## Stack
 
@@ -150,7 +120,7 @@ npm run tauri build -- --target universal-apple-darwin
 | File | What it is |
 |---|---|
 | `macos/Teacher Planner.app` | the app bundle — this is what the teacher runs |
-| `dmg/Teacher Planner_1.0.1_universal.dmg` | the disk image. Kept in the handover folder's `installers/`, **not** for the teacher: dragging to `/Applications` would put her data outside the synced folder (M10) |
+| `dmg/Teacher Planner_1.0.2_universal.dmg` | the disk image. Kept in the handover folder's `installers/`, **not** for the teacher: dragging to `/Applications` would put her data outside the synced folder (M10) |
 
 **5. Verify it is really universal**, because a single-architecture build
 succeeds just as quietly:
@@ -189,7 +159,7 @@ npm run tauri build
 | File | What it is |
 |---|---|
 | `src-tauri\target\release\teacher-planner.exe` | the bare executable — **this is what the teacher runs**, from her synced folder |
-| `src-tauri\target\release\bundle\nsis\Teacher Planner_1.0.1_x64-setup.exe` | the NSIS installer. Kept in `installers/`, **not** for the teacher: it installs outside the synced folder (M10) |
+| `src-tauri\target\release\bundle\nsis\Teacher Planner_1.0.2_x64-setup.exe` | the NSIS installer. Kept in `installers/`, **not** for the teacher: it installs outside the synced folder (M10) |
 
 **4. Confirm the signing status**, so it is never assumed:
 
