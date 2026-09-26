@@ -395,10 +395,12 @@ pub const AGENDA_SCOPES: [&str; 3] = ["day", "week", "month"];
 
 // ------------------------------------------- M4: attendance and behaviour ---
 
-/// One cell of the monthly attendance grid: what one student was on one day
+/// One cell of the monthly attendance grid: what one student was in one lesson
 /// of one class.
 ///
-/// **Keyed by `(class_id, student_id, date)` where `date` is an actual date.**
+/// **Keyed by `(class_id, student_id, date, period_id)` where `date` is an
+/// actual date and `period_id` the timetable hour.** Absences are counted per
+/// lesson, not per day.
 /// There is deliberately no year column, no month column and no day-of-month
 /// index: the month grid is a *view* built from these rows by
 /// `domain/attendance.ts`, exactly as a week number is derived rather than
@@ -417,6 +419,11 @@ pub struct AttendanceMark {
     pub student_id: i64,
     /// `YYYY-MM-DD`, an actual date.
     pub date: String,
+    /// The timetable hour the lesson was in, so a class taught twice in one day
+    /// carries two marks. `0` is a lesson whose hour is not known — what a mark
+    /// from before per-lesson attendance became. See `db::migrate_to_11`.
+    #[serde(default)]
+    pub period_id: i64,
     /// `present` | `absent` | `late` | `excused` — the source page's four
     /// symbols (`·`, `α`, `κ`, `u`) as stable codes.
     pub state: String,

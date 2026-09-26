@@ -270,6 +270,7 @@ fn a_session_in_a_cloud_folder_persists_backs_up_and_notices_outside_edits() {
             class_id: class_a,
             student_id: student,
             date: "2026-11-05".into(),
+            period_id: 0,
             state: "present".into(),
         },
     )

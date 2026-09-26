@@ -433,14 +433,15 @@ fn agenda_notes(conn: &Connection) -> AppResult<Vec<AgendaNote>> {
 fn attendance_marks(conn: &Connection) -> AppResult<Vec<AttendanceMark>> {
     collect(
         conn,
-        "SELECT class_id, student_id, date, state
-           FROM attendance_mark ORDER BY class_id, date, student_id",
+        "SELECT class_id, student_id, date, period_id, state
+           FROM attendance_mark ORDER BY class_id, date, period_id, student_id",
         |r| {
             Ok(AttendanceMark {
                 class_id: r.get(0)?,
                 student_id: r.get(1)?,
                 date: r.get(2)?,
-                state: r.get(3)?,
+                period_id: r.get(3)?,
+                state: r.get(4)?,
             })
         },
     )
@@ -1077,16 +1078,17 @@ pub fn save_agenda_note(conn: &Connection, n: &AgendaNote) -> AppResult<()> {
 pub fn save_attendance_mark(conn: &Connection, m: &AttendanceMark) -> AppResult<()> {
     if m.state.trim().is_empty() {
         conn.execute(
-            "DELETE FROM attendance_mark WHERE class_id = ?1 AND student_id = ?2 AND date = ?3",
-            params![m.class_id, m.student_id, m.date],
+            "DELETE FROM attendance_mark
+              WHERE class_id = ?1 AND student_id = ?2 AND date = ?3 AND period_id = ?4",
+            params![m.class_id, m.student_id, m.date, m.period_id],
         )?;
         return Ok(());
     }
     conn.execute(
-        "INSERT INTO attendance_mark (class_id, student_id, date, state)
-         VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT (class_id, student_id, date) DO UPDATE SET state = excluded.state",
-        params![m.class_id, m.student_id, m.date, m.state],
+        "INSERT INTO attendance_mark (class_id, student_id, date, period_id, state)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT (class_id, student_id, date, period_id) DO UPDATE SET state = excluded.state",
+        params![m.class_id, m.student_id, m.date, m.period_id, m.state],
     )?;
     Ok(())
 }
@@ -3797,6 +3799,7 @@ mod tests {
                 class_id,
                 student_id,
                 date: date.into(),
+                period_id: 0,
                 state: "present".into(),
             },
         )
@@ -3819,6 +3822,7 @@ mod tests {
                 class_id,
                 student_id,
                 date: date.into(),
+                period_id: 0,
                 state: "absent".into(),
             },
         )
@@ -3854,6 +3858,7 @@ mod tests {
                 class_id,
                 student_id,
                 date: date.into(),
+                period_id: 0,
                 state: String::new(),
             },
         )
@@ -3864,6 +3869,43 @@ mod tests {
             "an emptied cell is deleted"
         );
         assert_eq!(planner.absence_events.len(), 1, "the event survives");
+    }
+
+    /// A class taught twice in one day holds **two marks**, one per lesson, and
+    /// clearing one leaves the other. Absences are counted per lesson.
+    #[test]
+    fn two_lessons_on_one_day_hold_two_independent_marks() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open_at(&dir.path().join("planner.sqlite")).unwrap();
+        let (class_id, student_id) = class_with_student(&conn);
+        let mark = |period_id: i64, state: &str| AttendanceMark {
+            class_id,
+            student_id,
+            date: "2026-11-05".into(),
+            period_id,
+            state: state.into(),
+        };
+
+        save_attendance_mark(&conn, &mark(1, "present")).unwrap();
+        save_attendance_mark(&conn, &mark(3, "absent")).unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(
+            planner.attendance_marks,
+            vec![mark(1, "present"), mark(3, "absent")]
+        );
+
+        // Re-marking one lesson updates that lesson only.
+        save_attendance_mark(&conn, &mark(3, "late")).unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(
+            planner.attendance_marks,
+            vec![mark(1, "present"), mark(3, "late")]
+        );
+
+        // Clearing one lesson deletes that lesson's row only.
+        save_attendance_mark(&conn, &mark(1, "")).unwrap();
+        let planner = load(&conn).unwrap();
+        assert_eq!(planner.attendance_marks, vec![mark(3, "late")]);
     }
 
     /// The schema itself carries no month, no year and no day-of-month column,
@@ -3880,7 +3922,10 @@ mod tests {
             |r| r.get(0),
         )
         .unwrap();
-        assert_eq!(columns, vec!["class_id", "student_id", "date", "state"]);
+        assert_eq!(
+            columns,
+            vec!["class_id", "student_id", "date", "period_id", "state"]
+        );
     }
 
     /// The other half of the date rule: moving the school year's start date
@@ -3898,6 +3943,7 @@ mod tests {
                 class_id,
                 student_id,
                 date: "2026-11-05".into(),
+                period_id: 0,
                 state: "absent".into(),
             },
         )
@@ -4164,6 +4210,7 @@ mod tests {
                 class_id,
                 student_id,
                 date: "2026-11-05".into(),
+                period_id: 0,
                 state: "absent".into(),
             },
         )

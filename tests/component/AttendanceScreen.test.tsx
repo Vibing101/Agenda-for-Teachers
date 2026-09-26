@@ -22,18 +22,20 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 
 const { renderScreen } = await import("../helpers/mount");
 const { emptyPlanner } = await import("../helpers/fakeBackend");
-const { supportPlanner, A1, CONTESTED_DAY, ELENI, IN_NOVEMBER } = await import(
-  "../helpers/supportFixture"
-);
+const { supportPlanner, A1, CONTESTED_DAY, ELENI, HOUR_3, IN_NOVEMBER } =
+  await import("../helpers/supportFixture");
 const { default: AttendanceScreen } = await import("../../src/screens/AttendanceScreen");
 
 function panel(heading: string) {
   return within(screen.getByRole("heading", { name: heading }).closest("section")!);
 }
 
-/** One cell of the grid, found by the accessible name the screen gives it. */
-function cell(student: string, date: string) {
-  return screen.getByRole("combobox", { name: `${student}, ${date}` });
+/**
+ * One cell of the grid — one student in one lesson — found by the accessible
+ * name the screen gives it.
+ */
+function cell(student: string, date: string, lesson: string) {
+  return screen.getByRole("combobox", { name: `${student}, ${date}, ${lesson}` });
 }
 
 describe("the monthly attendance grid", () => {
@@ -104,49 +106,105 @@ describe("the monthly attendance grid", () => {
   it("shows each stored mark and counts the month's totals", () => {
     renderScreen(AttendanceScreen, supportPlanner(), invoke, { today: IN_NOVEMBER });
 
-    expect(cell("Ελένη Παπαδοπούλου", "05.11.2026")).toHaveValue("present");
-    expect(cell("Ελένη Παπαδοπούλου", "06.11.2026")).toHaveValue("absent");
-    expect(cell("Ελένη Παπαδοπούλου", "10.11.2026")).toHaveValue("late");
-    expect(cell("Ελένη Παπαδοπούλου", "12.11.2026")).toHaveValue("excused");
-    // An unmarked day is blank, not "present".
-    expect(cell("Ελένη Παπαδοπούλου", "04.11.2026")).toHaveValue("");
+    expect(cell("Ελένη Παπαδοπούλου", "05.11.2026", "1η")).toHaveValue("present");
+    expect(cell("Ελένη Παπαδοπούλου", "06.11.2026", "2η")).toHaveValue("absent");
+    expect(cell("Ελένη Παπαδοπούλου", "10.11.2026", "2η")).toHaveValue("late");
+    // Thursday 12.11: two lessons, each with its own mark.
+    expect(cell("Ελένη Παπαδοπούλου", "12.11.2026", "1η")).toHaveValue("excused");
+    expect(cell("Ελένη Παπαδοπούλου", "12.11.2026", "3η")).toHaveValue("absent");
+    // An unmarked lesson is blank, not "present".
+    expect(cell("Ελένη Παπαδοπούλου", "05.11.2026", "3η")).toHaveValue("");
 
     const row = screen.getByRole("rowheader", { name: "Ελένη Παπαδοπούλου" }).closest("tr")!;
     const totals = within(row)
       .getAllByRole("cell")
       .slice(-4)
       .map((c) => c.textContent);
-    // present 1, absent 2, late 1, excused 1 — hand-counted from the fixture.
-    expect(totals).toEqual(["1", "2", "1", "1"]);
+    // present 1, absent 3, late 1, excused 1 — counted per lesson, by hand.
+    expect(totals).toEqual(["1", "3", "1", "1"]);
   });
 
-  it("writes a marked cell against the actual date, and deletes a cleared one", async () => {
+  it("writes a marked cell against the actual date and hour, and deletes a cleared one", async () => {
     const user = userEvent.setup();
     const backend = renderScreen(AttendanceScreen, supportPlanner(), invoke, {
       today: IN_NOVEMBER,
     });
 
-    await user.selectOptions(cell("Ελένη Παπαδοπούλου", "17.11.2026"), "absent");
+    // Thursday 19.11: mark the 3η only.
+    await user.selectOptions(cell("Ελένη Παπαδοπούλου", "19.11.2026", "3η"), "absent");
     await waitFor(() =>
       expect(
         backend.planner.attendance_marks.some(
-          (m) => m.date === "2026-11-17" && m.student_id === ELENI && m.state === "absent",
+          (m) => m.date === "2026-11-19" && m.student_id === ELENI && m.state === "absent",
         ),
       ).toBe(true),
     );
-    // Keyed by an actual date, in the class on screen. No month, no index.
-    const written = backend.planner.attendance_marks.find((m) => m.date === "2026-11-17")!;
-    expect(written).toEqual({
-      class_id: A1,
-      student_id: ELENI,
-      date: "2026-11-17",
-      state: "absent",
-    });
+    // Keyed by an actual date and the timetable hour, in the class on screen.
+    const written = backend.planner.attendance_marks.filter((m) => m.date === "2026-11-19");
+    expect(written).toEqual([
+      { class_id: A1, student_id: ELENI, date: "2026-11-19", period_id: HOUR_3, state: "absent" },
+    ]);
+    // The day's other lesson is untouched.
+    expect(cell("Ελένη Παπαδοπούλου", "19.11.2026", "1η")).toHaveValue("");
 
-    await user.selectOptions(cell("Ελένη Παπαδοπούλου", "17.11.2026"), "");
+    await user.selectOptions(cell("Ελένη Παπαδοπούλου", "19.11.2026", "3η"), "");
     await waitFor(() =>
-      expect(backend.planner.attendance_marks.some((m) => m.date === "2026-11-17")).toBe(false),
+      expect(backend.planner.attendance_marks.some((m) => m.date === "2026-11-19")).toBe(false),
     );
+  });
+
+  it("splits a two-lesson day into two columns under the day's number", () => {
+    renderScreen(AttendanceScreen, supportPlanner(), invoke, { today: IN_NOVEMBER });
+    const grid = panel("Απουσίες του μήνα");
+    const thursday = grid.getAllByRole("columnheader").find((h) => h.textContent === "12")!;
+    expect(thursday).toHaveAttribute("colspan", "2");
+    expect(screen.getAllByRole("combobox", { name: /, 12\.11\.2026, / })).toHaveLength(3 * 2);
+  });
+
+  it("greys out weekends, holidays and days of leave, with nothing to fill in", () => {
+    renderScreen(AttendanceScreen, supportPlanner(), invoke, { today: IN_NOVEMBER });
+    const grid = panel("Απουσίες του μήνα");
+    const day = (n: string) => grid.getAllByRole("columnheader").find((h) => h.textContent === n)!;
+
+    expect(day("7")).toHaveClass("off"); // Saturday
+    expect(day("8")).toHaveClass("off"); // Sunday
+    expect(day("17")).toHaveClass("off");
+    expect(day("17")).toHaveAttribute("title", "Πολυτεχνείο");
+    expect(day("20")).toHaveClass("off");
+    expect(day("20")).toHaveAttribute("title", "Άδεια");
+    // An ordinary lesson day is not grey.
+    expect(day("12")).not.toHaveClass("off");
+    // The Tuesday holiday offers no cell even though Α1 is taught on Tuesdays.
+    expect(screen.queryAllByRole("combobox", { name: /17\.11\.2026/ })).toHaveLength(0);
+    expect(screen.queryAllByRole("combobox", { name: /20\.11\.2026/ })).toHaveLength(0);
+    // The key tells the teacher what grey means.
+    expect(grid.getByText(/γκρι: Σαββατοκύριακα, αργίες και ημέρες άδειας/)).toBeInTheDocument();
+  });
+
+  it("keeps the roster columns frozen while the lessons scroll sideways", () => {
+    renderScreen(AttendanceScreen, supportPlanner(), invoke, { today: IN_NOVEMBER });
+    for (const name of screen.getAllByRole("rowheader")) {
+      expect(name).toHaveClass("sticky-name");
+    }
+    const row = screen.getByRole("rowheader", { name: "Ελένη Παπαδοπούλου" }).closest("tr")!;
+    expect(row.firstElementChild).toHaveClass("sticky-no");
+  });
+
+  it("says so when the class has no hours on the timetable to mark", () => {
+    const planner = supportPlanner();
+    planner.timetable_cells = [];
+    renderScreen(AttendanceScreen, planner, invoke, { today: IN_NOVEMBER });
+    expect(screen.getByText(/δεν έχει ακόμη ώρες στο ωρολόγιο πρόγραμμα/)).toBeInTheDocument();
+  });
+
+  it("opens on the lesson the Today view asked for, with the cursor in it", () => {
+    renderScreen(AttendanceScreen, supportPlanner(), invoke, {
+      today: "2026-12-03",
+      focus: { classId: A1, date: "2026-11-12", periodId: HOUR_3 },
+    });
+    const grid = panel("Απουσίες του μήνα");
+    expect(grid.getByText(/Νοέμβριος 2026/)).toBeInTheDocument();
+    expect(cell("Ελένη Παπαδοπούλου", "12.11.2026", "3η")).toHaveFocus();
   });
 
   it("keeps one class's marks out of another's grid", async () => {
@@ -161,8 +219,10 @@ describe("the monthly attendance grid", () => {
         "Μαρία Ιωάννου",
       ]),
     );
-    // Her Α1 marks do not follow her into Β2's grid.
-    expect(cell("Ελένη Παπαδοπούλου", "05.11.2026")).toHaveValue("");
+    // Her Α1 marks do not follow her into Β2's grid: Β2 has no Thursday
+    // lesson at all, and its Wednesday lesson is blank.
+    expect(screen.queryAllByRole("combobox", { name: /05\.11\.2026/ })).toHaveLength(0);
+    expect(cell("Ελένη Παπαδοπούλου", "04.11.2026", "1η")).toHaveValue("");
   });
 });
 
@@ -283,7 +343,7 @@ describe("the grid and the register do not touch each other", () => {
   it("show different, non-derived data for the same student and date", () => {
     renderScreen(AttendanceScreen, supportPlanner(), invoke, { today: IN_NOVEMBER });
 
-    expect(cell("Ελένη Παπαδοπούλου", "05.11.2026")).toHaveValue("present");
+    expect(cell("Ελένη Παπαδοπούλου", "05.11.2026", "1η")).toHaveValue("present");
     const line = within(screen.getByRole("group", { name: "Καταχώριση 2" }));
     expect(line.getByLabelText("Ημερομηνία")).toHaveValue(CONTESTED_DAY);
     expect(line.getByLabelText("Είδος")).toHaveValue("late");
@@ -298,7 +358,7 @@ describe("the grid and the register do not touch each other", () => {
 
     // Change the contested day from `present` to `absent` — the one edit a
     // helpful "also log this" feature would hook.
-    await user.selectOptions(cell("Ελένη Παπαδοπούλου", "05.11.2026"), "absent");
+    await user.selectOptions(cell("Ελένη Παπαδοπούλου", "05.11.2026", "1η"), "absent");
     await waitFor(() =>
       expect(
         backend.planner.attendance_marks.find((m) => m.date === CONTESTED_DAY)!.state,
@@ -337,16 +397,16 @@ describe("the grid and the register do not touch each other", () => {
         .getAllByRole("cell")
         .slice(-4)
         .map((c) => c.textContent);
-    expect(totals()).toEqual(["1", "2", "1", "1"]);
+    expect(totals()).toEqual(["1", "3", "1", "1"]);
 
     await user.click(screen.getByRole("button", { name: "Νέα καταχώριση" }));
     await waitFor(() => expect(backend.planner.absence_events).toHaveLength(4));
-    expect(totals()).toEqual(["1", "2", "1", "1"]);
+    expect(totals()).toEqual(["1", "3", "1", "1"]);
 
     const first = within(screen.getByRole("group", { name: "Καταχώριση 1" }));
     await user.click(first.getByRole("button", { name: "Διαγραφή καταχώρισης" }));
     await waitFor(() => expect(backend.planner.absence_events).toHaveLength(3));
-    expect(totals()).toEqual(["1", "2", "1", "1"]);
+    expect(totals()).toEqual(["1", "3", "1", "1"]);
   });
 
   it("offers no affordance that writes both at once", () => {

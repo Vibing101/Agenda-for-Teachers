@@ -19,7 +19,7 @@ use crate::model::GOAL_AREAS;
 use rusqlite::{params, Connection};
 use std::path::Path;
 
-pub const SCHEMA_VERSION: i64 = 10;
+pub const SCHEMA_VERSION: i64 = 11;
 
 pub fn open_at(db_path: &Path) -> AppResult<Connection> {
     if let Some(parent) = db_path.parent() {
@@ -92,6 +92,11 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     if current < 10 {
         migrate_to_10(conn)?;
         conn.pragma_update(None, "user_version", 10)?;
+        current = 10;
+    }
+    if current < 11 {
+        migrate_to_11(conn)?;
+        conn.pragma_update(None, "user_version", 11)?;
     }
     Ok(())
 }
@@ -882,6 +887,67 @@ fn migrate_to_10(conn: &Connection) -> AppResult<()> {
              locale TEXT NOT NULL DEFAULT 'el'
          );
          INSERT OR IGNORE INTO preference (id) VALUES (1);
+
+         COMMIT;",
+    )?;
+    Ok(())
+}
+
+/// Attendance per lesson rather than per day.
+///
+/// A class taught twice on a Thursday is two lessons, and absences are counted
+/// per lesson, so a mark is now keyed by `(class, student, date, period_id)`:
+/// the actual date plus **the timetable hour** the lesson was in.
+///
+/// * **`period_id` carries no foreign key, on purpose.** An hour is edited or
+///   deleted on the timetable screen, and a cascade there would silently delete
+///   a term's attendance; `SET NULL` cannot work either, because the column is
+///   part of the key. A mark whose hour has since gone keeps its id and the
+///   grid still shows it, under a placeholder label.
+/// * **`period_id = 0` means "a lesson on that day, hour unknown".** It is what
+///   a mark gets when the file climbs here and the class had no hour on that
+///   weekday in the timetable as it stands today.
+///
+/// Every existing mark is carried across: it lands on the class's **first**
+/// hour on that date's weekday (by the hour's position on the timetable), which
+/// is the one lesson a per-day mark could have meant when there was one, and
+/// the best available guess when there were two. SQLite cannot change a primary
+/// key in place, so the table is rebuilt.
+fn migrate_to_11(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "BEGIN;
+
+         CREATE TABLE attendance_mark_new (
+             class_id   INTEGER NOT NULL REFERENCES class(id)   ON DELETE CASCADE,
+             student_id INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
+             date       TEXT NOT NULL,
+             period_id  INTEGER NOT NULL DEFAULT 0,
+             state      TEXT NOT NULL
+                        CHECK (state IN ('present', 'absent', 'late', 'excused')),
+             PRIMARY KEY (class_id, student_id, date, period_id)
+         );
+
+         INSERT INTO attendance_mark_new (class_id, student_id, date, period_id, state)
+         SELECT m.class_id, m.student_id, m.date,
+                COALESCE((
+                    SELECT c.period_id
+                      FROM timetable_cell c
+                      JOIN timetable_period p ON p.id = c.period_id
+                     WHERE c.class_id = m.class_id
+                       AND c.weekday = CASE strftime('%w', m.date)
+                                           WHEN '0' THEN 7
+                                           ELSE CAST(strftime('%w', m.date) AS INTEGER)
+                                       END
+                     ORDER BY p.position, p.id
+                     LIMIT 1
+                ), 0),
+                m.state
+           FROM attendance_mark m;
+
+         DROP TABLE attendance_mark;
+         ALTER TABLE attendance_mark_new RENAME TO attendance_mark;
+         CREATE INDEX attendance_mark_by_date ON attendance_mark(date);
+         CREATE INDEX attendance_mark_by_student ON attendance_mark(student_id);
 
          COMMIT;",
     )?;
@@ -1724,6 +1790,63 @@ mod tests {
 
         // M9's one row: present, and Greek.
         assert_eq!(planner.preferences.locale, "el");
+    }
+
+    /// A data file as the **signed-off M10 build** left it — `user_version =
+    /// 10`, attendance kept one mark per day — climbs to per-lesson attendance
+    /// and loses no mark.
+    ///
+    /// Α1 is taught in the 3η and the 1η hour on Thursdays (entered in that
+    /// order, so position rather than id decides), and never on Fridays. The
+    /// Thursday mark lands on the earlier hour; the Friday mark, with no hour
+    /// to land on, is kept as "hour unknown".
+    #[test]
+    fn an_m10_file_climbs_to_per_lesson_attendance_and_keeps_every_mark() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("planner.sqlite");
+
+        let conn = Connection::open(&path).unwrap();
+        migrate_to_1(&conn).unwrap();
+        migrate_to_2(&conn).unwrap();
+        migrate_to_3(&conn).unwrap();
+        migrate_to_4(&conn).unwrap();
+        migrate_to_5(&conn).unwrap();
+        migrate_to_6(&conn).unwrap();
+        migrate_to_7(&conn).unwrap();
+        migrate_to_8(&conn).unwrap();
+        migrate_to_9(&conn).unwrap();
+        migrate_to_10(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 10).unwrap();
+        conn.execute_batch(
+            "INSERT INTO class (id, name) VALUES (1, 'Α1');
+             INSERT INTO student (id, full_name) VALUES (21, 'Ελένη');
+             INSERT INTO timetable_period (id, position, name) VALUES (7, 2, '3η'), (8, 0, '1η');
+             INSERT INTO timetable_cell (period_id, weekday, class_id) VALUES (7, 4, 1), (8, 4, 1);
+             INSERT INTO attendance_mark (class_id, student_id, date, state)
+             VALUES (1, 21, '2026-11-05', 'absent'), (1, 21, '2026-11-06', 'late');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let conn = open_at(&path).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+
+        let planner = store::load(&conn).unwrap();
+        assert_eq!(planner.attendance_marks.len(), 2);
+        let thursday = &planner.attendance_marks[0];
+        assert_eq!(thursday.date, "2026-11-05");
+        assert_eq!(thursday.period_id, 8, "the class's first hour that weekday");
+        assert_eq!(thursday.state, "absent");
+        let friday = &planner.attendance_marks[1];
+        assert_eq!(friday.date, "2026-11-06");
+        assert_eq!(
+            friday.period_id, 0,
+            "no hour that weekday: kept, hour unknown"
+        );
+        assert_eq!(friday.state, "late");
     }
 
     /// **No table anywhere carries a week index**, which is the rule M1 set and

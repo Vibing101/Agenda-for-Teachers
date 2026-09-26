@@ -12,12 +12,17 @@
  * second acceptance criterion ("only today's scheduled classes, on a spot-checked
  * date") is testable rather than a matter of waiting for Wednesday.
  *
+ * Each class hour carries a link into the attendance grid, opened on that
+ * lesson's column — a link, not an entry form, so this view still writes
+ * nothing.
+ *
  * It reads the **master timetable** and nothing else for the schedule. That is the
  * single register of the teacher's week, so a class cannot appear twice here for
  * having been entered in two places.
  */
 import { Button, Panel } from "../components/Fields";
 import { hasNote, noteFor } from "../domain/agenda";
+import { dayOff } from "../domain/attendance";
 import { formatDate, mondayOf, weekdayOf } from "../domain/dates";
 import { hasPlan, planFor } from "../domain/plans";
 import { weekOf } from "../domain/schoolYear";
@@ -25,16 +30,19 @@ import { classesToday, formatHourTimes, hoursToday } from "../domain/timetable";
 import type { Planner } from "../domain/types";
 import { useTranslate } from "../i18n/useTranslate";
 import { weekdayLabel } from "../i18n/vocabularies";
+import type { AttendanceFocus } from "./AttendanceScreen";
 import type { PlanFocus } from "./PlanScreen";
 
 export default function TodayScreen({
   planner,
   today,
   onOpenPlan,
+  onOpenAttendance,
 }: {
   planner: Planner;
   today: string;
   onOpenPlan?: (focus: PlanFocus) => void;
+  onOpenAttendance?: (focus: AttendanceFocus) => void;
 }) {
   const t = useTranslate();
   const weekday = weekdayOf(today);
@@ -86,6 +94,22 @@ export default function TodayScreen({
                 </span>
                 {hour.cell.duty && <span className="duty block">{hour.cell.duty}</span>}
                 {hour.cell.notes && <span className="muted block">{hour.cell.notes}</span>}
+                {/* Not on a holiday or a day of leave: the grid has no lesson
+                    column there to open. */}
+                {hour.schoolClass &&
+                  onOpenAttendance &&
+                  !dayOff(planner, hour.schoolClass.id, today) && (
+                  <Button
+                    labelId="today.openAttendance"
+                    onClick={() =>
+                      onOpenAttendance({
+                        classId: hour.schoolClass!.id,
+                        date: today,
+                        periodId: hour.period.id,
+                      })
+                    }
+                  />
+                )}
               </li>
             ))}
           </ul>

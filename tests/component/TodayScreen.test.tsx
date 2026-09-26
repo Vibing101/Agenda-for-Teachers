@@ -16,7 +16,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 
 const { renderScreen } = await import("../helpers/mount");
 const { emptyPlanner } = await import("../helpers/fakeBackend");
-const { weekPlanner, A_WEDNESDAY } = await import("../helpers/weekFixture");
+const { weekPlanner, A1, A_WEDNESDAY, SECOND_HOUR } = await import("../helpers/weekFixture");
 const { default: TodayScreen } = await import("../../src/screens/TodayScreen");
 
 /** The panel with this heading, so an assertion cannot drift into another one. */
@@ -153,6 +153,51 @@ describe("the today view", () => {
     await user.click(plans.getAllByRole("button", { name: "Άνοιγμα πλάνου" })[1]);
 
     expect(onOpenPlan).toHaveBeenCalledWith({ classId: 1, date: A_WEDNESDAY });
+  });
+
+  /**
+   * Each class hour links into the attendance grid, on that lesson's column.
+   * Wednesday is Β2 (1η), Α1 (2η), Β2 (3η): three lessons, three links.
+   */
+  it("asks for one lesson's attendance to be opened, by class, date and hour", async () => {
+    const onOpenAttendance = vi.fn();
+    renderScreen(TodayScreen, weekPlanner(), invoke, { today: A_WEDNESDAY, onOpenAttendance });
+    const user = userEvent.setup();
+
+    const schedule = panel("Το πρόγραμμα της ημέρας");
+    const links = schedule.getAllByRole("button", { name: "Απουσίες ώρας" });
+    expect(links).toHaveLength(3);
+    await user.click(links[1]);
+
+    expect(onOpenAttendance).toHaveBeenCalledWith({
+      classId: A1,
+      date: A_WEDNESDAY,
+      periodId: SECOND_HOUR,
+    });
+  });
+
+  it("offers no attendance link for a duty, or on a holiday", () => {
+    const planner = weekPlanner();
+    planner.holidays = [
+      {
+        id: 1,
+        name: "Αργία",
+        start_date: A_WEDNESDAY,
+        end_date: A_WEDNESDAY,
+        source: "school",
+        notes: "",
+      },
+    ];
+    renderScreen(TodayScreen, planner, invoke, { today: A_WEDNESDAY, onOpenAttendance: vi.fn() });
+    expect(screen.queryAllByRole("button", { name: "Απουσίες ώρας" })).toHaveLength(0);
+
+    // Friday's only hour is a duty, with no class to take attendance for.
+    renderScreen(TodayScreen, weekPlanner(), invoke, {
+      today: "2026-09-18",
+      onOpenAttendance: vi.fn(),
+    });
+    expect(screen.getByText("Εφημερία στο προαύλιο")).toBeInTheDocument();
+    expect(screen.queryAllByRole("button", { name: "Απουσίες ώρας" })).toHaveLength(0);
   });
 
   /**

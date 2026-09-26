@@ -32,7 +32,7 @@ import { LocaleContext } from "./i18n/useTranslate";
 import AgendaScreen from "./screens/AgendaScreen";
 import AnnualPlanScreen from "./screens/AnnualPlanScreen";
 import AppointmentsScreen from "./screens/AppointmentsScreen";
-import AttendanceScreen from "./screens/AttendanceScreen";
+import AttendanceScreen, { type AttendanceFocus } from "./screens/AttendanceScreen";
 import BehaviourScreen from "./screens/BehaviourScreen";
 import ClassesScreen from "./screens/ClassesScreen";
 import ContactsScreen from "./screens/ContactsScreen";
@@ -319,6 +319,8 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
   const today = fixedToday ?? liveToday;
   /** Set when the Today view asks for a particular class's week to be opened. */
   const [planFocus, setPlanFocus] = useState<PlanFocus | null>(null);
+  /** Set when the Today view asks for one lesson's attendance to be taken. */
+  const [attendanceFocus, setAttendanceFocus] = useState<AttendanceFocus | null>(null);
   /**
    * Set when the upcoming-overview panel asks for a meeting's minutes, which
    * the spec asks it to open straight into.
@@ -531,7 +533,12 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
             <GradesScreen planner={planner} run={run} today={today} />
           )}
           {section === "grades" && page === "attendance" && (
-            <AttendanceScreen planner={planner} run={run} today={today} />
+            <AttendanceScreen
+              planner={planner}
+              run={run}
+              today={today}
+              focus={attendanceFocus}
+            />
           )}
           {section === "parents" && (page ?? "contacts") === "contacts" && (
             <ContactsScreen planner={planner} run={run} today={today} />
@@ -594,6 +601,11 @@ function Shell({ fixedToday }: { fixedToday?: string }) {
                 // Πλάνο has sub-pages since M6, so name the one the plan is on
                 // rather than letting the section open on its first.
                 setPage("weekPlan");
+              }}
+              onOpenAttendance={(focus) => {
+                setAttendanceFocus(focus);
+                setSection("grades");
+                setPage("attendance");
               }}
             />
           )}

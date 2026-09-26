@@ -5,8 +5,8 @@
  *   Μητρώο · μία γραμμή για κάθε απουσία ή καθυστέρηση", one line per stored
  *   `absence_event`.
  * * [`monthCardDocument`] is the source's "Απουσίες του μήνα", the roster
- *   against the days of one month, one symbol per cell, filled from stored
- *   `attendance_mark` rows.
+ *   against the lessons of one month (the days with lessons, split by hour),
+ *   one symbol per cell, filled from stored `attendance_mark` rows.
  *
  * **They are as independent on paper as they are in the database, and this file
  * is where that could most easily have been broken.** M4's first acceptance
@@ -25,7 +25,8 @@
  */
 import {
   eventsOfClass,
-  monthDays,
+  lessonsOf,
+  monthColumns,
   monthRows,
   monthTotals,
   type AbsenceEvent,
@@ -172,7 +173,7 @@ export function absenceRegisterHtml(
  * is a print view over live M4 data, which is a different artefact and is what
  * this milestone is for. M7 still owns the blank fillable form.
  *
- * It is the widest table this app draws — up to 31 day columns plus four totals
+ * It is the widest table this app draws — one column per lesson plus four totals
  * — so it is a landscape sheet with explicit column widths and a tighter table,
  * and it is the sheet most worth a human's eyes.
  *
@@ -186,20 +187,23 @@ export function monthCardDocument(
   month: string,
   today: string,
 ): TableDocument {
-  const days = monthDays(month);
+  // Only the days the class had lessons on, each split into its lessons. A
+  // day off prints only if a mark was entered on it anyway.
+  const lessons = lessonsOf(monthColumns(planner, classId, month));
   const rows = monthRows(planner, classId, month);
 
-  // 3% + 15% + the days' share + 4 totals at 4% leaves the day columns the rest
-  // of the sheet, which is what keeps a 31-day month on one landscape page.
-  const dayWidth = `${(66 / Math.max(days.length, 1)).toFixed(3)}%`;
+  // 3% + 15% + the lessons' share + 4 totals at 4% leaves the lesson columns
+  // the rest of the sheet, which keeps a month on one landscape page.
+  const lessonWidth = `${(66 / Math.max(lessons.length, 1)).toFixed(3)}%`;
 
+  // The day number heads a day's first lesson only; the hour is underneath.
   const head: PrintCell[] = [
     { text: t("attendance.rosterNo"), align: "center", width: "3%" },
     { text: t("attendance.roster"), width: "15%" },
-    ...days.map((day) => ({
-      text: String(dayOfMonth(day)),
+    ...lessons.map((lesson, i) => ({
+      text: i > 0 && lessons[i - 1].date === lesson.date ? "" : String(dayOfMonth(lesson.date)),
       align: "center" as const,
-      width: dayWidth,
+      width: lessonWidth,
     })),
     ...ATTENDANCE_STATES.map((state) => ({
       text: t(attendanceSymbolLabel(state)),
@@ -207,6 +211,16 @@ export function monthCardDocument(
       strong: true,
       width: "4%",
     })),
+  ];
+  const subHead: PrintCell[] = [
+    { text: "" },
+    { text: "" },
+    ...lessons.map((lesson) => ({
+      text: lesson.period?.name.trim() || "?",
+      align: "center" as const,
+      muted: true,
+    })),
+    ...ATTENDANCE_STATES.map(() => ({ text: "" })),
   ];
 
   const body = rows.map((row) => {
@@ -239,7 +253,7 @@ export function monthCardDocument(
         value: `${t(monthLabel(monthOf(month)))} ${month.slice(0, 4)}`,
       },
     ],
-    table: { head, rows: body },
+    table: { head, subHead, rows: body },
     dense: true,
     note: `${t("attendance.printSymbols", { key })} · ${t("attendance.printNote")}`,
     footer: printFooter(t, today),

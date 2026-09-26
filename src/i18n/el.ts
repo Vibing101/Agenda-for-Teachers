@@ -372,6 +372,7 @@ export const el = {
   "today.noNote": "Καμία σημείωση για σήμερα.",
   "today.plans": "Τα πλάνα της εβδομάδας",
   "today.openPlan": "Άνοιγμα πλάνου",
+  "today.openAttendance": "Απουσίες ώρας",
   "today.planEmpty": "Χωρίς πλάνο αυτή την εβδομάδα",
   "today.weekNote": "Σημειώσεις της εβδομάδας",
 
@@ -454,7 +455,7 @@ export const el = {
   "nav.cards": "Καρτέλες",
 
   "attendance.heading": "Απουσίες του μήνα",
-  "attendance.intro": "Μία καρτέλα ανά μήνα · σημειώνετε μέρα με μέρα.",
+  "attendance.intro": "Μία καρτέλα ανά μήνα · σημειώνετε μάθημα με μάθημα.",
   "attendance.pickClass": "Τμήμα",
   "attendance.noClasses": "Δεν υπάρχει ακόμη τμήμα. Προσθέστε ένα από τις Τάξεις.",
   "attendance.noRoster": "Το τμήμα δεν έχει ακόμη μαθητές στον κατάλογο.",
@@ -462,7 +463,15 @@ export const el = {
   "attendance.symbols": "Σύμβολα",
   "attendance.roster": "Ονοματεπώνυμο",
   "attendance.rosterNo": "Αρ.",
-  "attendance.cell": "{student}, {date}",
+  "attendance.cell": "{student}, {date}, {lesson}",
+  "attendance.lessonUnknown": "Άγνωστη ώρα",
+  "attendance.noLesson": "Χωρίς μάθημα",
+  "attendance.offWeekend": "Σαββατοκύριακο",
+  "attendance.offHoliday": "Αργία",
+  "attendance.offLeave": "Άδεια",
+  "attendance.offKey": "γκρι: Σαββατοκύριακα, αργίες και ημέρες άδειας",
+  "attendance.noHours":
+    "Το τμήμα δεν έχει ακόμη ώρες στο ωρολόγιο πρόγραμμα. Οι απουσίες σημειώνονται ανά μάθημα, οπότε προσθέστε πρώτα τις ώρες του στο Πρόγραμμα.",
   "attendance.unmarked": "Χωρίς σημείωση",
   "attendance.summary": "Σύνολα μήνα",
   "attendance.independent":
